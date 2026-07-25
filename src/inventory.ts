@@ -290,43 +290,44 @@ export function findBackpack(img: ImgRef, debug: DebugLog): BackpackAnchor | nul
 // ============================================================
 
 export function validateAnchor(img: ImgRef, anc: BackpackAnchor, debug: DebugLog): boolean {
-    const centers: [number,number,number,number,number][] = [];
+    const corners: [number,number,number,number,number][] = [];
     for (let row = 0; row < ROWS; row++) {
         for (let col = 0; col < COLS; col++) {
-            const cx = anc.x + col * anc.colStride + 18;
-            const cy = anc.y + row * anc.rowStride + 16;
+            // Bottom-right interior pixel of each slot (NW of border corner #35322d)
+            const cx = anc.x + col * anc.colStride + 35;
+            const cy = anc.y + row * anc.rowStride + 31;
             if (cx >= 0 && cy >= 0 && cx < img.width && cy < img.height) {
                 const cd = img.toData(cx, cy, 1, 1);
-                centers.push([row, col, cd.data[0], cd.data[1], cd.data[2]]);
+                corners.push([row, col, cd.data[0], cd.data[1], cd.data[2]]);
             }
         }
     }
-    debug(`validate: read ${centers.length}/28 slot centers`);
-    if (centers.length < 28) {
-        debug(`validate: only ${centers.length} centers read — possible out-of-bounds. Failing.`);
+    debug(`validate: read ${corners.length}/28 slot BR-interior pixels`);
+    if (corners.length < 28) {
+        debug(`validate: only ${corners.length} corners read — possible out-of-bounds. Failing.`);
         return false;
     }
 
-    // Dump first 4 and last 4 centers for diagnosis
+    // Dump first 4 and last 4 corners for diagnosis
     const sample: string[] = [];
-    for (let i = 0; i < Math.min(4, centers.length); i++) {
-        const c = centers[i];
+    for (let i = 0; i < Math.min(4, corners.length); i++) {
+        const c = corners[i];
         sample.push(`[${c[0]},${c[1]}]=(${c[2]},${c[3]},${c[4]})`);
     }
-    if (centers.length > 8) {
+    if (corners.length > 8) {
         sample.push("...");
-        for (let i = centers.length - 4; i < centers.length; i++) {
-            const c = centers[i];
+        for (let i = corners.length - 4; i < corners.length; i++) {
+            const c = corners[i];
             sample.push(`[${c[0]},${c[1]}]=(${c[2]},${c[3]},${c[4]})`);
         }
     }
     debug(`validate: samples: ${sample.join(" ")}`);
 
     let sumR = 0, sumG = 0, sumB = 0;
-    for (const c of centers) { sumR += c[2]; sumG += c[3]; sumB += c[4]; }
-    const avgR = sumR / centers.length, avgG = sumG / centers.length, avgB = sumB / centers.length;
+    for (const c of corners) { sumR += c[2]; sumG += c[3]; sumB += c[4]; }
+    const avgR = sumR / corners.length, avgG = sumG / corners.length, avgB = sumB / corners.length;
     let maxDev = 0, worstRow = -1, worstCol = -1;
-    for (const c of centers) {
+    for (const c of corners) {
         const d = Math.abs(c[2]-avgR) + Math.abs(c[3]-avgG) + Math.abs(c[4]-avgB);
         if (d > maxDev) { maxDev = d; worstRow = c[0]; worstCol = c[1]; }
     }
