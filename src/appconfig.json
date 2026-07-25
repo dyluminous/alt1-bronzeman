@@ -1,0 +1,16 @@
+{
+    "appName": "Bronzeman",
+    "description": "Bronzeman Mode tracker — earn items before you can buy them on the GE",
+    "appUrl": "./index.html",
+    "configUrl": "./appconfig.json",
+    "iconUrl": "./icon.png",
+    "defaultWidth": 400,
+    "defaultHeight": 500,
+    "minWidth": 300,
+    "minHeight": 300,
+    "maxWidth": 800,
+    "maxHeight": 900,
+    "requestHandlers": [ ],
+    "activators": [ ],
+    "permissions": "pixel,gamestate,overlay"
+}
