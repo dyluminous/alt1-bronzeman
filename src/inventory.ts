@@ -4,6 +4,7 @@ export interface BackpackAnchor {
     x: number; y: number;
     method: "manual" | "cursor" | "fallback";
     colStride: number; rowStride: number;
+    centerMismatch?: boolean;
 }
 
 export interface SlotState {
@@ -226,10 +227,44 @@ export function detectSlotBounds(img: ImgRef, cursorX: number, cursorY: number, 
         }
         if (rowStride === 38) debug(`detect: rowStride not found, using default 38`);
 
+        // Validate: center pixels across all 28 slots should be consistent.
+        // If the grid is misaligned, some centers land on borders and diverge.
+        let centerMismatch = false;
+        {
+            const centers: [number,number,number,number,number][] = []; // [row,col,r,g,b]
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    const cx = slotTopLeftX + col * colStride + 18;
+                    const cy = slotTopLeftY + row * rowStride + 16;
+                    if (cx >= 0 && cy >= 0 && cx < img.width && cy < img.height) {
+                        const cd = img.toData(cx, cy, 1, 1);
+                        centers.push([row, col, cd.data[0], cd.data[1], cd.data[2]]);
+                    }
+                }
+            }
+            debug(`detect: center check: read ${centers.length}/28 slot centers`);
+            if (centers.length >= 28) {
+                let sumR = 0, sumG = 0, sumB = 0;
+                for (const c of centers) { sumR += c[2]; sumG += c[3]; sumB += c[4]; }
+                const avgR = sumR / centers.length, avgG = sumG / centers.length, avgB = sumB / centers.length;
+                let maxDev = 0, worstRow = -1, worstCol = -1;
+                for (const c of centers) {
+                    const d = Math.abs(c[2]-avgR) + Math.abs(c[3]-avgG) + Math.abs(c[4]-avgB);
+                    if (d > maxDev) { maxDev = d; worstRow = c[0]; worstCol = c[1]; }
+                }
+                debug(`detect: center check: avg=(${avgR.toFixed(0)},${avgG.toFixed(0)},${avgB.toFixed(0)}) maxDev=${maxDev.toFixed(0)} worst=slot[r${worstRow},c${worstCol}]`);
+                if (maxDev > 45) {
+                    debug(`detect: ⚠ CENTER MISMATCH — grid may be misaligned, wrong slot, or not 4×7`);
+                    centerMismatch = true;
+                }
+            }
+        }
+
         const anchor: BackpackAnchor = {
             x: slotTopLeftX, y: slotTopLeftY,
             method: "manual",
             colStride, rowStride,
+            centerMismatch,
         };
         debug(`detect: anchor=(${anchor.x},${anchor.y}) col=${colStride} row=${rowStride}`);
         saveAnchor(anchor);
@@ -245,16 +280,58 @@ export function detectSlotBounds(img: ImgRef, cursorX: number, cursorY: number, 
 // Resolve anchor: saved > fallback
 // ============================================================
 
-export function findBackpack(img: ImgRef, debug: DebugLog): BackpackAnchor {
+export function findBackpack(img: ImgRef, debug: DebugLog): BackpackAnchor | null {
     const saved = loadAnchor();
-    if (saved) return saved;
+    return saved || null;
+}
 
-    const fx = img.width - 260, fy = img.height - 340;
-    const fb: BackpackAnchor = {
-        x: fx, y: fy, method: "fallback", colStride: 42, rowStride: 38,
-    };
-    debug(`anchor: FALLBACK (${fx}, ${fy})`);
-    return fb;
+// ============================================================
+// Validate anchor: check center pixels of all 28 slots for consistency
+// ============================================================
+
+export function validateAnchor(img: ImgRef, anc: BackpackAnchor, debug: DebugLog): boolean {
+    const centers: [number,number,number,number,number][] = [];
+    for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+            const cx = anc.x + col * anc.colStride + 18;
+            const cy = anc.y + row * anc.rowStride + 16;
+            if (cx >= 0 && cy >= 0 && cx < img.width && cy < img.height) {
+                const cd = img.toData(cx, cy, 1, 1);
+                centers.push([row, col, cd.data[0], cd.data[1], cd.data[2]]);
+            }
+        }
+    }
+    debug(`validate: read ${centers.length}/28 slot centers`);
+    if (centers.length < 28) {
+        debug(`validate: only ${centers.length} centers read — possible out-of-bounds. Failing.`);
+        return false;
+    }
+
+    // Dump first 4 and last 4 centers for diagnosis
+    const sample: string[] = [];
+    for (let i = 0; i < Math.min(4, centers.length); i++) {
+        const c = centers[i];
+        sample.push(`[${c[0]},${c[1]}]=(${c[2]},${c[3]},${c[4]})`);
+    }
+    if (centers.length > 8) {
+        sample.push("...");
+        for (let i = centers.length - 4; i < centers.length; i++) {
+            const c = centers[i];
+            sample.push(`[${c[0]},${c[1]}]=(${c[2]},${c[3]},${c[4]})`);
+        }
+    }
+    debug(`validate: samples: ${sample.join(" ")}`);
+
+    let sumR = 0, sumG = 0, sumB = 0;
+    for (const c of centers) { sumR += c[2]; sumG += c[3]; sumB += c[4]; }
+    const avgR = sumR / centers.length, avgG = sumG / centers.length, avgB = sumB / centers.length;
+    let maxDev = 0, worstRow = -1, worstCol = -1;
+    for (const c of centers) {
+        const d = Math.abs(c[2]-avgR) + Math.abs(c[3]-avgG) + Math.abs(c[4]-avgB);
+        if (d > maxDev) { maxDev = d; worstRow = c[0]; worstCol = c[1]; }
+    }
+    debug(`validate: avg=(${avgR.toFixed(0)},${avgG.toFixed(0)},${avgB.toFixed(0)}) maxDev=${maxDev.toFixed(0)} worst=slot[r${worstRow},c${worstCol}]`);
+    return maxDev <= 45;
 }
 
 // ============================================================
@@ -346,6 +423,9 @@ let previousCellData: Uint8Array[] = [];
 
 export function scan(img: ImgRef, debug: DebugLog = () => {}): ScanResult {
     const anchor = findBackpack(img, debug);
+    if (!anchor) {
+        return { anchor: { x: 0, y: 0, method: "fallback", colStride: 42, rowStride: 38 }, slots: [], changes: 0, time: Date.now() };
+    }
     const slots = readSlots(img, anchor, previousCellData, debug);
     const changed = slots.filter(s => s.changed);
     if (changed.length > 0) {

@@ -60,9 +60,6 @@ let polling = false;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let lastScanResult: Inventory.ScanResult | null = null;
 let scanCount = 0;
-let moveMode = false;
-let moveModeTimer: ReturnType<typeof setInterval> | null = null;
-
 // 2-scan confirmation: slotIndex → hash that was seen last scan
 const pendingChanges = new Map<number, string>();
 
@@ -85,16 +82,40 @@ export function initOnLoad() {
     if (inAlt1) {
         alt1.identifyAppUrl("./appconfig.json");
 
-        // Show calibration status
-        const hasRef = Inventory.hasAnchor();
-        if (hasRef) {
-            log("Reference image loaded — using ref-based detection.");
+        // Validate saved anchor on startup
+        const saved = Inventory.loadAnchor();
+        if (saved) {
+            log(`[init] Anchor loaded at (${saved.x},${saved.y}) — validating...`);
+            try {
+                log(`[init] Capturing RS screen...`);
+                const img = captureFullRs();
+                if (!img) {
+                    log("[init] captureFullRs returned null — can't validate. Clearing anchor.");
+                    Inventory.clearAnchor();
+                } else {
+                    log(`[init] Captured ${img.width}x${img.height}, running validateAnchor...`);
+                    const ok = Inventory.validateAnchor(img, saved, (msg) => log("  [validate] " + msg));
+                    log(`[init] validateAnchor returned: ${ok}`);
+                    if (ok) {
+                        log("Anchor valid — grid online.");
+                        showOverlay("Grid anchoring successful", a1lib.mixColor(255, 255, 0), 2000);
+                        drawDetectDebug(saved, false);
+                        startPolling();
+                    } else {
+                        log("Anchor INVALID — cleared. Recapture.");
+                        showOverlay("Anchor not saved - Bad grid rejected", a1lib.mixColor(255, 60, 60), 2000);
+                        drawDetectDebug(saved, true);
+                        Inventory.clearAnchor();
+                    }
+                }
+            } catch (e) {
+                log("Anchor validation error: " + e + " — clearing anchor.");
+                Inventory.clearAnchor();
+            }
         } else {
-            log("No reference image. Click 📷 Capture Ref while hovering over an inventory slot.");
+            log("No anchor saved. Click Capture to set grid position.");
+            updateScanStatus("No anchor set");
         }
-
-        showOverlay("Bronzeman ready!", a1lib.mixColor(212, 168, 75), 2000);
-        startPolling();
     }
 
     updateUI();
@@ -176,7 +197,16 @@ function doCaptureRef(): void {
             Inventory.resetHashes();
             updateScanStatus(`Detected at (${anc.x},${anc.y})`);
             log(`Grid found at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
-            showOverlay("Grid found! Check the blue outline.", a1lib.mixColor(80, 200, 80), 3000);
+        if (anc.centerMismatch) {
+            showOverlay("Anchor not saved - Bad grid rejected", a1lib.mixColor(255, 60, 60), 6000);
+            log("Grid rejected — center pixel mismatch. Recapture.");
+            Inventory.clearAnchor();
+            drawDetectDebug(anc, true);
+            return;
+        } else {
+            showOverlay("Grid anchoring successful", a1lib.mixColor(255, 255, 0), 3000);
+            drawDetectDebug(anc, false);
+        }
             drawDetectDebug(anc);
             updateUI();
             doScan();
@@ -191,29 +221,30 @@ function doCaptureRef(): void {
 }
 
 /** Draw yellow corner brackets on all detected slots. */
-function drawDetectDebug(anc: Inventory.BackpackAnchor): void {
+function drawDetectDebug(anc: Inventory.BackpackAnchor, isError: boolean = false): void {
     if (!inAlt1) return;
     alt1.overLayClearGroup("bronzeman_detect");
     alt1.overLaySetGroup("bronzeman_detect");
     const LEN = 11;
-    const yc = a1lib.mixColor(255, 255, 0);
+    const dur = 2000;
+    const yc = isError ? a1lib.mixColor(255, 60, 60) : a1lib.mixColor(255, 255, 0);
     for (let row = 0; row < Inventory.ROWS; row++) {
         for (let col = 0; col < Inventory.COLS; col++) {
             const sx = anc.x + col * anc.colStride;
             const sy = anc.y + row * anc.rowStride;
             const r = sx + 35, b = sy + 31;
             // TL: right + down
-            alt1.overLayRect(yc, sx,    sy,    LEN, 1,   5000, 1);
-            alt1.overLayRect(yc, sx,    sy,    1,   LEN, 5000, 1);
+            alt1.overLayRect(yc, sx,    sy,    LEN, 1,   dur, 1);
+            alt1.overLayRect(yc, sx,    sy,    1,   LEN, dur, 1);
             // TR: left + down
-            alt1.overLayRect(yc, r - LEN + 1, sy,    LEN, 1,   5000, 1);
-            alt1.overLayRect(yc, r,    sy,    1,   LEN, 5000, 1);
+            alt1.overLayRect(yc, r - LEN + 1, sy,    LEN, 1,   dur, 1);
+            alt1.overLayRect(yc, r,    sy,    1,   LEN, dur, 1);
             // BL: right + up
-            alt1.overLayRect(yc, sx,    b,    LEN, 1,   5000, 1);
-            alt1.overLayRect(yc, sx,    b - LEN + 1, 1, LEN, 5000, 1);
+            alt1.overLayRect(yc, sx,    b,    LEN, 1,   dur, 1);
+            alt1.overLayRect(yc, sx,    b - LEN + 1, 1, LEN, dur, 1);
             // BR: left + up
-            alt1.overLayRect(yc, r - LEN + 1, b,    LEN, 1,   5000, 1);
-            alt1.overLayRect(yc, r,    b - LEN + 1, 1,   LEN, 5000, 1);
+            alt1.overLayRect(yc, r - LEN + 1, b,    LEN, 1,   dur, 1);
+            alt1.overLayRect(yc, r,    b - LEN + 1, 1,   LEN, dur, 1);
         }
     }
 }
@@ -231,72 +262,25 @@ export function clearCalibration(): void {
     clearReference();
 }
 
-// Stride adjustment — tweak until blue grid matches inventory exactly
+// Stride adjustment — tweak until yellow brackets match inventory exactly
 export function adjColStride(d: number): void {
     const anc = Inventory.adjustStride(d, 0);
-    if (anc) { updateUI(); if (moveMode) drawMoveGrid(); else doScan(); }
+    if (anc) { updateUI(); doScan(); }
 }
 export function adjRowStride(d: number): void {
     const anc = Inventory.adjustStride(0, d);
-    if (anc) { updateUI(); if (moveMode) drawMoveGrid(); else doScan(); }
+    if (anc) { updateUI(); doScan(); }
 }
 export function nudgeAnchorX(d: number): void {
     const anc = Inventory.shiftAnchor(d, 0);
-    if (anc) { updateUI(); if (moveMode) drawMoveGrid(); else doScan(); }
+    if (anc) { updateUI(); doScan(); }
 }
 export function nudgeAnchorY(d: number): void {
     const anc = Inventory.shiftAnchor(0, d);
-    if (anc) { updateUI(); if (moveMode) drawMoveGrid(); else doScan(); }
+    if (anc) { updateUI(); doScan(); }
 }
 
-// Move mode: show blue grid persistently on RS screen for alignment
-export function toggleMoveMode(): void {
-    moveMode = !moveMode;
-    const btn = document.getElementById("move_mode_btn");
-    if (moveMode) {
-        // Stop normal polling, start overlay drawing
-        stopPolling();
-        drawMoveGrid();
-        moveModeTimer = setInterval(drawMoveGrid, 800);
-        if (btn) { btn.textContent = "🔲 Stop Move"; btn.className = "btn btn-danger"; }
-        log("Move mode ON — adjust strides/arrows, grid shown on RS screen");
-    } else {
-        // Clear overlay, restart polling
-        if (moveModeTimer) { clearInterval(moveModeTimer); moveModeTimer = null; }
-        clearMoveGrid();
-        Inventory.resetHashes();  // discard move-mode hashes
-        if (btn) { btn.textContent = "🔳 Move Mode"; btn.className = "btn btn-secondary"; }
-        log("Move mode OFF — resuming inventory scanning");
-        startPolling();
-    }
-}
 
-function drawMoveGrid(): void {
-    if (!inAlt1 || !alt1.permissionPixel || !alt1.permissionOverlay) return;
-    const anc = Inventory.loadAnchor();
-    if (!anc) return;
-
-    const blue = a1lib.mixColor(60, 140, 255);
-    const time = 2000;
-
-    try {
-        const img = captureFullRs();
-        if (!img) return;
-        const slots = Inventory.readSlots(img, anc, [], () => {});
-
-        // Clear previous frame first to avoid ghosting, then redraw
-        alt1.overLayClearGroup("bronzeman_move");
-        alt1.overLaySetGroup("bronzeman_move");
-        for (const s of slots) {
-            alt1.overLayRect(blue, s.x, s.y, s.w, s.h, time, 3);
-        }
-    } catch { /* overlay can fail if RS loses focus */ }
-}
-
-function clearMoveGrid(): void {
-    if (!inAlt1) return;
-    alt1.overLayClearGroup("bronzeman_move");
-}
 
 // ============================================================
 // Core scan logic
@@ -309,6 +293,11 @@ function doScan(): void {
     a1lib.resetEnvironment();
 
     try {
+        if (!Inventory.hasAnchor()) {
+            updateScanStatus("No anchor set");
+            return;
+        }
+
         const img = captureFullRs();
         if (!img) { log("ERROR: captureFullRs returned null — is RS linked?"); return; }
 
@@ -321,10 +310,7 @@ function doScan(): void {
         drawSlotOverlays(result);
 
         if (scanCount === 1) {
-            updateScanStatus(`Baseline (${result.anchor.method})`);
-            log(`Scan #1: anchor (${result.anchor.x},${result.anchor.y}) via ${result.anchor.method}, img=${img.width}x${img.height}`);
-            // Draw ALL slots on first scan so user can verify position
-            drawAllSlotOverlays(result, POLL_INTERVAL_MS + 3000);
+            log(`Scan #1 (baseline): anchor (${result.anchor.x},${result.anchor.y})`);
             return;
         }
 
@@ -440,16 +426,6 @@ function drawSlotOverlays(result: Inventory.ScanResult, color?: { r: number; g: 
 }
 
 /** Draw ALL 28 slots briefly so the user can verify alignment. */
-function drawAllSlotOverlays(result: Inventory.ScanResult, duration: number): void {
-    if (!inAlt1) return;
-    alt1.overLayClearGroup("bronzeman_all");
-    alt1.overLaySetGroup("bronzeman_all");
-    for (const slot of result.slots) {
-        alt1.overLayRect(a1lib.mixColor(100, 180, 255), slot.x, slot.y, slot.w, slot.h, duration, 1);
-        alt1.overLayText(String(slot.index + 1), a1lib.mixColor(255, 255, 255), 10, slot.x + 2, slot.y + 1, duration);
-    }
-}
-
 // ============================================================
 // Persistence
 // ============================================================
