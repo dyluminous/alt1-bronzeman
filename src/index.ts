@@ -190,17 +190,20 @@ function doCaptureRef(): void {
     }
 }
 
-/** Draw a single near-transparent blue rectangle on slot 1 for debugging the detection. */
+/** Draw near-transparent blue rectangles on all detected slots. */
 function drawDetectDebug(anc: Inventory.BackpackAnchor): void {
     if (!inAlt1) return;
     alt1.overLayClearGroup("bronzeman_detect");
     alt1.overLaySetGroup("bronzeman_detect");
-    // Blue outline — shifted -1,-1 to sit on actual slot interior
-    alt1.overLayRect(a1lib.mixColor(8, 16, 26), anc.x - 1, anc.y - 1, 36, 32, 5000, 1);
-    // Yellow dot at bottom-right corner, shifted -1,-1
-    const brx = anc.x + 34;
-    const bry = anc.y + 30;
-    alt1.overLayRect(a1lib.mixColor(255, 255, 0), brx, bry, 1, 1, 5000, 1);
+    for (let row = 0; row < Inventory.ROWS; row++) {
+        for (let col = 0; col < Inventory.COLS; col++) {
+            const sx = anc.x + col * anc.colStride;
+            const sy = anc.y + row * anc.rowStride;
+            alt1.overLayRect(a1lib.mixColor(8, 16, 26), sx, sy, 36, 32, 5000, 1);
+        }
+    }
+    // Yellow dot at slot 1's bottom-right corner
+    alt1.overLayRect(a1lib.mixColor(255, 255, 0), anc.x + 35, anc.y + 31, 1, 1, 5000, 1);
 }
 
 export function clearReference(): void {
