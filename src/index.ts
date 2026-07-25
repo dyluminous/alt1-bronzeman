@@ -1,67 +1,22 @@
 // Bronzeman Mode — Alt1 plugin
 // Tracks which items you've earned yourself before allowing GE purchases.
 import * as a1lib from "alt1";
-import { ImgRef, ImgRefBind } from "alt1/base";
 import * as Inventory from "./inventory";
 import { BUILD, BUILD_NUM } from "./version";
+import {
+    state,
+    captureFullRs, showOverlay, log, POLL_INTERVAL_MS,
+} from "./core";
+import {
+    updateAlt1Status, updateScanStatus, updateUI, updateDebugGrid,
+    appendChangeEntry, drawDetectDebug, drawSlotOverlays, drawSlotOverlaysFor,
+    isCursorInInventory,
+} from "./ui";
+import { loadState, unlockItem } from "./data";
 
 import "./index.html";
 import "./appconfig.json";
 import "./icon.png";
-
-// ============================================================
-// Work around webpack module-load race with Alt1 library's
-// static `hasAlt1` flag. We bypass the library's gated functions
-// entirely and call alt1.* APIs directly after verifying the
-// global exists at call time.
-// ============================================================
-
-function ensureAlt1(): boolean {
-    return typeof alt1 !== "undefined";
-}
-
-/**
- * Capture the full RS screen directly via alt1.bindRegion,
- * bypassing the library's hasAlt1/requireAlt1 gating.
- * Returns an ImgRefBind that supports findSubimage + toData.
- */
-function captureFullRs(): ImgRef | null {
-    if (!ensureAlt1()) return null;
-    try {
-        const w = alt1.rsWidth;
-        const h = alt1.rsHeight;
-        const handle = alt1.bindRegion(0, 0, w, h);
-        if (handle <= 0) return null;
-        return new ImgRefBind(handle, 0, 0, w, h);
-    } catch {
-        return null;
-    }
-}
-
-// ============================================================
-// Constants
-// ============================================================
-
-const LS_PREFIX = "Bronzeman/";
-const LS_KEYS = {
-    unlockedItems: LS_PREFIX + "unlockedItems",
-    scanHistory: LS_PREFIX + "scanHistory",
-} as const;
-
-const POLL_INTERVAL_MS = 1000;
-
-// ============================================================
-// State
-// ============================================================
-
-let unlockedItems: Set<string> = new Set();
-let inAlt1 = false;
-let polling = false;
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-let lastScanResult: Inventory.ScanResult | null = null;
-let scanCount = 0;
-// 2-scan confirmation: slotIndex → hash that was seen last scan
-const pendingChanges = new Map<number, string>();
 
 // ============================================================
 // Initialization
@@ -69,31 +24,27 @@ const pendingChanges = new Map<number, string>();
 
 export function initOnLoad() {
     log("Bronzeman initializing...");
-    // Show build number in title
     const bn = document.getElementById("build_num");
     if (bn) bn.textContent = `(#${BUILD_NUM})`;
 
-    inAlt1 = typeof window.alt1 !== "undefined";
-    log(`inAlt1=${inAlt1}`);
+    state.inAlt1 = typeof window.alt1 !== "undefined";
+    log(`inAlt1=${state.inAlt1}`);
 
     updateAlt1Status();
     loadState();
 
-    if (inAlt1) {
+    if (state.inAlt1) {
         alt1.identifyAppUrl("./appconfig.json");
 
-        // Validate saved anchor on startup
         const saved = Inventory.loadAnchor();
         if (saved) {
             log(`[init] Anchor loaded at (${saved.x},${saved.y}) — validating...`);
             try {
-                log(`[init] Capturing RS screen...`);
                 const img = captureFullRs();
                 if (!img) {
-                    log("[init] captureFullRs returned null — can't validate. Clearing anchor.");
+                    log("[init] captureFullRs returned null — clearing anchor.");
                     Inventory.clearAnchor();
                 } else {
-                    log(`[init] Captured ${img.width}x${img.height}, running validateAnchor...`);
                     const ok = Inventory.validateAnchor(img, saved, (msg) => log("  [validate] " + msg));
                     log(`[init] validateAnchor returned: ${ok}`);
                     if (ok) {
@@ -119,7 +70,7 @@ export function initOnLoad() {
     }
 
     updateUI();
-    log(`Init done. inAlt1=${inAlt1}`);
+    log(`Init done. inAlt1=${state.inAlt1}`);
 }
 
 // ============================================================
@@ -127,39 +78,37 @@ export function initOnLoad() {
 // ============================================================
 
 export function startPolling(): void {
-    if (!inAlt1) { log("Not in Alt1."); return; }
+    if (!state.inAlt1) { log("Not in Alt1."); return; }
     if (!alt1.permissionPixel) { log("No pixel permission."); updateScanStatus("No pixel perm"); return; }
-    if (polling) return;
+    if (state.polling) return;
 
-    polling = true;
+    state.polling = true;
     updateScanStatus("Polling...");
     log(`Polling every ${POLL_INTERVAL_MS}ms`);
 
     Inventory.resetHashes();
     doScan();
-    pollTimer = setInterval(doScan, POLL_INTERVAL_MS);
+    state.pollTimer = setInterval(doScan, POLL_INTERVAL_MS);
 }
 
 export function stopPolling(): void {
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-    polling = false;
+    if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+    state.polling = false;
     updateScanStatus("Idle");
     log("Polling stopped.");
 }
 
-export function isPolling(): boolean { return polling; }
+export function isPolling(): boolean { return state.polling; }
 
 // ============================================================
-// Reference image capture — countdown, then capture a small
-// needle at the RS cursor position. findSubimage uses this to
-// locate the first slot's top-left corner.
+// Capture
 // ============================================================
 
 let refCountdown: ReturnType<typeof setInterval> | null = null;
 let refCountdownValue = 0;
 
 export function captureReference(): void {
-    if (!inAlt1) { log("Not in Alt1."); return; }
+    if (!state.inAlt1) { log("Not in Alt1."); return; }
     if (!alt1.permissionPixel) { log("No pixel permission."); return; }
 
     refCountdownValue = 3;
@@ -197,19 +146,18 @@ function doCaptureRef(): void {
             Inventory.resetHashes();
             updateScanStatus(`Detected at (${anc.x},${anc.y})`);
             log(`Grid found at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
-        if (anc.centerMismatch) {
-            showOverlay("Anchor not saved - Bad grid rejected", a1lib.mixColor(255, 60, 60), 6000);
-            log("Grid rejected — center pixel mismatch. Recapture.");
-            Inventory.clearAnchor();
-            drawDetectDebug(anc, true);
-            return;
-        } else {
-            showOverlay("Grid anchoring successful", a1lib.mixColor(255, 255, 0), 3000);
-            drawDetectDebug(anc, false);
-        }
-            drawDetectDebug(anc);
-            updateUI();
-            doScan();
+            if (anc.centerMismatch) {
+                showOverlay("Anchor not saved - Bad grid rejected", a1lib.mixColor(255, 60, 60), 6000);
+                log("Grid rejected — center pixel mismatch. Recapture.");
+                Inventory.clearAnchor();
+                drawDetectDebug(anc, true);
+                return;
+            } else {
+                showOverlay("Grid anchoring successful", a1lib.mixColor(255, 255, 0), 3000);
+                drawDetectDebug(anc, false);
+                updateUI();
+                doScan();
+            }
         } else {
             log("Detection failed. Is your mouse inside slot 1?");
             showOverlay("Detection failed — mouse in slot?", a1lib.mixColor(255, 80, 80), 3000);
@@ -220,76 +168,36 @@ function doCaptureRef(): void {
     }
 }
 
-/** Draw yellow corner brackets on all detected slots. */
-function drawDetectDebug(anc: Inventory.BackpackAnchor, isError: boolean = false): void {
-    if (!inAlt1) return;
-    alt1.overLayClearGroup("bronzeman_detect");
-    alt1.overLaySetGroup("bronzeman_detect");
-    const LEN = 11;
-    const dur = 2000;
-    const yc = isError ? a1lib.mixColor(255, 60, 60) : a1lib.mixColor(255, 255, 0);
-    for (let row = 0; row < Inventory.ROWS; row++) {
-        for (let col = 0; col < Inventory.COLS; col++) {
-            const sx = anc.x + col * anc.colStride;
-            const sy = anc.y + row * anc.rowStride;
-            const r = sx + 35, b = sy + 31;
-            // TL: right + down
-            alt1.overLayRect(yc, sx,    sy,    LEN, 1,   dur, 1);
-            alt1.overLayRect(yc, sx,    sy,    1,   LEN, dur, 1);
-            // TR: left + down
-            alt1.overLayRect(yc, r - LEN + 1, sy,    LEN, 1,   dur, 1);
-            alt1.overLayRect(yc, r,    sy,    1,   LEN, dur, 1);
-            // BL: right + up
-            alt1.overLayRect(yc, sx,    b,    LEN, 1,   dur, 1);
-            alt1.overLayRect(yc, sx,    b - LEN + 1, 1, LEN, dur, 1);
-            // BR: left + up
-            alt1.overLayRect(yc, r - LEN + 1, b,    LEN, 1,   dur, 1);
-            alt1.overLayRect(yc, r,    b - LEN + 1, 1,   LEN, dur, 1);
-        }
-    }
-}
-
 export function clearReference(): void {
     Inventory.clearAnchor();
     Inventory.resetHashes();
-    scanCount = 0;
-    log("Anchor cleared. Using fallback position. Capture again to set.");
+    state.scanCount = 0;
+    log("Anchor cleared. Capture again to set.");
     updateScanStatus("No anchor");
     updateUI();
 }
 
-export function clearCalibration(): void {
-    clearReference();
-}
+export function clearCalibration(): void { clearReference(); }
 
-// Stride adjustment — tweak until yellow brackets match inventory exactly
 export function adjColStride(d: number): void {
-    const anc = Inventory.adjustStride(d, 0);
-    if (anc) { updateUI(); doScan(); }
+    if (Inventory.adjustStride(d, 0)) { updateUI(); doScan(); }
 }
 export function adjRowStride(d: number): void {
-    const anc = Inventory.adjustStride(0, d);
-    if (anc) { updateUI(); doScan(); }
+    if (Inventory.adjustStride(0, d)) { updateUI(); doScan(); }
 }
 export function nudgeAnchorX(d: number): void {
-    const anc = Inventory.shiftAnchor(d, 0);
-    if (anc) { updateUI(); doScan(); }
+    if (Inventory.shiftAnchor(d, 0)) { updateUI(); doScan(); }
 }
 export function nudgeAnchorY(d: number): void {
-    const anc = Inventory.shiftAnchor(0, d);
-    if (anc) { updateUI(); doScan(); }
+    if (Inventory.shiftAnchor(0, d)) { updateUI(); doScan(); }
 }
-
-
 
 // ============================================================
 // Core scan logic
 // ============================================================
 
 function doScan(): void {
-    if (!inAlt1 || !alt1.permissionPixel) { stopPolling(); return; }
-
-    // Re-evaluate in case alt1 state changed (safety net for module-load race)
+    if (!state.inAlt1 || !alt1.permissionPixel) { stopPolling(); return; }
     a1lib.resetEnvironment();
 
     try {
@@ -301,31 +209,28 @@ function doScan(): void {
         const img = captureFullRs();
         if (!img) { log("ERROR: captureFullRs returned null — is RS linked?"); return; }
 
-        // Pass debug callback so inventory.ts diagnostics appear in the UI log
         const result = Inventory.scan(img, (msg) => log("  [inv] " + msg));
-        scanCount++;
-        lastScanResult = result;
+        state.scanCount++;
+        state.lastScanResult = result;
 
         updateDebugGrid(result);
         drawSlotOverlays(result);
 
-        if (scanCount === 1) {
+        if (state.scanCount === 1) {
             log(`Scan #1 (baseline): anchor (${result.anchor.x},${result.anchor.y})`);
             return;
         }
 
         if (result.changes > 0) {
-            // Filter 1: batch change — >4 slots = UI event (bank, dialog), ignore
             if (result.changes > 4) {
-                drawSlotOverlays(result, { r: 255, g: 80, b: 80 }); // red
-                updateDebugGrid(result, true); // red in debug tab too
-                log(`  ⏭ Skipped: ${result.changes} slots changed at once (UI event, not inventory action)`);
+                drawSlotOverlays(result, { r: 255, g: 80, b: 80 });
+                updateDebugGrid(result, true);
+                log(`  ⏭ Skipped: ${result.changes} slots changed at once (UI event)`);
                 return;
             }
 
-            // Filter 2: anti-drag — if RS cursor is inside inventory, user is likely dragging
             if (isCursorInInventory(result)) {
-                drawSlotOverlays(result, { r: 255, g: 80, b: 80 }); // red
+                drawSlotOverlays(result, { r: 255, g: 80, b: 80 });
                 updateDebugGrid(result, true);
                 log(`  ⏭ Skipped: cursor inside inventory (likely drag/UI interaction)`);
                 return;
@@ -337,29 +242,24 @@ function doScan(): void {
             const reverted: Inventory.SlotState[] = [];
 
             for (const slot of changedSlots) {
-                const prev = pendingChanges.get(slot.index);
+                const prev = state.pendingChanges.get(slot.index);
                 if (prev !== undefined) {
-                    if (prev === slot.hash) {
-                        confirmed.push(slot);
-                    } else {
-                        reverted.push(slot);
-                    }
-                    pendingChanges.delete(slot.index);
+                    if (prev === slot.hash) { confirmed.push(slot); }
+                    else { reverted.push(slot); }
+                    state.pendingChanges.delete(slot.index);
                 } else {
-                    pendingChanges.set(slot.index, slot.hash);
+                    state.pendingChanges.set(slot.index, slot.hash);
                     newlyPending.push(slot);
                 }
             }
 
-            // Clean stale pending entries for slots that reverted to baseline
             const changedIndices = new Set(changedSlots.map(s => s.index));
             const stale: number[] = [];
-            pendingChanges.forEach((_, idx) => { if (!changedIndices.has(idx)) stale.push(idx); });
-            stale.forEach(idx => pendingChanges.delete(idx));
+            state.pendingChanges.forEach((_, idx) => { if (!changedIndices.has(idx)) stale.push(idx); });
+            stale.forEach(idx => state.pendingChanges.delete(idx));
 
-            // Overlays: orange for reverted, yellow for pending, red for confirmed
             if (reverted.length > 0) {
-                drawSlotOverlaysFor(reverted, { r: 255, g: 80, b: 80 }); // red
+                drawSlotOverlaysFor(reverted, { r: 255, g: 80, b: 80 });
                 log(`  ⏭ Reverted: ${reverted.map(s => `#${s.index + 1}`).join(" ")}`);
             }
             if (newlyPending.length > 0) {
@@ -367,7 +267,7 @@ function doScan(): void {
                 updateDebugGrid(result, true, new Set(newlyPending.map(s => s.index)));
             }
             if (confirmed.length > 0) {
-                drawSlotOverlaysFor(confirmed, { r: 80, g: 200, b: 80 }, newlyPending.length === 0 && reverted.length === 0); // green
+                drawSlotOverlaysFor(confirmed, { r: 80, g: 200, b: 80 }, newlyPending.length === 0 && reverted.length === 0);
                 const names = confirmed.map(s => `#${s.index + 1}[r${s.row},c${s.col}]`).join(" ");
                 log(`  ✅ Confirmed: ${names}`);
                 updateScanStatus(`${confirmed.length} confirmed`);
@@ -378,7 +278,7 @@ function doScan(): void {
                 updateDebugGrid(result);
             }
         } else {
-            updateScanStatus(`Polling #${scanCount}`);
+            updateScanStatus(`Polling #${state.scanCount}`);
         }
     } catch (e: any) {
         if (e instanceof a1lib.NoAlt1Error) {
@@ -393,251 +293,13 @@ function doScan(): void {
 }
 
 export async function scanInventory(): Promise<void> {
-    if (!inAlt1) { log("Not in Alt1."); return; }
+    if (!state.inAlt1) { log("Not in Alt1."); return; }
     if (!alt1.permissionPixel) { log("No pixel permission."); return; }
     doScan();
 }
 
-// ============================================================
-// Overlays
-// ============================================================
-
-function drawSlotOverlaysFor(slots: Inventory.SlotState[], color: { r: number; g: number; b: number }, clearFirst = true): void {
-    if (!inAlt1) return;
-    if (clearFirst) {
-        alt1.overLayClearGroup("bronzeman_slots");
-        alt1.overLaySetGroup("bronzeman_slots");
-    }
-    const clr = a1lib.mixColor(color.r, color.g, color.b);
-    for (const slot of slots) {
-        alt1.overLayRect(clr, slot.x, slot.y, slot.w, slot.h, POLL_INTERVAL_MS + 200, 2);
-        alt1.overLayText(String(slot.index + 1), a1lib.mixColor(255, 255, 255), 11, slot.x + 3, slot.y + 2, POLL_INTERVAL_MS + 200);
-    }
-}
-
-function drawSlotOverlays(result: Inventory.ScanResult, color?: { r: number; g: number; b: number }): void {
-    const changed = result.slots.filter(s => s.changed);
-    if (changed.length === 0) return;
-    drawSlotOverlaysFor(changed, color || { r: 80, g: 200, b: 80 }); // green default
-
-    // Gold dot at anchor
-    alt1.overLaySetGroup("bronzeman_slots");
-    alt1.overLayRect(a1lib.mixColor(212, 168, 75), result.anchor.x - 2, result.anchor.y - 2, 5, 5, POLL_INTERVAL_MS + 200, 1);
-}
-
-/** Draw ALL 28 slots briefly so the user can verify alignment. */
-// ============================================================
-// Persistence
-// ============================================================
-
-function loadState(): void {
-    try {
-        const raw = localStorage.getItem(LS_KEYS.unlockedItems);
-        if (raw) {
-            unlockedItems = new Set(JSON.parse(raw));
-            log(`Loaded ${unlockedItems.size} unlocked items.`);
-        } else {
-            localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
-        }
-        if (!localStorage.getItem(LS_KEYS.scanHistory)) {
-            localStorage.setItem(LS_KEYS.scanHistory, JSON.stringify([]));
-        }
-    } catch (e) { log("ERROR loading: " + e); }
-}
-
-function saveState(): void {
-    try { localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify(Array.from(unlockedItems))); }
-    catch (e) { log("ERROR saving: " + e); }
-}
-
-// ============================================================
-// Bronzeman logic
-// ============================================================
-
-export function unlockItem(itemName: string): boolean {
-    const n = itemName.trim();
-    if (!n || unlockedItems.has(n)) return false;
-    unlockedItems.add(n);
-    saveState();
-    addScanHistory(n, "unlocked");
-    updateUI();
-    log(`UNLOCKED: "${n}"`);
-    if (inAlt1) showOverlay(`Unlocked: ${n}`, a1lib.mixColor(100, 255, 100), 3000);
-    return true;
-}
-
-export function isUnlocked(name: string): boolean { return unlockedItems.has(name.trim()); }
-export function getUnlockedCount(): number { return unlockedItems.size; }
-export function getUnlockedItems(): string[] { return Array.from(unlockedItems).sort(); }
-
-function addScanHistory(item: string, action: string): void {
-    try {
-        const raw = localStorage.getItem(LS_KEYS.scanHistory);
-        const h: { item: string; action: string; time: string }[] = raw ? JSON.parse(raw) : [];
-        h.push({ item, action, time: new Date().toISOString() });
-        while (h.length > 500) h.shift();
-        localStorage.setItem(LS_KEYS.scanHistory, JSON.stringify(h));
-    } catch (e) { /* ignore */ }
-}
-
-// ============================================================
-// Export / Reset
-// ============================================================
-
-export function exportData(): void {
-    const data = { unlockedItems: getUnlockedItems(), count: unlockedItems.size, exportedAt: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `bronzeman-${Date.now()}.json`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    log("Exported.");
-}
-
-export function resetData(): void {
-    if (!confirm("Delete all unlocked items and calibration?")) return;
-    unlockedItems.clear();
-    localStorage.removeItem(LS_KEYS.unlockedItems);
-    localStorage.removeItem(LS_KEYS.scanHistory);
-    localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
-    localStorage.setItem(LS_KEYS.scanHistory, JSON.stringify([]));
-    Inventory.clearAnchor();
-    Inventory.resetHashes();
-    scanCount = 0;
-    updateUI();
-    updateDebugGrid(null);
-    log("All reset.");
-}
-
-// ============================================================
-// UI updates
-// ============================================================
-
-function updateAlt1Status(): void {
-    const dot = document.getElementById("alt1_status_dot");
-    const text = document.getElementById("alt1_status_text");
-    if (!dot || !text) return;
-    if (inAlt1) { dot.className = "status-dot green"; text.textContent = "Alt1 connected"; }
-    else { dot.className = "status-dot red"; text.textContent = "Alt1 not detected"; }
-}
-
-function updateScanStatus(s: string): void {
-    const el = document.getElementById("scan_status");
-    if (el) el.textContent = s;
-    const sc = document.getElementById("scan_count");
-    if (sc) sc.textContent = String(scanCount);
-    const ch = document.getElementById("change_count");
-    if (ch && lastScanResult) ch.textContent = String(lastScanResult.changes);
-}
-
-function updateUI(): void {
-    const count = unlockedItems.size;
-    const ue = document.getElementById("unlocked_count");
-    if (ue) ue.textContent = String(count);
-
-    const rl = document.getElementById("recent_list");
-    if (rl) {
-        if (count === 0) {
-            rl.innerHTML = '<div style="color:#555;text-align:center;padding:12px;">No items unlocked yet.</div>';
-        } else {
-            rl.innerHTML = getUnlockedItems().slice(-10).reverse()
-                .map(item => `<div class="item-row unlocked"><span class="item-name">${escHtml(item)}</span><span class="item-badge unlocked">UNLOCKED</span></div>`)
-                .join("");
-        }
-    }
-
-    if (lastScanResult) {
-        const ae = document.getElementById("anchor_info");
-        if (ae) ae.textContent = `Anchor: (${lastScanResult.anchor.x}, ${lastScanResult.anchor.y}) via ${lastScanResult.anchor.method}`;
-    }
-
-    // Update anchor info
-    const calBtn = document.getElementById("calibrate_btn");
-    if (calBtn) {
-        const anc = Inventory.loadAnchor();
-        calBtn.textContent = anc ? `📷 Re-capture (${anc.colStride},${anc.rowStride})` : "📷 Capture";
-    }
-}
-
-// Check if RS cursor is inside the inventory grid — likely dragging/UI interaction
-function isCursorInInventory(result: Inventory.ScanResult): boolean {
-    try {
-        const pos = a1lib.getMousePosition();
-        if (!pos) return false;
-        const anc = result.anchor;
-        const pad = anc.colStride; // generous padding around grid
-        const left = anc.x - pad, top = anc.y - pad;
-        const right = anc.x + 4 * anc.colStride + pad;
-        const bottom = anc.y + 7 * anc.rowStride + pad;
-        return pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom;
-    } catch { return false; }
-}
-
-function updateDebugGrid(result: Inventory.ScanResult | null, discarded = false, pending: Set<number> = new Set()): void {
-    const gridEl = document.getElementById("slot_grid");
-    if (!gridEl) return;
-    if (!result) { gridEl.innerHTML = '<div style="color:#555;text-align:center;padding:20px;">Waiting...</div>'; return; }
-
-    let html = '<div class="mini-grid">';
-    for (let row = 0; row < 7; row++) {
-        html += '<div class="mini-grid-row">';
-        for (let col = 0; col < 4; col++) {
-            const slot = result.slots[row * 4 + col];
-            let cls = "mini-slot";
-            if (slot.changed) {
-                if (pending.has(slot.index)) cls += " pending";
-                else if (discarded) cls += " skipped";
-                else cls += " changed";
-            }
-            const sh = slot.hash.slice(-4) || "----";
-            html += `<div class="${cls}" title="Slot ${slot.index + 1} [r${row},c${col}]&#10;Hash: ${slot.hash}&#10;Diff: ${slot.diffScore} (thresh=24)">
-                <span class="mini-slot-num">${slot.index + 1}</span>
-                <span class="mini-slot-hash">${sh}</span></div>`;
-        }
-        html += "</div>";
-    }
-    html += "</div>";
-    gridEl.innerHTML = html;
-
-    updateUI();
-}
-
-function appendChangeEntry(slot: Inventory.SlotState, time: number): void {
-    const list = document.getElementById("change_list");
-    if (!list) return;
-    const entry = document.createElement("div");
-    entry.className = "change-entry";
-    entry.innerHTML = `<span class="change-slot">#${slot.index + 1} [r${slot.row},c${slot.col}]</span>
-        <span class="change-hash">${slot.hash.slice(0, 8)}</span>
-        <span class="change-time">${new Date(time).toLocaleTimeString()}</span>`;
-    list.prepend(entry);
-    while (list.children.length > 20) list.lastChild?.remove();
-}
-
-// ============================================================
-// Helpers
-// ============================================================
-
-function showOverlay(msg: string, color: number, dur: number): void {
-    if (!inAlt1) return;
-    alt1.overLayClearGroup("bronzeman");
-    alt1.overLaySetGroup("bronzeman");
-    alt1.overLayTextEx(msg, color, 16, Math.round(alt1.rsWidth / 2), 250, dur, "", true, true);
-}
-
-function escHtml(s: string): string { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
-
-function log(msg: string): void {
-    console.log("[Bronzeman]", msg);
-    const el = document.getElementById("log");
-    if (el) {
-        const line = document.createElement("div");
-        line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        el.prepend(line);
-        while (el.children.length > 50) el.lastChild?.remove();
-    }
-}
+// Re-export data.ts functions for HTML onclick handlers
+export { unlockItem, isUnlocked, getUnlockedCount, getUnlockedItems, exportData, resetData } from "./data";
 
 // ============================================================
 // Bootstrap
