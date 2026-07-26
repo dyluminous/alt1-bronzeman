@@ -2,7 +2,7 @@
 import * as a1lib from "alt1";
 import * as Inventory from "./inventory";
 import { state, POLL_INTERVAL_MS, escHtml } from "./core";
-import { getUnlockedCount, getUnlockedItems } from "./data";
+import { getUnlockedCount, getUnlockedItems, getUnlockedItemData } from "./data";
 
 // ============================================================
 // Status bar
@@ -19,10 +19,8 @@ export function updateAlt1Status(): void {
 export function updateScanStatus(s: string): void {
     const el = document.getElementById("scan_status");
     if (el) el.textContent = s;
-    const sc = document.getElementById("scan_count");
+    const sc = document.getElementById("scan_count_debug");
     if (sc) sc.textContent = String(state.scanCount);
-    const ch = document.getElementById("change_count");
-    if (ch && state.lastScanResult) ch.textContent = String(state.lastScanResult.changes);
 }
 
 // ============================================================
@@ -31,17 +29,34 @@ export function updateScanStatus(s: string): void {
 
 export function updateUI(): void {
     const count = getUnlockedCount();
-    const ue = document.getElementById("unlocked_count");
+    const ue = document.getElementById("unlocked_count_items");
     if (ue) ue.textContent = String(count);
 
     const rl = document.getElementById("recent_list");
     if (rl) {
         if (count === 0) {
-            rl.innerHTML = '<div style="color:#555;text-align:center;padding:12px;">No items unlocked yet.</div>';
+            rl.innerHTML = '<div style="color:#555;text-align:center;padding:8px;">No items unlocked yet.</div>';
         } else {
             rl.innerHTML = getUnlockedItems().slice(-10).reverse()
                 .map(item => `<div class="item-row unlocked"><span class="item-name">${escHtml(item)}</span><span class="item-badge unlocked">UNLOCKED</span></div>`)
                 .join("");
+        }
+    }
+
+    // Render unlocked grid with images
+    const ug = document.getElementById("unlocked_grid");
+    if (ug) {
+        const data = getUnlockedItemData();
+        if (data.length === 0) {
+            ug.style.display = "none";
+        } else {
+            ug.style.display = "flex";
+            ug.innerHTML = data.slice().reverse().map(d =>
+                `<div class="unlocked-thumb" title="${escHtml(d.name)}">
+                    <img src="${d.base64}" alt="${escHtml(d.name)}">
+                    <div class="unlocked-label">${escHtml(d.name)}</div>
+                </div>`
+            ).join("");
         }
     }
 
@@ -88,6 +103,31 @@ export function updateDebugGrid(result: Inventory.ScanResult | null, discarded =
     gridEl.innerHTML = html;
 
     updateUI();
+}
+
+// ============================================================
+// Scan tab — show latest pickup
+// ============================================================
+
+/** Current pickup image URL and slot index for the Unlock button. */
+let currentPickupUrl: string = "";
+let currentPickupSlot: number = -1;
+
+export function showScanPickup(imageUrl: string, slotIndex: number): void {
+    currentPickupUrl = imageUrl;
+    currentPickupSlot = slotIndex;
+
+    const ph = document.getElementById("scan_placeholder");
+    const area = document.getElementById("scan_pickup_area");
+    const img = document.getElementById("scan_pickup_img") as HTMLImageElement;
+
+    if (ph) ph.style.display = "none";
+    if (area) area.style.display = "block";
+    if (img) img.src = imageUrl;
+}
+
+export function getCurrentPickup(): { imageUrl: string; slotIndex: number } {
+    return { imageUrl: currentPickupUrl, slotIndex: currentPickupSlot };
 }
 
 export function appendChangeEntry(slot: Inventory.SlotState, time: number): void {

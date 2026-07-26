@@ -31,6 +31,7 @@ export function captureFullRs(): ImgRef | null {
 export const LS_PREFIX = "Bronzeman/";
 export const LS_KEYS = {
     unlockedItems: LS_PREFIX + "unlockedItems",
+    unlockedItemData: LS_PREFIX + "unlockedItemData",
     scanHistory: LS_PREFIX + "scanHistory",
 } as const;
 
