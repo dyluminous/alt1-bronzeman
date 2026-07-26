@@ -637,7 +637,7 @@ function pollScanningMouse(): void {
         const minX = leftX, minY = topY;
         const tooltipW = rectW;
         const tooltipH = rectH;
-        const centerX = leftX + Math.round(rectW / 2);
+        const centerX = leftX;
         const centerY = topY + Math.round(rectH / 3); // text in upper portion
 
         // Debug overlay: green=capture area, magenta=tooltip bounds, red=text pixel, cyan=wide scan area
@@ -652,6 +652,39 @@ function pollScanningMouse(): void {
             alt1.overLayRect(a1lib.mixColor(255, 0, 255), wideX + minX, wideY + minY, tooltipW, tooltipH, 2000, 2);
             // Red: found text pixel
             alt1.overLayRect(a1lib.mixColor(255, 0, 0), captX + foundX - 2, captY + foundY - 2, 5, 5, 2000, 2);
+        }
+
+        // Debug: draw OCR preview pixels onto HTML canvas
+        if (showTooltipDebug && tooltipW > 5 && tooltipH > 5) {
+            const canvas = document.getElementById("ocr_preview") as HTMLCanvasElement;
+            if (canvas) {
+                const MAX_CANVAS_W = 320;
+                const previewW = Math.min(tooltipW, MAX_CANVAS_W);
+                const previewH = Math.min(tooltipH, 60);
+                if (previewW !== tooltipW) log(`  Preview clipped: tooltipW=${tooltipW} > ${MAX_CANVAS_W}`);
+                canvas.width = previewW;
+                canvas.height = previewH;
+                canvas.style.display = "block";
+                canvas.style.width = previewW + "px";
+                const ctx = canvas.getContext("2d");
+                if (ctx) {
+                    const imgData = ctx.createImageData(previewW, previewH);
+                    for (let py = 0; py < previewH; py++) {
+                        for (let px = 0; px < previewW; px++) {
+                            const sx = minX + px;
+                            const sy = minY + py;
+                            if (sx >= wideW || sy >= wideH) continue;
+                            const srcIdx = (sy * wideW + sx) * 4;
+                            const dstIdx = (py * previewW + px) * 4;
+                            imgData.data[dstIdx] = wideData.data[srcIdx];
+                            imgData.data[dstIdx + 1] = wideData.data[srcIdx + 1];
+                            imgData.data[dstIdx + 2] = wideData.data[srcIdx + 2];
+                            imgData.data[dstIdx + 3] = 255;
+                        }
+                    }
+                    ctx.putImageData(imgData, 0, 0);
+                }
+            }
         }
 
         // Try OCR on the detected tooltip area — try multiple font sizes
