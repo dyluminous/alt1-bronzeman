@@ -48,8 +48,9 @@ export const state = {
     lastScanResult: null as Inventory.ScanResult | null,
     // Which slots had items on the previous scan (by slot index)
     prevOccupied: new Set<number>(),
-    // After interface detected, suppress pickups on the next scan transition
-    afterInterface: false,
+    // Drag detection: RS mouse position tracking
+    prevRsMouse: { x: 0, y: 0 },
+    prevRsMouseSame: 0,
 };
 
 // ============================================================
