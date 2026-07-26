@@ -3,6 +3,7 @@ import * as a1lib from "alt1";
 import * as Inventory from "./inventory";
 import { state, POLL_INTERVAL_MS, escHtml, showSlotOverlays } from "./core";
 import { getUnlockedCount, getUnlockedItems, getUnlockedItemData } from "./data";
+import { BUILD_NUM } from "./version";
 
 // ============================================================
 // Status bar
@@ -12,8 +13,13 @@ export function updateAlt1Status(): void {
     const dot = document.getElementById("alt1_status_dot");
     const text = document.getElementById("alt1_status_text");
     if (!dot || !text) return;
-    if (state.inAlt1) { dot.className = "status-dot green"; text.textContent = "Alt1 connected"; }
-    else { dot.className = "status-dot red"; text.textContent = "Alt1 not detected"; }
+    if (state.inAlt1) {
+        dot.className = "status-dot green";
+        text.textContent = `Build #${BUILD_NUM}`;
+    } else {
+        dot.className = "status-dot red";
+        text.textContent = `Build #${BUILD_NUM} (no alt1)`;
+    }
 }
 
 export function updateScanStatus(s: string): void {
@@ -33,15 +39,7 @@ export function updateUI(): void {
     if (ue) ue.textContent = String(count);
 
     const rl = document.getElementById("recent_list");
-    if (rl) {
-        if (count === 0) {
-            rl.innerHTML = '<div style="color:#555;text-align:center;padding:8px;">No items unlocked yet.</div>';
-        } else {
-            rl.innerHTML = getUnlockedItems().slice(-10).reverse()
-                .map(item => `<div class="item-row unlocked"><span class="item-name">${escHtml(item)}</span><span class="item-badge unlocked">UNLOCKED</span></div>`)
-                .join("");
-        }
-    }
+    if (rl) rl.style.display = "none";
 
     // Render unlocked grid with images
     const ug = document.getElementById("unlocked_grid");
@@ -68,7 +66,7 @@ export function updateUI(): void {
     const calBtn = document.getElementById("calibrate_btn");
     if (calBtn) {
         const anc = Inventory.loadAnchor();
-        calBtn.textContent = anc ? `📷 Re-capture (${anc.colStride},${anc.rowStride})` : "📷 Capture";
+        calBtn.textContent = anc ? "Clear Inventory Capture" : "Setup Inventory Capture";
     }
 }
 
