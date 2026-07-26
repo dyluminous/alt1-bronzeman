@@ -46,8 +46,10 @@ export const state = {
     pollTimer: null as ReturnType<typeof setInterval> | null,
     scanCount: 0,
     lastScanResult: null as Inventory.ScanResult | null,
-    // 2-scan confirmation: slotIndex → hash
-    pendingChanges: new Map<number, string>(),
+    // Which slots had items on the previous scan (by slot index)
+    prevOccupied: new Set<number>(),
+    // After interface detected, suppress pickups on the next scan transition
+    afterInterface: false,
 };
 
 // ============================================================
