@@ -78,3 +78,16 @@ export function log(msg: string): void {
         while (el.children.length > 50) el.lastChild?.remove();
     }
 }
+
+// ============================================================
+// Slot status overlays toggle (off by default)
+// ============================================================
+
+export let showSlotOverlays = false;
+
+export function setShowSlotOverlays(v: boolean): void {
+    showSlotOverlays = v;
+    if (!v && typeof alt1 !== "undefined") {
+        alt1.overLayClearGroup("bronzeman_slots");
+    }
+}
