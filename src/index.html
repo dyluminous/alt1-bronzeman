@@ -169,36 +169,46 @@
         #anchor_info { font-size: 8px; color: #666; font-family: monospace; margin-top: 2px; }
 
         /* ---- scan tab pickup ---- */
-        .scan-pickup {
-            display: flex; flex-direction: column; align-items: center;
-            background: #0f0f23; border-radius: 4px; padding: 8px;
+        .pickup-grid {
+            display: flex; flex-wrap: wrap; gap: 4px;
+            align-content: flex-start;
         }
-        .scan-pickup-img {
-            width: 144px; height: 128px;
+        .pickup-card {
+            display: flex; flex-direction: column; align-items: center;
+            background: #0f0f23; border-radius: 3px; padding: 3px;
+            width: 46px;
+        }
+        .pickup-card img {
+            width: 36px; height: 32px;
             image-rendering: pixelated;
             object-fit: contain;
             background: #1a1a30;
-            border-radius: 2px;
+            border-radius: 1px;
             border: 1px solid #333;
         }
-        .scan-pickup-controls {
-            display: flex; gap: 6px; margin-top: 8px; width: 100%;
-            align-items: center;
+        .pickup-card .pickup-actions {
+            display: flex; gap: 1px; margin-top: 2px;
         }
-        .scan-pickup-name {
-            flex: 1;
-            padding: 5px 8px;
-            border: 1px solid #444;
-            border-radius: 3px;
-            background: #1a1a30;
-            color: #e0e0e0;
-            font-size: 11px;
-            font-family: inherit;
+        .pickup-card .pickup-actions button {
+            padding: 1px 3px; font-size: 9px; border: none; border-radius: 2px; cursor: pointer; line-height: 1;
         }
-        .scan-pickup-name::placeholder { color: #666; }
-        .btn-unlock {
-            padding: 5px 12px;
-            background: #2e7d32;
+        .pickup-card .btn-unlock-sm {
+            background: #2e7d32; color: #fff;
+        }
+        .pickup-card .btn-unlock-sm:hover { background: #388e3c; }
+        .pickup-card .btn-unlock-sm.scanning { background: #c62828; }
+        .pickup-card .btn-ignore-sm {
+            background: #444; color: #aaa;
+        }
+        .pickup-card .btn-ignore-sm:hover { background: #555; }
+        .scan-hint {
+            color: #f0d080; font-size: 9px; text-align: center;
+            margin-top: 4px; animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
             color: #c8e6c9;
         }
         .btn-unlock:hover { opacity: 0.85; }
@@ -324,15 +334,8 @@
     <div class="tab-panel active" id="panel_scan">
         <div class="section-title">Potential Unlocks</div>
         <div id="scan_placeholder" style="color:#555;text-align:center;padding:12px;">Waiting for pickup...</div>
-        <div id="scan_pickup_area" style="display:none;">
-            <div class="scan-pickup">
-                <img id="scan_pickup_img" src="" alt="pickup" class="scan-pickup-img">
-                <div class="scan-pickup-controls">
-                    <button class="btn btn-unlock" id="btn_unlock" onclick="Bronzeman.unlockCurrentItem()">🔓 Unlock</button>
-                </div>
-                <div id="scan_hint" class="scan-hint" style="display:none;">Hover over the item in your inventory to scan its name</div>
-            </div>
-        </div>
+        <div id="scan_pickup_grid" class="pickup-grid"></div>
+        <div id="scan_hint" class="scan-hint" style="display:none;">Hover over the item in your inventory to scan its name</div>
     </div>
 
     <!-- Tab: Item Log -->

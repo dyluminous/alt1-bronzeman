@@ -10,7 +10,7 @@ import {
 import {
     updateAlt1Status, updateScanStatus, updateUI, updateDebugGrid,
     drawDetectDebug, drawSlotOverlaysFor, isCursorInInventory,
-    showScanPickup, getCurrentPickup,
+    showScanPickup,
 } from "./ui";
 import { loadState, unlockItem, resetUnlocks as dataResetUnlocks } from "./data";
 import TooltipReader from "alt1/tooltip";
@@ -354,15 +354,12 @@ function doScan(): void {
                     id.data.set(pixelData.data);
                     ctx.putImageData(id, 0, 0);
                     const url = canvas.toDataURL();
-                    recentPickups.unshift({ slotIndex: slot.index, imageUrl: url, time: Date.now(), noted });
+                    recentPickups.push({ slotIndex: slot.index, imageUrl: url, time: Date.now(), noted });
                     if (recentPickups.length > MAX_PICKUPS) recentPickups.pop();
                 } catch { /* canvas not available */ }
             }
+            refreshPickupGrid();
             updatePickupGrid();
-            // Show the most recent pickup in the Scan tab
-            if (recentPickups.length > 0) {
-                showScanPickup(recentPickups[0].imageUrl, recentPickups[0].slotIndex);
-            }
             for (const idx of newPickups) state.prevOccupied.add(idx);
         } else {
             updateScanStatus(`Polling #${state.scanCount}`);
@@ -431,17 +428,18 @@ interface ScanningState {
 let scanning: ScanningState | null = null;
 
 /** Toggle: starts scanning mode or cancels it. */
-export function unlockCurrentItem(): void {
-    if (scanning) {
-        // Cancel scanning
-        cancelScanning();
-        return;
-    }
+export function unlockPickup(index: number): void {
+    const pickup = recentPickups[index];
+    if (!pickup) { log("No pickup at index " + index); return; }
 
-    const { imageUrl, slotIndex } = getCurrentPickup();
-    if (!imageUrl) {
-        log("No pickup to unlock.");
-        return;
+    if (scanning) {
+        // If already scanning this pickup, cancel
+        if (scanning.slotIndex === pickup.slotIndex && scanning.imageUrl === pickup.imageUrl) {
+            cancelScanning();
+            return;
+        }
+        // Otherwise cancel current scan first, then start new one below
+        cancelScanning();
     }
 
     if (!state.inAlt1) {
@@ -456,33 +454,26 @@ export function unlockCurrentItem(): void {
     }
 
     // Enter scanning mode
-    scanning = { imageUrl, slotIndex, timer: null, lastTooltipAttempt: 0, hasEnteredSlot: false };
-
-    const btn = document.getElementById("btn_unlock");
-    if (btn) {
-        btn.textContent = "⏹ Cancel";
-        btn.classList.add("scanning");
-    }
+    scanning = { imageUrl: pickup.imageUrl, slotIndex: pickup.slotIndex, timer: null, lastTooltipAttempt: 0, hasEnteredSlot: false };
 
     const hint = document.getElementById("scan_hint");
     if (hint) hint.style.display = "block";
 
-    log(`Scanning mode — hover over slot #${slotIndex + 1} to read item name.`);
+    log(`Scanning mode — hover over slot #${pickup.slotIndex + 1} to read item name.`);
 
     // Start polling mouse position
     scanning.timer = setInterval(pollScanningMouse, 150);
+}
+
+// Keep backward compat alias
+export function unlockCurrentItem(): void {
+    if (recentPickups.length > 0) unlockPickup(0);
 }
 
 function cancelScanning(): void {
     if (!scanning) return;
     if (scanning.timer) { clearInterval(scanning.timer); scanning.timer = null; }
     scanning = null;
-
-    const btn = document.getElementById("btn_unlock");
-    if (btn) {
-        btn.textContent = "🔓 Unlock";
-        btn.classList.remove("scanning");
-    }
 
     const hint = document.getElementById("scan_hint");
     if (hint) hint.style.display = "none";
@@ -801,7 +792,31 @@ function extractItemName(raw: string): string {
 
 // ============================================================
 // ============================================================
-// Pickup grid — renders recent item thumbnails in the Scan tab
+// Pickup grid — renders recent item thumbnails and scan tab cards
+
+/** Refresh the scan tab pickup cards from recentPickups */
+function refreshPickupGrid(): void {
+    const grid = document.getElementById("scan_pickup_grid");
+    const ph = document.getElementById("scan_placeholder");
+    if (!grid) return;
+    if (recentPickups.length === 0) {
+        grid.innerHTML = "";
+        if (ph) ph.style.display = "block";
+        return;
+    }
+    if (ph) ph.style.display = "none";
+    grid.innerHTML = recentPickups.map((p, i) =>
+        `<div class="pickup-card">
+            <img src="${p.imageUrl}" alt="pickup">
+            <div class="pickup-actions">
+                <button class="btn-unlock-sm" onclick="Bronzeman.unlockPickup(${i})">🔓</button>
+                <button class="btn-ignore-sm" onclick="void(0)">✕</button>
+            </div>
+        </div>`
+    ).join("");
+}
+
+/** Renders the item log tab */
 // ============================================================
 
 function updatePickupGrid(): void {
