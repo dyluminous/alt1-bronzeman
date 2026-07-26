@@ -12,7 +12,7 @@ import {
     drawDetectDebug, drawSlotOverlaysFor, isCursorInInventory,
     showScanPickup, getCurrentPickup,
 } from "./ui";
-import { loadState, unlockItem, resetUnlocks } from "./data";
+import { loadState, unlockItem, resetUnlocks as dataResetUnlocks } from "./data";
 import TooltipReader from "alt1/tooltip";
 import * as OCR from "alt1/ocr";
 
@@ -381,7 +381,40 @@ function doScan(): void {
 
 
 // Re-export data.ts functions for HTML onclick handlers
-export { unlockItem, isUnlocked, getUnlockedCount, getUnlockedItems, resetData, resetUnlocks } from "./data";
+export { unlockItem, isUnlocked, getUnlockedCount, getUnlockedItems, resetData } from "./data";
+export function resetUnlocks(): void {
+    showConfirm("Delete all unlocked items?", "DANGER", () => {
+        dataResetUnlocks();
+        updateUI();
+    });
+}
+
+// Confirm dialog
+let confirmCallback: (() => void) | null = null;
+export function showConfirm(message: string, level: "SAFE" | "WARNING" | "DANGER", onConfirm: () => void): void {
+    const modal = document.getElementById("confirm_modal");
+    const content = document.getElementById("confirm_modal_content");
+    const msgEl = document.getElementById("confirm_modal_msg");
+    if (!modal || !content || !msgEl) return;
+    msgEl.textContent = message;
+    content.className = "confirm-modal-content" + (level === "WARNING" ? " level-warning" : level === "DANGER" ? " level-danger" : "");
+    confirmCallback = onConfirm;
+    modal.style.display = "flex";
+}
+export function confirmCancel(): void {
+    const modal = document.getElementById("confirm_modal");
+    if (modal) modal.style.display = "none";
+    confirmCallback = null;
+}
+export function confirmOk(): void {
+    const modal = document.getElementById("confirm_modal");
+    if (modal) modal.style.display = "none";
+    if (confirmCallback) {
+        const cb = confirmCallback;
+        confirmCallback = null;
+        cb();
+    }
+}
 
 // ============================================================
 // Unlock current pickup — scanning mode via tooltip
