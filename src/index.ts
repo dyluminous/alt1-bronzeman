@@ -256,35 +256,25 @@ function doScan(): void {
                 log(`  ⏭ Obstructed: ${obstructed.map(i => `#${i+1}`).join(" ")}`);
             }
 
-            // Drag detection: if RS cursor is inside inventory grid and hasn't moved
-            // for 2+ consecutive scans, the user is likely holding left click (dragging).
-            let isDragging = false;
+            // Drag detection: if RS cursor is inside inventory grid, the user is
+            // interacting (dragging/dropping). Skip all processing for this scan.
+            let cursorInGrid = false;
             try {
                 const pos = a1lib.getMousePosition();
                 if (pos) {
                     const anc = result.anchor;
-                    // Store grid bounds at capture? For now compute from anchor
                     const gridLeft = anc.x - 1;
                     const gridTop = anc.y - 1;
                     const gridRight = anc.x + 3 * anc.colStride + 37;
                     const gridBottom = anc.y + 6 * anc.rowStride + 33;
-                    const inGrid = pos.x >= gridLeft && pos.x <= gridRight && pos.y >= gridTop && pos.y <= gridBottom;
-                    if (inGrid) {
-                        const same = state.prevRsMouse.x === pos.x && state.prevRsMouse.y === pos.y;
-                        if (same) state.prevRsMouseSame++;
-                        else state.prevRsMouseSame = 0;
-                        if (state.prevRsMouseSame >= 2) isDragging = true;
-                        state.prevRsMouse = { x: pos.x, y: pos.y };
-                    } else {
-                        state.prevRsMouseSame = 0;
-                    }
+                    cursorInGrid = pos.x >= gridLeft && pos.x <= gridRight && pos.y >= gridTop && pos.y <= gridBottom;
                 }
             } catch { /* ignore */ }
 
-            if (isDragging) {
-                drawSlotOverlaysFor(result.slots.filter(s => s.changed), { r: 255, g: 150, b: 200 }); // pink
+            if (cursorInGrid && result.changes > 0) {
+                drawSlotOverlaysFor(result.slots.filter(s => s.changed), { r: 255, g: 80, b: 80 }); // red
                 updateDebugGrid(result, true);
-                log(`  ⏭ Drag detected — ignoring ${result.changes} change(s)`);
+                log(`  ⏭ Cursor in grid — skipping ${result.changes} change(s)`);
                 return;
             }
 
