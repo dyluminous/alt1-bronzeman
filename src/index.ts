@@ -5,7 +5,7 @@ import * as Inventory from "./inventory";
 import { BUILD, BUILD_NUM } from "./version";
 import {
     state,
-    captureFullRs, showOverlay, log, POLL_INTERVAL_MS, setShowSlotOverlays, showSlotOverlays,
+    captureFullRs, showOverlay, log, POLL_INTERVAL_MS,
 } from "./core";
 import {
     updateAlt1Status, updateScanStatus, updateUI, updateDebugGrid,
@@ -735,12 +735,6 @@ export function toggleTooltipDebug(): void {
     if (!showTooltipDebug && state.inAlt1) {
         alt1.overLayClearGroup("bronzeman_tooltipdbg");
     }
-}
-
-export function toggleSlotOverlays(): void {
-    const cb = document.getElementById("show_slot_overlays") as HTMLInputElement;
-    setShowSlotOverlays(cb?.checked ?? false);
-    log(`showSlotOverlays=${showSlotOverlays}`);
 }
 
 export function updateGridBoundary(): void {
