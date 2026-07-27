@@ -5,7 +5,7 @@ import * as Inventory from "./inventory";
 import { BUILD, BUILD_NUM } from "./version";
 import {
     state,
-    captureFullRs, showOverlay, log, POLL_INTERVAL_MS, setShowSlotOverlays, showSlotOverlays,
+    captureFullRs, showNotification, NotificationHandle, log, POLL_INTERVAL_MS, setShowSlotOverlays, showSlotOverlays,
 } from "./core";
 import {
     updateAlt1Status, updateScanStatus, updateUI, updateDebugGrid,
@@ -54,6 +54,10 @@ import "./index.html";
 import "./appconfig.json";
 import "./icon.png";
 
+
+export function testNotification(): void {
+    showNotification("Test notification from Bronzeman", 2000);
+}
 // ============================================================
 // Initialization
 // ============================================================
@@ -85,13 +89,13 @@ export function initOnLoad() {
                     log(`[init] validateAnchor returned: ${ok}`);
                     if (ok) {
                         log("Anchor valid — grid online.");
-                        showOverlay("Inventory calibrated", a1lib.mixColor(255, 255, 0), 2000);
+                        showNotification("Inventory calibrated", 2000, "success");
                         drawDetectDebug(saved, false);
                         updateGridBoundary();
                         startPolling();
                     } else {
                         log("Anchor INVALID — cleared. Recapture.");
-                        showOverlay("Calibration failed", a1lib.mixColor(255, 60, 60), 2000);
+                        showNotification("Calibration failed", 2000, "danger");
                         drawDetectDebug(saved, true);
                         Inventory.clearAnchor();
                     }
@@ -143,8 +147,11 @@ export function isPolling(): boolean { return state.polling; }
 
 let refCountdown: ReturnType<typeof setInterval> | null = null;
 let refCountdownValue = 0;
+let calibrateHandle: NotificationHandle | null = null;
+let scanNotificationHandle: NotificationHandle | null = null;
 
 export function captureReference(): void {
+    if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
     if (!state.inAlt1) { log("Not in Alt1."); return; }
     if (!alt1.permissionPixel) { log("No pixel permission."); return; }
 
@@ -152,13 +159,14 @@ export function captureReference(): void {
     const anc = Inventory.loadAnchor();
     if (anc) {
         Inventory.saveAnchor(null);
-        showOverlay("Calibration cleared", a1lib.mixColor(200, 150, 50), 2000);
+        showNotification("Calibration cleared", 2000, "warning");
         updateUI();
         return;
     }
 
     refCountdownValue = 3;
-    showOverlay("Move mouse into slot 1 (3s)", a1lib.mixColor(100, 200, 255), 5000);
+    calibrateHandle = showNotification("Move mouse into slot 1 (3s)", 5000);
+    if (calibrateHandle) calibrateHandle.update("Move mouse into slot 1 (3s)");
 
     refCountdown = setInterval(() => {
         refCountdownValue--;
@@ -166,7 +174,7 @@ export function captureReference(): void {
             if (refCountdown) { clearInterval(refCountdown); refCountdown = null; }
             doCaptureRef();
         } else {
-            showOverlay(`Detecting in ${refCountdownValue}...`, a1lib.mixColor(100, 200, 255), 2000);
+            if (calibrateHandle) calibrateHandle.update(`Detecting in ${refCountdownValue}...`);
         }
     }, 1000);
 }
@@ -175,15 +183,17 @@ function doCaptureRef(): void {
     try {
         const pos = a1lib.getMousePosition();
         if (!pos || pos.x <= 0) {
+                    if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
             log("No RS cursor — is RS the active window?");
-            showOverlay("RS Unfocused", a1lib.mixColor(255, 80, 80), 3000);
+            showNotification("RS Unfocused", 3000, "danger");
             return;
         }
 
         const img = captureFullRs();
         if (!img) {
+                    if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
             log("Capture failed — could not read RS screen.");
-            showOverlay("RS Unlinked", a1lib.mixColor(255, 80, 80), 3000);
+            showNotification("RS Unlinked", 3000, "danger");
             return;
         }
 
@@ -193,7 +203,8 @@ function doCaptureRef(): void {
             updateScanStatus(`Detected at (${anc.x},${anc.y})`);
             log(`Grid found at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
             if (anc.centerMismatch) {
-                showOverlay("Calibration failed", a1lib.mixColor(255, 60, 60), 6000);
+                showNotification("Calibration failed", 6000, "danger");
+                                if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
                 log("Grid rejected — center pixel mismatch. Recapture.");
                 Inventory.clearAnchor();
                 Inventory.clearOuterPerm();
@@ -205,24 +216,28 @@ function doCaptureRef(): void {
                 // Capture outer perimeter for border verification
                 Inventory.captureOuterPerm(img, anc, (msg) => log("  [outer] " + msg));
                 // Capture empty slot data from slot 28 (assumed empty)
+                                if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
                 Inventory.captureEmptySlotData(img, anc, (msg) => log("  [empty] " + msg));
-                showOverlay("Inventory calibrated", a1lib.mixColor(255, 255, 0), 3000);
+                showNotification("Inventory calibrated", 3000, "success");
                 drawDetectDebug(anc, false);
                 updateGridBoundary();
                 updateUI();
                 startPolling();
             }
         } else {
+                    if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
             log("Detection failed. Is your mouse inside slot 1?");
-            showOverlay("Calibration failed - Mouse in slot?", a1lib.mixColor(255, 80, 80), 3000);
+            showNotification("Calibration failed - Mouse in slot?", 3000, "danger");
         }
     } catch (e) {
+                if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
         log("Capture error: " + e);
-        showOverlay("Error", a1lib.mixColor(255, 80, 80), 3000);
+        showNotification("Error", 3000, "danger");
     }
 }
 
 export function clearReference(): void {
+    if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
     Inventory.clearAnchor();
     Inventory.clearOuterPerm();
     Inventory.clearEmptySlotData();
@@ -478,8 +493,8 @@ export function unlockPickup(index: number): void {
     // Enter scanning mode
     scanning = { imageUrl: pickup.imageUrl, slotIndex: pickup.slotIndex, timer: null, lastTooltipAttempt: 0, hasEnteredSlot: false };
 
-    const hint = document.getElementById("scan_hint");
-    if (hint) hint.style.display = "block";
+    if (scanNotificationHandle) scanNotificationHandle.remove();
+    scanNotificationHandle = showNotification("Hover over the item", 0, "info");
 
     log(`Scanning mode — hover over slot #${pickup.slotIndex + 1} to read item name.`);
 
@@ -497,8 +512,7 @@ function cancelScanning(): void {
     if (scanning.timer) { clearInterval(scanning.timer); scanning.timer = null; }
     scanning = null;
 
-    const hint = document.getElementById("scan_hint");
-    if (hint) hint.style.display = "none";
+        if (scanNotificationHandle) { scanNotificationHandle.remove(); scanNotificationHandle = null; }
 
     log("Scanning cancelled.");
 }
@@ -902,17 +916,6 @@ export function debugPickupPixels(): void {
     log(`=== End debug ===`);
 }
 
-export function testNotification(): void {
-    const bar = document.getElementById("notification_bar");
-    if (!bar) return;
-    bar.textContent = "Test notification";
-    bar.style.display = "block";
-    setTimeout(() => {
-        bar.style.display = "none";
-    }, 2000);
-}
-
-// ============================================================
 // Grid boundary overlay
 // ============================================================
 
