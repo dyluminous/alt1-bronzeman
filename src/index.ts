@@ -432,35 +432,35 @@ function doScan(): void {
 // Re-export data.ts functions for HTML onclick handlers
 export { unlockItem, isUnlocked, getUnlockedCount, getUnlockedItems, resetData } from "./data";
 export function resetUnlocks(): void {
-    showConfirm("Delete all unlocked items?", "DANGER", () => {
+    showModal("Delete all unlocked items?", "DANGER", () => {
         dataResetUnlocks();
         updateUI();
     });
 }
 
 // Confirm dialog
-let confirmCallback: (() => void) | null = null;
-export function showConfirm(message: string, level: "SAFE" | "WARNING" | "DANGER", onConfirm: () => void): void {
-    const modal = document.getElementById("confirm_modal");
-    const content = document.getElementById("confirm_modal_content");
-    const msgEl = document.getElementById("confirm_modal_msg");
+let modalCallback: (() => void) | null = null;
+export function showModal(message: string, level: "SAFE" | "WARNING" | "DANGER" | "INFO", onConfirm: () => void): void {
+    const modal = document.getElementById("modal");
+    const content = document.getElementById("modal_content");
+    const msgEl = document.getElementById("modal_msg");
     if (!modal || !content || !msgEl) return;
     msgEl.textContent = message;
-    content.className = "confirm-modal-content" + (level === "WARNING" ? " level-warning" : level === "DANGER" ? " level-danger" : "");
-    confirmCallback = onConfirm;
+    content.className = "modal-content" + (level === "WARNING" ? " level-warning" : level === "DANGER" ? " level-danger" : level === "INFO" ? " level-info" : "");
+    modalCallback = onConfirm;
     modal.style.display = "flex";
 }
-export function confirmCancel(): void {
-    const modal = document.getElementById("confirm_modal");
+export function modalCancel(): void {
+    const modal = document.getElementById("modal");
     if (modal) modal.style.display = "none";
-    confirmCallback = null;
+    modalCallback = null;
 }
-export function confirmOk(): void {
-    const modal = document.getElementById("confirm_modal");
+export function modalOk(): void {
+    const modal = document.getElementById("modal");
     if (modal) modal.style.display = "none";
-    if (confirmCallback) {
-        const cb = confirmCallback;
-        confirmCallback = null;
+    if (modalCallback) {
+        const cb = modalCallback;
+        modalCallback = null;
         cb();
     }
 }
