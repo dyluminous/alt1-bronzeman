@@ -33,6 +33,20 @@ export function updateScanStatus(s: string): void {
 // Main UI
 // ============================================================
 
+
+export function updateAnchorDot(): void {
+    const el = document.getElementById("anchor_dot");
+    if (!el) return;
+    const anc = Inventory.loadAnchor();
+    if (anc && state.polling) {
+        el.className = "anchor-dot pulse";
+    } else if (anc) {
+        el.className = "anchor-dot";
+    } else {
+        el.className = "anchor-dot hidden";
+    }
+}
+
 export function updateUI(): void {
     const count = getUnlockedCount();
     const ue = document.getElementById("unlocked_count_items");
@@ -77,6 +91,7 @@ export function updateUI(): void {
     }
     }
 
+    updateAnchorDot();
     updateAnchorWarning();
 }
 
