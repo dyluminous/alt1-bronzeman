@@ -1,7 +1,7 @@
 // ui.ts — DOM rendering and RS overlay drawing for Bronzeman Mode
 import * as a1lib from "alt1";
 import * as Inventory from "./inventory";
-import { state, POLL_INTERVAL_MS, escHtml, showSlotOverlays } from "./core";
+import { state, POLL_INTERVAL_MS, escHtml, showSlotOverlays, updateAnchorWarning } from "./core";
 import { getUnlockedCount, getUnlockedItems, getUnlockedItemData } from "./data";
 import { BUILD_NUM } from "./version";
 
@@ -66,8 +66,18 @@ export function updateUI(): void {
     const calBtn = document.getElementById("calibrate_btn");
     if (calBtn) {
         const anc = Inventory.loadAnchor();
+        if (state.calibrating) {
+        calBtn.textContent = "Scanning...";
+        calBtn.style.pointerEvents = "none";
+        calBtn.style.opacity = "0.5";
+    } else {
         calBtn.textContent = anc ? "Clear Inventory Capture" : "Setup Inventory Capture";
+        calBtn.style.pointerEvents = "";
+        calBtn.style.opacity = "";
     }
+    }
+
+    updateAnchorWarning();
 }
 
 // ============================================================

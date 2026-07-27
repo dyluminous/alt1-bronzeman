@@ -150,6 +150,7 @@ let refCountdownValue = 0;
 let calibrateHandle: NotificationHandle | null = null;
 let scanNotificationHandle: NotificationHandle | null = null;
 
+
 export function captureReference(): void {
     if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
     if (!state.inAlt1) { log("Not in Alt1."); return; }
@@ -165,6 +166,8 @@ export function captureReference(): void {
     }
 
     refCountdownValue = 3;
+    state.calibrating = true;
+    updateUI();
     calibrateHandle = showNotification("Move mouse into slot 1 (3s)", 5000);
     if (calibrateHandle) calibrateHandle.update("Move mouse into slot 1 (3s)");
 
@@ -185,6 +188,8 @@ function doCaptureRef(): void {
         if (!pos || pos.x <= 0) {
                     if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
             log("No RS cursor — is RS the active window?");
+            state.calibrating = false;
+            updateUI();
             showNotification("RS Unfocused", 3000, "danger");
             return;
         }
@@ -193,6 +198,8 @@ function doCaptureRef(): void {
         if (!img) {
                     if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
             log("Capture failed — could not read RS screen.");
+            state.calibrating = false;
+            updateUI();
             showNotification("RS Unlinked", 3000, "danger");
             return;
         }
@@ -203,6 +210,8 @@ function doCaptureRef(): void {
             updateScanStatus(`Detected at (${anc.x},${anc.y})`);
             log(`Grid found at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
             if (anc.centerMismatch) {
+                state.calibrating = false;
+                updateUI();
                 showNotification("Calibration failed", 6000, "danger");
                                 if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
                 log("Grid rejected — center pixel mismatch. Recapture.");
@@ -218,6 +227,7 @@ function doCaptureRef(): void {
                 // Capture empty slot data from slot 28 (assumed empty)
                                 if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
                 Inventory.captureEmptySlotData(img, anc, (msg) => log("  [empty] " + msg));
+                state.calibrating = false;
                 showNotification("Inventory calibrated", 3000, "success");
                 drawDetectDebug(anc, false);
                 updateGridBoundary();
@@ -227,16 +237,21 @@ function doCaptureRef(): void {
         } else {
                     if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
             log("Detection failed. Is your mouse inside slot 1?");
+            state.calibrating = false;
+            updateUI();
             showNotification("Calibration failed - Mouse in slot?", 3000, "danger");
         }
     } catch (e) {
                 if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
         log("Capture error: " + e);
+        state.calibrating = false;
+        updateUI();
         showNotification("Error", 3000, "danger");
     }
 }
 
 export function clearReference(): void {
+    state.calibrating = false;
     if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
     Inventory.clearAnchor();
     Inventory.clearOuterPerm();
