@@ -902,6 +902,16 @@ export function debugPickupPixels(): void {
     log(`=== End debug ===`);
 }
 
+export function testNotification(): void {
+    const bar = document.getElementById("notification_bar");
+    if (!bar) return;
+    bar.textContent = "Test notification";
+    bar.style.display = "block";
+    setTimeout(() => {
+        bar.style.display = "none";
+    }, 2000);
+}
+
 // ============================================================
 // Grid boundary overlay
 // ============================================================
