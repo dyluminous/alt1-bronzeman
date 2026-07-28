@@ -191,7 +191,7 @@ export function fillTestIgnores(): void {
         ignoredItems.push({
             name: src.name ? `${src.name} #${ignoredItems.length}` : null,
             hash: src.hash.slice(0, 56) + suffix,
-            base64: src.base64,
+            base64: undefined,
             ignoredAt: Date.now()
         });
         i++;
