@@ -2,7 +2,7 @@
 import * as a1lib from "alt1";
 import * as Inventory from "./inventory";
 import { state, POLL_INTERVAL_MS, escHtml, showSlotOverlays, updateAnchorWarning } from "./core";
-import { getUnlockedCount, getUnlockedItems, getUnlockedItemData, getIgnoredCount } from "./data";
+import { getUnlockedCount, getUnlockedItems, getUnlockedItemData, getIgnoredCount, getIgnoredItems } from "./data";
 import { BUILD_NUM } from "./version";
 
 // ============================================================
@@ -55,7 +55,7 @@ export function updateUI(): void {
     const rl = document.getElementById("recent_list");
     if (rl) rl.style.display = "none";
 
-    // Render unlocked grid with images
+    // Render unlocks
     const ug = document.getElementById("unlocked_grid");
     if (ug) {
         const data = getUnlockedItemData();
@@ -68,6 +68,22 @@ export function updateUI(): void {
                     <img src="${d.base64}" alt="${escHtml(d.name)}">
                     <div class="unlocked-label">${escHtml(d.name)}</div>
                 </div>`
+            ).join("");
+        }
+    }
+
+    // Render recent ignores (last 3)
+    const riCount = document.getElementById("recent_ignore_count");
+    if (riCount) riCount.textContent = String(getIgnoredCount());
+    const riList = document.getElementById("recent_ignores_list");
+    if (riList) {
+        const items = getIgnoredItems();
+        if (items.length === 0) {
+            riList.innerHTML = '<div style="color:#555;text-align:center;padding:4px;">No items ignored yet.</div>';
+        } else {
+            const last3 = items.slice(-3).reverse();
+            riList.innerHTML = last3.map(i =>
+                `<div style="color:#d4a84b;font-size:11px;padding:2px 0;">${escHtml(i.name ?? "(unnamed)")}</div>`
             ).join("");
         }
     }

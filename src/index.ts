@@ -451,14 +451,40 @@ export function resetUnlocks(): void {
 }
 
 // Ignore list — public functions
-export function ignorePickup(idx: number): void {
-    const entry = recentPickups[idx];
-    if (!entry) return;
-    ignoreItem(entry.hash, null);
-    recentPickups.splice(idx, 1);
-    pickupVersion++;
-    diffPickupGrid();
-    showNotification("Item ignored", 2000, "warning");
+export function ignorePickup(index: number): void {
+    const pickup = recentPickups[index];
+    if (!pickup) { log("No pickup at index " + index); return; }
+
+    // If already scanning, cancel first
+    if (scanning) {
+        // If already scanning this pickup for ignore, cancel
+        if (scanning.slotIndex === pickup.slotIndex && scanning.imageUrl === pickup.imageUrl && scanning.mode === "ignore") {
+            cancelScanning();
+            return;
+        }
+        cancelScanning();
+    }
+
+    if (!state.inAlt1) {
+        log("Not in Alt1 — cannot scan tooltip.");
+        return;
+    }
+
+    const anc = Inventory.loadAnchor();
+    if (!anc) {
+        log("No anchor — cannot determine slot position.");
+        return;
+    }
+
+    // Enter scanning mode for ignore
+    scanning = { imageUrl: pickup.imageUrl, slotIndex: pickup.slotIndex, hash: pickup.hash, mode: "ignore", timer: null, lastTooltipAttempt: 0, hasEnteredSlot: false };
+
+    if (scanNotificationHandle) scanNotificationHandle.remove();
+    scanNotificationHandle = showNotification("Hover over the item to ignore", 0, "info");
+
+    log(`Ignore mode — hover over slot #${pickup.slotIndex + 1} to read item name.`);
+
+    scanning.timer = setInterval(pollScanningMouse, 150);
 }
 
 export function resetIgnores(): void {
@@ -519,6 +545,8 @@ export function modalOk(): void {
 interface ScanningState {
     imageUrl: string;
     slotIndex: number;
+    hash: string;
+    mode: "unlock" | "ignore";
     timer: ReturnType<typeof setInterval> | null;
     lastTooltipAttempt: number;
     hasEnteredSlot: boolean;
@@ -553,7 +581,7 @@ export function unlockPickup(index: number): void {
     }
 
     // Enter scanning mode
-    scanning = { imageUrl: pickup.imageUrl, slotIndex: pickup.slotIndex, timer: null, lastTooltipAttempt: 0, hasEnteredSlot: false };
+    scanning = { imageUrl: pickup.imageUrl, slotIndex: pickup.slotIndex, hash: pickup.hash, mode: "unlock", timer: null, lastTooltipAttempt: 0, hasEnteredSlot: false };
 
     if (scanNotificationHandle) scanNotificationHandle.remove();
     scanNotificationHandle = showNotification("Hover over the item", 0, "info");
@@ -847,11 +875,23 @@ function pollScanningMouse(): void {
                     const itemName = extractItemName(text);
                     if (itemName) {
                         log(`  Name: "${itemName}"`);
-                        if (unlockItem(itemName, scanning.imageUrl)) {
-                            log(`UNLOCKED: "${itemName}"`);
-                            updateUI();
+                        if (scanning.mode === "ignore") {
+                            ignoreItem(scanning.hash, itemName);
+                            const idx = recentPickups.findIndex(e => e.hash === scanning.hash);
+                            if (idx >= 0) {
+                                recentPickups.splice(idx, 1);
+                                pickupVersion++;
+                                diffPickupGrid();
+                            }
+                            showNotification("Ignored: " + itemName, 2000, "warning");
+                            log(`IGNORED: "${itemName}"`);
                         } else {
-                            log(`"${itemName}" already unlocked.`);
+                            if (unlockItem(itemName, scanning.imageUrl)) {
+                                log(`UNLOCKED: "${itemName}"`);
+                                updateUI();
+                            } else {
+                                log(`"${itemName}" already unlocked.`);
+                            }
                         }
                         cancelScanning();
                     }
