@@ -876,7 +876,7 @@ function pollScanningMouse(): void {
                     if (itemName) {
                         log(`  Name: "${itemName}"`);
                         if (scanning.mode === "ignore") {
-                            ignoreItem(scanning.hash, itemName);
+                            ignoreItem(scanning.hash, itemName, scanning.imageUrl);
                             const idx = recentPickups.findIndex(e => e.hash === scanning.hash);
                             if (idx >= 0) {
                                 recentPickups.splice(idx, 1);

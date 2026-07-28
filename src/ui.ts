@@ -15,10 +15,10 @@ export function updateAlt1Status(): void {
     if (!dot || !text) return;
     if (state.inAlt1) {
         dot.className = "status-dot green";
-        text.textContent = `Build #${BUILD_NUM}  Ignored: ${getIgnoredCount()}`;
+        text.textContent = `Build #${BUILD_NUM}`;
     } else {
         dot.className = "status-dot red";
-        text.textContent = `Build #${BUILD_NUM}  Ignored: ${getIgnoredCount()} (no alt1)`;
+        text.textContent = `Build #${BUILD_NUM} (no alt1)`;
     }
 }
 
@@ -82,9 +82,13 @@ export function updateUI(): void {
             riList.innerHTML = '<div style="color:#555;text-align:center;padding:4px;">No items ignored yet.</div>';
         } else {
             const last3 = items.slice(-3).reverse();
-            riList.innerHTML = last3.map(i =>
-                `<div style="color:#d4a84b;font-size:11px;padding:2px 0;">${escHtml(i.name ?? "(unnamed)")}</div>`
-            ).join("");
+            riList.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:4px;">` +
+                last3.map(i =>
+                    `<div style="text-align:center;width:36px;">
+                        ${i.base64 ? `<img src="${i.base64}" alt="${escHtml(i.name ?? "")}" style="width:36px;height:32px;">` : `<div style="width:36px;height:32px;background:#2e2825;border-radius:2px;"></div>`}
+                        <div style="color:#d4a84b;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:72px;">${escHtml(i.name ?? "(unnamed)")}</div>
+                    </div>`
+                ).join("") + `</div>`;
         }
     }
 

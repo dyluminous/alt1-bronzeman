@@ -124,6 +124,7 @@ export function resetUnlocks(): void {
 export interface IgnoredItem {
     name: string | null;
     hash: string;
+    base64?: string;
     ignoredAt: number;
 }
 
@@ -148,15 +149,16 @@ export function isIgnored(hash: string): boolean {
     return ignoredItems.some(i => i.hash === hash);
 }
 
-export function ignoreItem(hash: string, name?: string): void {
+export function ignoreItem(hash: string, name?: string, base64?: string): void {
     // Update name if entry already exists
     const existing = ignoredItems.find(i => i.hash === hash);
     if (existing) {
         if (name !== undefined) existing.name = name;
+        if (base64 !== undefined) existing.base64 = base64;
         saveIgnoredItems();
         return;
     }
-    ignoredItems.push({ name: name ?? null, hash, ignoredAt: Date.now() });
+    ignoredItems.push({ name: name ?? null, hash, base64, ignoredAt: Date.now() });
     saveIgnoredItems();
 }
 
