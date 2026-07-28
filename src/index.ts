@@ -530,10 +530,27 @@ export function hideIgnoreTooltip(): void {
 
 export function moveIgnoreTooltip(e: MouseEvent): void {
     const el = document.getElementById("ignore_tooltip");
-    if (el) {
-        el.style.left = (e.clientX + 12) + "px";
-        el.style.top = (e.clientY + 12) + "px";
+    if (!el) return;
+    const gap = 12;
+    let left = e.clientX + gap;
+    let top_ = e.clientY + gap;
+    // Render so we can measure, then adjust
+    el.style.left = left + "px";
+    el.style.top = top_ + "px";
+    const r = el.getBoundingClientRect();
+    // Flip left if overflowing right edge
+    if (r.left + r.width > window.innerWidth) {
+        left = e.clientX - gap - r.width;
     }
+    // Flip up if overflowing bottom edge
+    if (r.top + r.height > window.innerHeight) {
+        top_ = e.clientY - gap - r.height;
+    }
+    // Clamp to viewport margins
+    left = Math.max(4, Math.min(left, window.innerWidth - r.width - 4));
+    top_ = Math.max(4, Math.min(top_, window.innerHeight - r.height - 4));
+    el.style.left = left + "px";
+    el.style.top = top_ + "px";
 }
 
 // Confirm dialog
