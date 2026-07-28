@@ -76,7 +76,7 @@ export function initOnLoad() {
 
     updateAlt1Status();
     loadState();
-    initIgnoreDB();
+    initIgnoreDB().then(() => updateUI());
 
     if (state.inAlt1) {
         alt1.identifyAppUrl("./appconfig.json");

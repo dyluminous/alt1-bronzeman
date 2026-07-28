@@ -209,6 +209,8 @@ export async function initIgnoreDB(): Promise<void> {
                     // Migrate: write each to IndexedDB
                     for (const item of lsItems) await dbPut(_db, item);
                     log(`Migrated ${lsItems.length} ignores from localStorage to IndexedDB.`);
+                    // Reload from IndexedDB to get the freshly persisted data
+                    ignoredItems = await dbGetAll(_db);
                 }
             }
         }
