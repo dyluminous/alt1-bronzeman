@@ -179,3 +179,22 @@ export function clearIgnoredItems(): void {
     ignoredItems = [];
     localStorage.removeItem(LS_KEYS.ignores);
 }
+
+export function fillTestIgnores(): void {
+    if (ignoredItems.length === 0) return;
+    const originals = ignoredItems.slice();
+    const target = 5000;
+    let i = 0;
+    while (ignoredItems.length < target) {
+        const src = originals[i % originals.length];
+        const suffix = (ignoredItems.length).toString(16).padStart(8, '0');
+        ignoredItems.push({
+            name: src.name ? `${src.name} #${ignoredItems.length}` : null,
+            hash: src.hash.slice(0, 56) + suffix,
+            base64: src.base64,
+            ignoredAt: Date.now()
+        });
+        i++;
+    }
+    saveIgnoredItems();
+}

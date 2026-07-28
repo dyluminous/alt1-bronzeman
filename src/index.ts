@@ -12,7 +12,7 @@ import {
     drawDetectDebug, drawSlotOverlaysFor, isCursorInInventory,
     showScanPickup,
 } from "./ui";
-import { loadState, unlockItem, resetUnlocks as dataResetUnlocks, isIgnored, ignoreItem, getIgnoredItems, getIgnoredCount, clearIgnoredItems, removeIgnoredItem } from "./data";
+import { loadState, unlockItem, resetUnlocks as dataResetUnlocks, isIgnored, ignoreItem, getIgnoredItems, getIgnoredCount, clearIgnoredItems, removeIgnoredItem, fillTestIgnores as dataFillTestIgnores } from "./data";
 import TooltipReader from "alt1/tooltip";
 import * as OCR from "alt1/ocr";
 
@@ -515,6 +515,13 @@ export function removeIgnore(hash: string): void {
 export function toggleIgnoreLog(checked: boolean): void {
     state.debugLogIgnores = checked;
     log(`Ignore logging: ${checked ? "ON" : "OFF"}`);
+}
+
+export function fillTestIgnores(): void {
+    const before = getIgnoredCount();
+    dataFillTestIgnores();
+    updateUI();
+    log(`Test ignores: ${before} → ${getIgnoredCount()} entries.`);
 }
 
 // Ignore list tooltip handlers
