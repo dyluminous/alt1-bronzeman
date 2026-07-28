@@ -531,8 +531,8 @@ export function hideIgnoreTooltip(): void {
 export function moveIgnoreTooltip(e: MouseEvent): void {
     const el = document.getElementById("ignore_tooltip");
     if (!el) return;
-    const gap = 12;
-    const flipGap = 20;
+    const gap = 18;
+    const flipGap = 26;
     let left = e.clientX + gap;
     let top_ = e.clientY + gap;
     // Render so we can measure, then adjust
