@@ -532,6 +532,7 @@ export function moveIgnoreTooltip(e: MouseEvent): void {
     const el = document.getElementById("ignore_tooltip");
     if (!el) return;
     const gap = 12;
+    const flipGap = 20;
     let left = e.clientX + gap;
     let top_ = e.clientY + gap;
     // Render so we can measure, then adjust
@@ -540,11 +541,11 @@ export function moveIgnoreTooltip(e: MouseEvent): void {
     const r = el.getBoundingClientRect();
     // Flip left if overflowing right edge
     if (r.left + r.width > window.innerWidth) {
-        left = e.clientX - gap - r.width;
+        left = e.clientX - flipGap - r.width;
     }
     // Flip up if overflowing bottom edge
     if (r.top + r.height > window.innerHeight) {
-        top_ = e.clientY - gap - r.height;
+        top_ = e.clientY - flipGap - r.height;
     }
     // Clamp to viewport margins
     left = Math.max(4, Math.min(left, window.innerWidth - r.width - 4));
