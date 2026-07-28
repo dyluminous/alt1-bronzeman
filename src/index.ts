@@ -885,6 +885,7 @@ function pollScanningMouse(): void {
                             }
                             showNotification("Ignored: " + itemName, 2000, "warning");
                             log(`IGNORED: "${itemName}"`);
+                            updateUI();
                         } else {
                             if (unlockItem(itemName, scanning.imageUrl)) {
                                 log(`UNLOCKED: "${itemName}"`);
