@@ -84,14 +84,14 @@ export function updateUI(): void {
             const last3 = items.slice(-3).reverse();
             riList.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:4px;">` +
                 last3.map(i =>
-                    `<div class="pickup-card" style="position:relative;"
+                    `<div class="pickup-card ignore-card" style="cursor:pointer;"
+                        onclick="Bronzeman.removeIgnore('${i.hash}')"
                         onmouseenter="Bronzeman.showIgnoreTooltip('${escHtml(i.name ?? "")}')"
                         onmouseleave="Bronzeman.hideIgnoreTooltip()"
                         onmousemove="Bronzeman.moveIgnoreTooltip(event)">
                         <div class="pickup-img-wrap">
                             ${i.base64 ? `<img src="${i.base64}" alt="${escHtml(i.name ?? "")}">` : `<div style="width:36px;height:32px;"></div>`}
                         </div>
-                        <button class="btn-item-menu-overlay" onclick="event.stopPropagation();Bronzeman.removeIgnore('${i.hash}')">✕</button>
                     </div>`
                 ).join("") + `</div>`;
         }

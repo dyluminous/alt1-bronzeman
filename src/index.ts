@@ -507,6 +507,7 @@ export function dumpIgnoredItems(): void {
 }
 
 export function removeIgnore(hash: string): void {
+    hideIgnoreTooltip();
     removeIgnoredItem(hash);
     updateUI();
 }
