@@ -12,7 +12,7 @@ import {
     drawDetectDebug, drawSlotOverlaysFor, isCursorInInventory,
     showScanPickup,
 } from "./ui";
-import { loadState, unlockItem, resetUnlocks as dataResetUnlocks, isIgnored, ignoreItem, getIgnoredItems, getIgnoredCount, clearIgnoredItems, removeIgnoredItem, fillTestIgnores as dataFillTestIgnores } from "./data";
+import { loadState, unlockItem, resetUnlocks as dataResetUnlocks, isIgnored, ignoreItem, getIgnoredItems, getIgnoredCount, clearIgnoredItems, removeIgnoredItem, fillTestIgnores as dataFillTestIgnores, initIgnoreDB } from "./data";
 import TooltipReader from "alt1/tooltip";
 import * as OCR from "alt1/ocr";
 
@@ -76,6 +76,7 @@ export function initOnLoad() {
 
     updateAlt1Status();
     loadState();
+    initIgnoreDB();
 
     if (state.inAlt1) {
         alt1.identifyAppUrl("./appconfig.json");
