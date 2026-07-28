@@ -12,7 +12,7 @@ import {
     drawDetectDebug, drawSlotOverlaysFor, isCursorInInventory,
     showScanPickup,
 } from "./ui";
-import { loadState, unlockItem, resetUnlocks as dataResetUnlocks } from "./data";
+import { loadState, unlockItem, resetUnlocks as dataResetUnlocks, isIgnored, ignoreItem, getIgnoredItems, getIgnoredCount, clearIgnoredItems, removeIgnoredItem, fillTestIgnores as dataFillTestIgnores, initIgnoreDB } from "./data";
 import TooltipReader from "alt1/tooltip";
 import * as OCR from "alt1/ocr";
 
@@ -34,8 +34,10 @@ interface PickupEntry {
 }
 
 const recentPickups: PickupEntry[] = [];
-let renderedCardIndices: number[] = [];
+let renderedCardHashes: string[] = [];
 let renderedCardNodes: HTMLElement[] = [];
+let pickupVersion = 0;
+let lastRenderedVersion = -1;
 
 function isNotedItem(img: any, anc: Inventory.BackpackAnchor, slotIndex: number): boolean {
     const row = Math.floor(slotIndex / Inventory.COLS);
@@ -74,6 +76,7 @@ export function initOnLoad() {
 
     updateAlt1Status();
     loadState();
+    initIgnoreDB().then(() => updateUI());
 
     if (state.inAlt1) {
         alt1.identifyAppUrl("./appconfig.json");
@@ -408,8 +411,16 @@ function doScan(): void {
                         log(`  Skipped dup (diff=${diff}): ${slot.hash.slice(0,16)}...`);
                         continue;
                     }
+                    // Check ignore list before adding to potential unlocks
+                    if (isIgnored(slot.hash)) {
+                        if (state.debugLogIgnores) {
+                            log(`  🚫 Slot #${slot.index + 1} hash ${slot.hash.slice(0, 8)}… is ignored — skipping`);
+                        }
+                        continue;
+                    }
                     recentPickups.push({ slotIndex: slot.index, imageUrl: url, time: Date.now(), noted, hash: slot.hash });
-                    if (recentPickups.length > MAX_PICKUPS) recentPickups.pop();
+                    pickupVersion++;
+                    if (recentPickups.length > MAX_PICKUPS) { recentPickups.pop(); pickupVersion++; }
                 } catch { /* canvas not available */ }
             }
             diffPickupGrid();
@@ -438,6 +449,117 @@ export function resetUnlocks(): void {
         dataResetUnlocks();
         updateUI();
     });
+}
+
+// Ignore list — public functions
+export function ignorePickup(index: number): void {
+    const pickup = recentPickups[index];
+    if (!pickup) { log("No pickup at index " + index); return; }
+
+    // If already scanning, cancel first
+    if (scanning) {
+        // If already scanning this pickup for ignore, cancel
+        if (scanning.slotIndex === pickup.slotIndex && scanning.imageUrl === pickup.imageUrl && scanning.mode === "ignore") {
+            cancelScanning();
+            return;
+        }
+        cancelScanning();
+    }
+
+    if (!state.inAlt1) {
+        log("Not in Alt1 — cannot scan tooltip.");
+        return;
+    }
+
+    const anc = Inventory.loadAnchor();
+    if (!anc) {
+        log("No anchor — cannot determine slot position.");
+        return;
+    }
+
+    // Enter scanning mode for ignore
+    scanning = { imageUrl: pickup.imageUrl, slotIndex: pickup.slotIndex, hash: pickup.hash, mode: "ignore", timer: null, lastTooltipAttempt: 0, hasEnteredSlot: false };
+
+    if (scanNotificationHandle) scanNotificationHandle.remove();
+    scanNotificationHandle = showNotification("Hover over the item to ignore", 0, "info");
+
+    log(`Ignore mode — hover over slot #${pickup.slotIndex + 1} to read item name.`);
+
+    scanning.timer = setInterval(pollScanningMouse, 150);
+}
+
+export function resetIgnores(): void {
+    showModal("Delete all ignored items? This will allow them to appear in potential unlocks again.", "DANGER", () => {
+        clearIgnoredItems();
+        showNotification("All ignored items cleared", 2000, "success");
+        updateUI();
+    });
+}
+
+export function dumpIgnoredItems(): void {
+    const items = getIgnoredItems();
+    if (items.length === 0) { log("Ignore list is empty."); return; }
+    console.table(items.map(i => ({
+        name: i.name ?? "(unnamed)",
+        hash: i.hash.slice(0, 16) + "…",
+        ignoredAt: new Date(i.ignoredAt).toLocaleString()
+    })));
+    log(`Ignore list: ${items.length} item(s) logged to console.`);
+}
+
+export function removeIgnore(hash: string): void {
+    hideIgnoreTooltip();
+    removeIgnoredItem(hash);
+    updateUI();
+}
+
+export function toggleIgnoreLog(checked: boolean): void {
+    state.debugLogIgnores = checked;
+    log(`Ignore logging: ${checked ? "ON" : "OFF"}`);
+}
+
+export function fillTestIgnores(): void {
+    const before = getIgnoredCount();
+    dataFillTestIgnores();
+    updateUI();
+    log(`Test ignores: ${before} → ${getIgnoredCount()} entries.`);
+}
+
+// Ignore list tooltip handlers
+export function showIgnoreTooltip(name: string): void {
+    const el = document.getElementById("ignore_tooltip");
+    if (el) { el.textContent = name; el.style.display = "block"; }
+}
+
+export function hideIgnoreTooltip(): void {
+    const el = document.getElementById("ignore_tooltip");
+    if (el) el.style.display = "none";
+}
+
+export function moveIgnoreTooltip(e: MouseEvent): void {
+    const el = document.getElementById("ignore_tooltip");
+    if (!el) return;
+    const gap = 12;
+    const yOffset = 10;
+    let left = e.clientX + gap;
+    let top_ = e.clientY + gap + yOffset;
+    // Render so we can measure, then adjust
+    el.style.left = left + "px";
+    el.style.top = top_ + "px";
+    const r = el.getBoundingClientRect();
+    // Flip left if overflowing right edge
+    if (r.left + r.width > window.innerWidth) {
+        left = e.clientX - gap - r.width;
+    }
+    // Flip up if overflowing bottom edge
+    if (r.top + r.height > window.innerHeight) {
+        top_ = e.clientY - gap + yOffset - r.height;
+    }
+    // Clamp to viewport margins
+    left = Math.max(4, Math.min(left, window.innerWidth - r.width - 4));
+    top_ = Math.max(4, Math.min(top_, window.innerHeight - r.height - 4));
+    el.style.left = left + "px";
+    el.style.top = top_ + "px";
 }
 
 // Confirm dialog
@@ -474,6 +596,8 @@ export function modalOk(): void {
 interface ScanningState {
     imageUrl: string;
     slotIndex: number;
+    hash: string;
+    mode: "unlock" | "ignore";
     timer: ReturnType<typeof setInterval> | null;
     lastTooltipAttempt: number;
     hasEnteredSlot: boolean;
@@ -508,7 +632,7 @@ export function unlockPickup(index: number): void {
     }
 
     // Enter scanning mode
-    scanning = { imageUrl: pickup.imageUrl, slotIndex: pickup.slotIndex, timer: null, lastTooltipAttempt: 0, hasEnteredSlot: false };
+    scanning = { imageUrl: pickup.imageUrl, slotIndex: pickup.slotIndex, hash: pickup.hash, mode: "unlock", timer: null, lastTooltipAttempt: 0, hasEnteredSlot: false };
 
     if (scanNotificationHandle) scanNotificationHandle.remove();
     scanNotificationHandle = showNotification("Hover over the item", 0, "info");
@@ -802,11 +926,24 @@ function pollScanningMouse(): void {
                     const itemName = extractItemName(text);
                     if (itemName) {
                         log(`  Name: "${itemName}"`);
-                        if (unlockItem(itemName, scanning.imageUrl)) {
-                            log(`UNLOCKED: "${itemName}"`);
+                        if (scanning.mode === "ignore") {
+                            ignoreItem(scanning.hash, itemName, scanning.imageUrl);
+                            const idx = recentPickups.findIndex(e => e.hash === scanning.hash);
+                            if (idx >= 0) {
+                                recentPickups.splice(idx, 1);
+                                pickupVersion++;
+                                diffPickupGrid();
+                            }
+                            showNotification("Ignored: " + itemName, 2000, "warning");
+                            log(`IGNORED: "${itemName}"`);
                             updateUI();
                         } else {
-                            log(`"${itemName}" already unlocked.`);
+                            if (unlockItem(itemName, scanning.imageUrl)) {
+                                log(`UNLOCKED: "${itemName}"`);
+                                updateUI();
+                            } else {
+                                log(`"${itemName}" already unlocked.`);
+                            }
                         }
                         cancelScanning();
                     }
@@ -848,17 +985,22 @@ function extractItemName(raw: string): string {
 // Pickup grid — renders recent item thumbnails and scan tab cards
 
 /** Build a single pickup card DOM node */
-function buildCardNode(p: PickupEntry, index: number): HTMLElement {
+function buildCardNode(p: PickupEntry): HTMLElement {
+    const hash = p.hash;
     const card = document.createElement("div");
     card.className = "pickup-card";
-    card.addEventListener("click", () => unlockPickup(index));
+    card.addEventListener("click", () => {
+        const idx = recentPickups.findIndex(e => e.hash === hash);
+        if (idx >= 0) unlockPickup(idx);
+    });
 
     const btn = document.createElement("button");
     btn.className = "btn-item-menu-overlay";
     btn.textContent = "✕";
     btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        // TODO: wire ignore
+        const idx = recentPickups.findIndex(entry => entry.hash === hash);
+        if (idx >= 0) ignorePickup(idx);
     });
     card.appendChild(btn);
 
@@ -876,6 +1018,9 @@ function buildCardNode(p: PickupEntry, index: number): HTMLElement {
 
 /** Diff-based update of the scan tab pickup grid — only touches changed cards */
 function diffPickupGrid(): void {
+    // No-op guard: if nothing mutated since last render, skip everything
+    if (pickupVersion === lastRenderedVersion) return;
+
     const grid = document.getElementById("scan_pickup_grid");
     const ph = document.getElementById("scan_placeholder");
     if (!grid) return;
@@ -884,33 +1029,36 @@ function diffPickupGrid(): void {
     if (recentPickups.length === 0) {
         grid.innerHTML = "";
         if (ph) ph.style.display = "block";
-        renderedCardIndices = [];
+        renderedCardHashes = [];
         renderedCardNodes = [];
+        lastRenderedVersion = pickupVersion;
         return;
     }
     if (ph) ph.style.display = "none";
 
-    const currentIndices = new Set(recentPickups.map((_, i) => i));
+    const currentHashes = new Set(recentPickups.map(p => p.hash));
 
-    // 1. Remove cards whose index no longer exists
+    // 1. Remove cards whose hash is gone
     for (let i = renderedCardNodes.length - 1; i >= 0; i--) {
-        if (!currentIndices.has(renderedCardIndices[i])) {
+        if (!currentHashes.has(renderedCardHashes[i])) {
             grid.removeChild(renderedCardNodes[i]);
             renderedCardNodes.splice(i, 1);
-            renderedCardIndices.splice(i, 1);
+            renderedCardHashes.splice(i, 1);
         }
     }
 
-    // 2. Add cards for indices not yet rendered
-    const renderedSet = new Set(renderedCardIndices);
-    for (let i = 0; i < recentPickups.length; i++) {
-        if (!renderedSet.has(i)) {
-            const card = buildCardNode(recentPickups[i], i);
+    // 2. Add cards for hashes not yet rendered
+    const renderedSet = new Set(renderedCardHashes);
+    for (const p of recentPickups) {
+        if (!renderedSet.has(p.hash)) {
+            const card = buildCardNode(p);
             grid.appendChild(card);
             renderedCardNodes.push(card);
-            renderedCardIndices.push(i);
+            renderedCardHashes.push(p.hash);
         }
     }
+
+    lastRenderedVersion = pickupVersion;
 }
 
 /** Renders the item log tab */
