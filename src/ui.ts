@@ -72,7 +72,7 @@ export function updateUI(): void {
         }
     }
 
-    // Render recent ignores (last 3)
+    // Render recent ignores (last 3) — pickup-card style
     const riCount = document.getElementById("recent_ignore_count");
     if (riCount) riCount.textContent = String(getIgnoredCount());
     const riList = document.getElementById("recent_ignores_list");
@@ -82,11 +82,16 @@ export function updateUI(): void {
             riList.innerHTML = '<div style="color:#555;text-align:center;padding:4px;">No items ignored yet.</div>';
         } else {
             const last3 = items.slice(-3).reverse();
-            riList.innerHTML = `<div class="unlocked-grid">` +
+            riList.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:4px;">` +
                 last3.map(i =>
-                    `<div class="unlocked-thumb">
-                        ${i.base64 ? `<img src="${i.base64}" alt="${escHtml(i.name ?? "")}">` : `<div style="width:36px;height:32px;"></div>`}
-                        <div class="unlocked-label">${escHtml(i.name ?? "(unnamed)")}</div>
+                    `<div class="pickup-card" style="position:relative;"
+                        onmouseenter="Bronzeman.showIgnoreTooltip('${escHtml(i.name ?? "")}')"
+                        onmouseleave="Bronzeman.hideIgnoreTooltip()"
+                        onmousemove="Bronzeman.moveIgnoreTooltip(event)">
+                        <div class="pickup-img-wrap">
+                            ${i.base64 ? `<img src="${i.base64}" alt="${escHtml(i.name ?? "")}">` : `<div style="width:36px;height:32px;"></div>`}
+                        </div>
+                        <button class="btn-item-menu-overlay" onclick="event.stopPropagation();Bronzeman.removeIgnore('${i.hash}')">✕</button>
                     </div>`
                 ).join("") + `</div>`;
         }

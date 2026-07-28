@@ -12,7 +12,7 @@ import {
     drawDetectDebug, drawSlotOverlaysFor, isCursorInInventory,
     showScanPickup,
 } from "./ui";
-import { loadState, unlockItem, resetUnlocks as dataResetUnlocks, isIgnored, ignoreItem, getIgnoredItems, getIgnoredCount, clearIgnoredItems } from "./data";
+import { loadState, unlockItem, resetUnlocks as dataResetUnlocks, isIgnored, ignoreItem, getIgnoredItems, getIgnoredCount, clearIgnoredItems, removeIgnoredItem } from "./data";
 import TooltipReader from "alt1/tooltip";
 import * as OCR from "alt1/ocr";
 
@@ -506,9 +506,33 @@ export function dumpIgnoredItems(): void {
     log(`Ignore list: ${items.length} item(s) logged to console.`);
 }
 
+export function removeIgnore(hash: string): void {
+    removeIgnoredItem(hash);
+    updateUI();
+}
+
 export function toggleIgnoreLog(checked: boolean): void {
     state.debugLogIgnores = checked;
     log(`Ignore logging: ${checked ? "ON" : "OFF"}`);
+}
+
+// Ignore list tooltip handlers
+export function showIgnoreTooltip(name: string): void {
+    const el = document.getElementById("ignore_tooltip");
+    if (el) { el.textContent = name; el.style.display = "block"; }
+}
+
+export function hideIgnoreTooltip(): void {
+    const el = document.getElementById("ignore_tooltip");
+    if (el) el.style.display = "none";
+}
+
+export function moveIgnoreTooltip(e: MouseEvent): void {
+    const el = document.getElementById("ignore_tooltip");
+    if (el) {
+        el.style.left = (e.clientX + 12) + "px";
+        el.style.top = (e.clientY + 12) + "px";
+    }
 }
 
 // Confirm dialog

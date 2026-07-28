@@ -170,6 +170,11 @@ export function getIgnoredCount(): number {
     return ignoredItems.length;
 }
 
+export function removeIgnoredItem(hash: string): void {
+    ignoredItems = ignoredItems.filter(i => i.hash !== hash);
+    saveIgnoredItems();
+}
+
 export function clearIgnoredItems(): void {
     ignoredItems = [];
     localStorage.removeItem(LS_KEYS.ignores);
