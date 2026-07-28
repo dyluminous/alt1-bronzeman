@@ -522,7 +522,10 @@
         <div class="section-title">Unlocks (<span id="unlocked_count_items">0</span>)</div>
         <div class="item-list" id="recent_list"><div style="color:#555;text-align:center;padding:8px;">No items unlocked yet.</div></div>
         <div id="unlocked_grid" class="unlocked-grid" style="display:none;"></div>
-        <div class="btn btn-primary" onclick="Bronzeman.resetUnlocks()" style="position:fixed;bottom:8px;left:8px;min-width:auto;height:auto;padding:4px 10px;font-size:11px;">Reset</div>
+        <div style="position:fixed;bottom:8px;left:8px;display:flex;gap:6px;">
+            <div class="btn btn-primary" onclick="Bronzeman.resetUnlocks()" style="min-width:auto;height:auto;padding:4px 10px;font-size:11px;">Reset</div>
+            <div class="btn btn-primary" onclick="Bronzeman.resetIgnores()" style="min-width:auto;height:auto;padding:4px 10px;font-size:11px;">Reset ignores</div>
+        </div>
     </div>
 
     <!-- Tab: Setup -->
@@ -552,11 +555,16 @@
             <input type="checkbox" class="pixel-checkbox" id="show_slot_overlays" onclick="Bronzeman.toggleSlotOverlays()">
             <span>Inventory monitor</span>
         </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;">
+            <input type="checkbox" class="pixel-checkbox" onchange="Bronzeman.toggleIgnoreLog(this.checked)">
+            <span>Log ignored items</span>
+        </label>
         <div class="section-title">Output</div>
         <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;">
             <div class="btn btn-primary" onclick="Bronzeman.savePickupImages()" style="width:100%;padding-top:6px;padding-bottom:6px;">Slot &gt; PNG</div>
             <div class="btn btn-primary" onclick="Bronzeman.debugPickupPixels()" style="width:100%;padding-top:6px;padding-bottom:6px;">Slot &gt; Console</div>
-            <div class="btn btn-primary" onclick="Bronzeman.testNotification()" style="width:100%;padding-top:6px;padding-bottom:6px;">Test Notification</div>
+            <div class="btn btn-primary" onclick="Bronzeman.testNotification()" style="width:100%;padding-top:6px;padding-bottom:6px;">Test Notification</div>
+            <div class="btn btn-primary" onclick="Bronzeman.dumpIgnoredItems()" style="width:100%;padding-top:6px;padding-bottom:6px;">Ignored &gt; Console</div>
         </div>
         <canvas id="ocr_preview" height="60" style="image-rendering:pixelated;border:1px solid #555;margin-bottom:6px;display:none;max-width:100%;"></canvas>
         <div id="anchor_info" style="font-size:8px;color:#666;font-family:monospace;"></div>

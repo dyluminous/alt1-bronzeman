@@ -25,6 +25,7 @@ let unlockedItemDataList: UnlockedItemData[] = [];
 // ============================================================
 
 export function loadState(): void {
+    loadIgnoredItems();
     try {
         const raw = localStorage.getItem(LS_KEYS.unlockedItems);
         if (raw) {
@@ -114,4 +115,60 @@ export function resetUnlocks(): void {
     localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
     localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify([]));
     log("Unlocks cleared.");
+}
+
+// ============================================================
+// Ignore list
+// ============================================================
+
+export interface IgnoredItem {
+    name: string | null;
+    hash: string;
+    ignoredAt: number;
+}
+
+let ignoredItems: IgnoredItem[] = [];
+
+function loadIgnoredItems(): void {
+    try {
+        const raw = localStorage.getItem(LS_KEYS.ignores);
+        ignoredItems = raw ? JSON.parse(raw) : [];
+    } catch {
+        ignoredItems = [];
+    }
+}
+
+function saveIgnoredItems(): void {
+    localStorage.setItem(LS_KEYS.ignores, JSON.stringify(ignoredItems));
+}
+
+
+
+export function isIgnored(hash: string): boolean {
+    return ignoredItems.some(i => i.hash === hash);
+}
+
+export function ignoreItem(hash: string, name?: string): void {
+    // Update name if entry already exists
+    const existing = ignoredItems.find(i => i.hash === hash);
+    if (existing) {
+        if (name !== undefined) existing.name = name;
+        saveIgnoredItems();
+        return;
+    }
+    ignoredItems.push({ name: name ?? null, hash, ignoredAt: Date.now() });
+    saveIgnoredItems();
+}
+
+export function getIgnoredItems(): IgnoredItem[] {
+    return ignoredItems.slice();
+}
+
+export function getIgnoredCount(): number {
+    return ignoredItems.length;
+}
+
+export function clearIgnoredItems(): void {
+    ignoredItems = [];
+    localStorage.removeItem(LS_KEYS.ignores);
 }

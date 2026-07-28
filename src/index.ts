@@ -12,7 +12,7 @@ import {
     drawDetectDebug, drawSlotOverlaysFor, isCursorInInventory,
     showScanPickup,
 } from "./ui";
-import { loadState, unlockItem, resetUnlocks as dataResetUnlocks } from "./data";
+import { loadState, unlockItem, resetUnlocks as dataResetUnlocks, isIgnored, ignoreItem, getIgnoredItems, getIgnoredCount, clearIgnoredItems } from "./data";
 import TooltipReader from "alt1/tooltip";
 import * as OCR from "alt1/ocr";
 
@@ -34,8 +34,10 @@ interface PickupEntry {
 }
 
 const recentPickups: PickupEntry[] = [];
-let renderedCardIndices: number[] = [];
+let renderedCardHashes: string[] = [];
 let renderedCardNodes: HTMLElement[] = [];
+let pickupVersion = 0;
+let lastRenderedVersion = -1;
 
 function isNotedItem(img: any, anc: Inventory.BackpackAnchor, slotIndex: number): boolean {
     const row = Math.floor(slotIndex / Inventory.COLS);
@@ -408,8 +410,16 @@ function doScan(): void {
                         log(`  Skipped dup (diff=${diff}): ${slot.hash.slice(0,16)}...`);
                         continue;
                     }
+                    // Check ignore list before adding to potential unlocks
+                    if (isIgnored(slot.hash)) {
+                        if (state.debugLogIgnores) {
+                            log(`  🚫 Slot #${slot.index + 1} hash ${slot.hash.slice(0, 8)}… is ignored — skipping`);
+                        }
+                        continue;
+                    }
                     recentPickups.push({ slotIndex: slot.index, imageUrl: url, time: Date.now(), noted, hash: slot.hash });
-                    if (recentPickups.length > MAX_PICKUPS) recentPickups.pop();
+                    pickupVersion++;
+                    if (recentPickups.length > MAX_PICKUPS) { recentPickups.pop(); pickupVersion++; }
                 } catch { /* canvas not available */ }
             }
             diffPickupGrid();
@@ -438,6 +448,41 @@ export function resetUnlocks(): void {
         dataResetUnlocks();
         updateUI();
     });
+}
+
+// Ignore list — public functions
+export function ignorePickup(idx: number): void {
+    const entry = recentPickups[idx];
+    if (!entry) return;
+    ignoreItem(entry.hash, null);
+    recentPickups.splice(idx, 1);
+    pickupVersion++;
+    diffPickupGrid();
+    showNotification("Item ignored", 2000, "warning");
+}
+
+export function resetIgnores(): void {
+    showModal("Delete all ignored items? This will allow them to appear in potential unlocks again.", "DANGER", () => {
+        clearIgnoredItems();
+        showNotification("All ignored items cleared", 2000, "success");
+        updateUI();
+    });
+}
+
+export function dumpIgnoredItems(): void {
+    const items = getIgnoredItems();
+    if (items.length === 0) { log("Ignore list is empty."); return; }
+    console.table(items.map(i => ({
+        name: i.name ?? "(unnamed)",
+        hash: i.hash.slice(0, 16) + "…",
+        ignoredAt: new Date(i.ignoredAt).toLocaleString()
+    })));
+    log(`Ignore list: ${items.length} item(s) logged to console.`);
+}
+
+export function toggleIgnoreLog(checked: boolean): void {
+    state.debugLogIgnores = checked;
+    log(`Ignore logging: ${checked ? "ON" : "OFF"}`);
 }
 
 // Confirm dialog
@@ -848,17 +893,22 @@ function extractItemName(raw: string): string {
 // Pickup grid — renders recent item thumbnails and scan tab cards
 
 /** Build a single pickup card DOM node */
-function buildCardNode(p: PickupEntry, index: number): HTMLElement {
+function buildCardNode(p: PickupEntry): HTMLElement {
+    const hash = p.hash;
     const card = document.createElement("div");
     card.className = "pickup-card";
-    card.addEventListener("click", () => unlockPickup(index));
+    card.addEventListener("click", () => {
+        const idx = recentPickups.findIndex(e => e.hash === hash);
+        if (idx >= 0) unlockPickup(idx);
+    });
 
     const btn = document.createElement("button");
     btn.className = "btn-item-menu-overlay";
     btn.textContent = "✕";
     btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        // TODO: wire ignore
+        const idx = recentPickups.findIndex(entry => entry.hash === hash);
+        if (idx >= 0) ignorePickup(idx);
     });
     card.appendChild(btn);
 
@@ -876,6 +926,9 @@ function buildCardNode(p: PickupEntry, index: number): HTMLElement {
 
 /** Diff-based update of the scan tab pickup grid — only touches changed cards */
 function diffPickupGrid(): void {
+    // No-op guard: if nothing mutated since last render, skip everything
+    if (pickupVersion === lastRenderedVersion) return;
+
     const grid = document.getElementById("scan_pickup_grid");
     const ph = document.getElementById("scan_placeholder");
     if (!grid) return;
@@ -884,33 +937,36 @@ function diffPickupGrid(): void {
     if (recentPickups.length === 0) {
         grid.innerHTML = "";
         if (ph) ph.style.display = "block";
-        renderedCardIndices = [];
+        renderedCardHashes = [];
         renderedCardNodes = [];
+        lastRenderedVersion = pickupVersion;
         return;
     }
     if (ph) ph.style.display = "none";
 
-    const currentIndices = new Set(recentPickups.map((_, i) => i));
+    const currentHashes = new Set(recentPickups.map(p => p.hash));
 
-    // 1. Remove cards whose index no longer exists
+    // 1. Remove cards whose hash is gone
     for (let i = renderedCardNodes.length - 1; i >= 0; i--) {
-        if (!currentIndices.has(renderedCardIndices[i])) {
+        if (!currentHashes.has(renderedCardHashes[i])) {
             grid.removeChild(renderedCardNodes[i]);
             renderedCardNodes.splice(i, 1);
-            renderedCardIndices.splice(i, 1);
+            renderedCardHashes.splice(i, 1);
         }
     }
 
-    // 2. Add cards for indices not yet rendered
-    const renderedSet = new Set(renderedCardIndices);
-    for (let i = 0; i < recentPickups.length; i++) {
-        if (!renderedSet.has(i)) {
-            const card = buildCardNode(recentPickups[i], i);
+    // 2. Add cards for hashes not yet rendered
+    const renderedSet = new Set(renderedCardHashes);
+    for (const p of recentPickups) {
+        if (!renderedSet.has(p.hash)) {
+            const card = buildCardNode(p);
             grid.appendChild(card);
             renderedCardNodes.push(card);
-            renderedCardIndices.push(i);
+            renderedCardHashes.push(p.hash);
         }
     }
+
+    lastRenderedVersion = pickupVersion;
 }
 
 /** Renders the item log tab */
