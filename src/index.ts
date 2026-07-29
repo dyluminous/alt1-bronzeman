@@ -1155,19 +1155,44 @@ export function debugFindSlot(): void {
             log(`Columns: ${cols}`);
         }
 
-        // Draw boxes for all found columns
+        // Count rows downward: 2px gap → next BL at y + 36
+        const rowStride = 36;
+        let rows = 0;
+        if (colStride > 0) {
+            for (let r = 0; r < 10; r++) {
+                const sy = hit.y + r * rowStride;
+                if (sy >= img.height) break;
+                const d = img.toData(hit.x, sy, 1, 1);
+                if (!d) break;
+                if (Inventory.lightness(d.data[0], d.data[1], d.data[2]) >= 17) rows++; else break;
+            }
+        }
+        const total = cols * rows;
+        let lastRowCols = cols;
+        if (total > 28) lastRowCols = cols - (total - 28);
+        log(`Grid: ${cols}×${rows}=${total} slots, last row has ${lastRowCols} columns, colStride=${colStride} rowStride=${rowStride}`);
+
+        // Draw full grid with numbers
         const yc = a1lib.mixColor(255, 255, 0);
-        const dur = 5000;
-        const sh = 34, sw = 38;
+        const white = a1lib.mixColor(255, 255, 255);
+        const dur = 5000, sh = 34, sw = 38;
         alt1.overLaySetGroup("bronzeman_fingerprint");
         alt1.overLayClearGroup("bronzeman_fingerprint");
-        for (let c = 0; c < cols; c++) {
-            const sx = hit.x + c * colStride;
-            const sy = hit.y - 33;
-            alt1.overLayRect(yc, sx, sy, sw, 1, dur, 1);
-            alt1.overLayRect(yc, sx, sy + sh - 1, sw, 1, dur, 1);
-            alt1.overLayRect(yc, sx, sy, 1, sh, dur, 1);
-            alt1.overLayRect(yc, sx + sw - 1, sy, 1, sh, dur, 1);
+        let slotNum = 0;
+        for (let r = 0; r < rows; r++) {
+            const slotCols = (r === rows - 1) ? lastRowCols : cols;
+            for (let c = 0; c < slotCols; c++) {
+                slotNum++;
+                const sx = hit.x + c * colStride;
+                const sy = hit.y - 33 + r * rowStride;
+                // Box outline
+                alt1.overLayRect(yc, sx, sy, sw, 1, dur, 1);
+                alt1.overLayRect(yc, sx, sy + sh - 1, sw, 1, dur, 1);
+                alt1.overLayRect(yc, sx, sy, 1, sh, dur, 1);
+                alt1.overLayRect(yc, sx + sw - 1, sy, 1, sh, dur, 1);
+                // Slot number in center
+                alt1.overLayText(String(slotNum), white, 14, sx + sw / 2 - 8, sy + sh / 2 - 7, dur);
+            }
         }
     } else {
         log(`No fingerprint slot found (scanned in ${ms}ms)`);

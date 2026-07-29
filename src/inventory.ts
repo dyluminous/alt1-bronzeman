@@ -442,7 +442,7 @@ export function findSlotByFingerprint(img: ImgRef): FingerprintHit | null {
 }
 
 /** Compute HSL lightness from RGB. Returns 0-100. */
-function lightness(r: number, g: number, b: number): number {
+export function lightness(r: number, g: number, b: number): number {
     const max = Math.max(r, g, b) / 255, min = Math.min(r, g, b) / 255;
     return Math.round(((max + min) / 2) * 100);
 }
