@@ -2,8 +2,10 @@ import { ImgRef } from "alt1/base";
 
 export interface BackpackAnchor {
     x: number; y: number;
-    method: "manual" | "cursor" | "fallback";
+    method: "manual" | "cursor" | "fallback" | "auto";
     colStride: number; rowStride: number;
+    gridCols?: number;
+    gridRows?: number;
     centerMismatch?: boolean;
 }
 

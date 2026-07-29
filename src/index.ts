@@ -1196,6 +1196,17 @@ export function debugFindSlot(): void {
         }
         const totalMs = Date.now() - t0;
         log(`Total: ${totalMs}ms (fingerprint: ${ms}ms, gap/cols/rows: ${totalMs - ms}ms)`);
+
+        // Save anchor so boundary overlay and other features can use it
+        Inventory.saveAnchor({
+            x: hit.x + 1,
+            y: hit.y - 32,
+            method: "auto",
+            colStride,
+            rowStride,
+            gridCols: cols,
+            gridRows: rows,
+        });
     } else {
         log(`No fingerprint slot found (scanned in ${ms}ms)`);
     }
@@ -1237,10 +1248,13 @@ function drawBoundaryOverlay(): void {
     if (!state.inAlt1 || !showGridBoundary) return;
     const anc = Inventory.loadAnchor();
     if (!anc) return;
+    const rows = anc.gridRows ?? 7;
+    const cols = anc.gridCols ?? 4;
+    // TL of first slot (including 1px border) to BR of last slot
     const left = anc.x - 1;
     const top = anc.y - 1;
-    const w = 3 * anc.colStride + 38;
-    const h = 6 * anc.rowStride + 34;
+    const w = (cols - 1) * anc.colStride + 38;
+    const h = (rows - 1) * anc.rowStride + 34;
     const c = a1lib.mixColor(80, 200, 255);
     const ttl = POLL_INTERVAL_MS + 200;
     alt1.overLaySetGroup("bronzeman_boundary");
