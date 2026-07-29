@@ -54,6 +54,7 @@ export interface AnchorPixel {
 export function saveAnchorPixel(img: ImgRef, anc: BackpackAnchor): void {
     const bx = anc.x - 1;  // BL corner x
     const by = anc.y + 32; // BL corner y
+    if (bx < 0 || by < 0 || bx >= img.width || by >= img.height) return;
     const d = img.toData(bx, by, 1, 1);
     if (!d) return;
     const pixel: AnchorPixel = { x: bx, y: by, r: d.data[0], g: d.data[1], b: d.data[2] };
@@ -76,6 +77,7 @@ export function clearAnchorPixel(): void { localStorage.removeItem(ANCHOR_PIXEL_
 export function checkAnchorPixel(img: ImgRef): boolean {
     const saved = loadAnchorPixel();
     if (!saved) return true; // no saved pixel → assume valid
+    if (saved.x < 0 || saved.y < 0 || saved.x >= img.width || saved.y >= img.height) return false;
     const d = img.toData(saved.x, saved.y, 1, 1);
     if (!d) return false;
     return d.data[0] === saved.r && d.data[1] === saved.g && d.data[2] === saved.b;
