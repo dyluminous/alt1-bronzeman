@@ -110,7 +110,7 @@ export function updateUI(): void {
         calBtn.style.pointerEvents = "none";
         calBtn.style.opacity = "0.5";
     } else {
-        calBtn.textContent = anc ? "Clear Inventory Capture" : "Setup Inventory Capture";
+        calBtn.textContent = state.autocapture ? "Stop auto-capture" : "Start auto-capture";
         calBtn.style.pointerEvents = "";
         calBtn.style.opacity = "";
     }

@@ -5,7 +5,7 @@ import * as Inventory from "./inventory";
 import { BUILD, BUILD_NUM } from "./version";
 import {
     state,
-    captureFullRs, showNotification, NotificationHandle, log, POLL_INTERVAL_MS, setShowSlotOverlays, showSlotOverlays,
+    captureFullRs, showNotification, NotificationHandle, log, POLL_INTERVAL_MS, setShowSlotOverlays, showSlotOverlays, setRetryingCapture,
 } from "./core";
 import {
     updateAlt1Status, updateScanStatus, updateUI, updateDebugGrid, updateAnchorDot,
@@ -161,21 +161,26 @@ export function captureReference(): void {
     if (!state.inAlt1) { log("Not in Alt1."); return; }
     if (!alt1.permissionPixel) { log("No pixel permission."); return; }
 
-    // Toggle: if anchor exists, clear it
-    const anc = Inventory.loadAnchor();
-    if (anc) {
+    if (state.autocapture) {
+        // Turn OFF
+        state.autocapture = false;
+        stopRetryRecapture();
         Inventory.clearAnchor();
+        Inventory.clearAnchorPixel();
         Inventory.clearOuterPerm();
         Inventory.clearEmptySlotData();
         Inventory.resetHashes();
         state.scanCount = 0;
         if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
-        showNotification("Calibration cleared", 2000, "warning");
+        stopPolling();
+        updateScanStatus("Auto-capture stopped");
         updateUI();
         return;
     }
 
-    // Run fingerprint detection immediately — no cursor required
+    // Turn ON — run fingerprint detection immediately
+    state.autocapture = true;
+    updateUI();
     doCaptureRef();
 }
 
@@ -197,6 +202,7 @@ function doCaptureRef(): void {
             updateScanStatus(`Detected at (${anc.x},${anc.y})`);
             log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
             Inventory.saveAnchor(anc);
+            Inventory.saveAnchorPixel(img, anc);
             Inventory.captureOuterPerm(img, anc, (msg) => log("  [outer] " + msg));
             Inventory.captureEmptySlotData(img, anc, (msg) => log("  [empty] " + msg));
             if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
@@ -205,13 +211,13 @@ function doCaptureRef(): void {
             drawDetectDebug(anc, false);
             updateGridBoundary();
             updateUI();
-            startPolling();
+            stopRetryRecapture(); // stops retry if active, starts polling
         } else {
             if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
-            log("Detection failed — no inventory found on screen.");
             state.calibrating = false;
             updateUI();
-            showNotification("Calibration failed", 3000, "danger");
+            // If auto-capture is on, start retry loop
+            if (state.autocapture) startRetryRecapture();
         }
     } catch (e) {
         if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
@@ -226,6 +232,7 @@ export function clearReference(): void {
     state.calibrating = false;
     if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
     Inventory.clearAnchor();
+    Inventory.clearAnchorPixel();
     Inventory.clearOuterPerm();
     Inventory.clearEmptySlotData();
     Inventory.resetHashes();
@@ -237,6 +244,50 @@ export function clearReference(): void {
 }
 
 export function clearCalibration(): void { clearReference(); }
+
+// ============================================================
+// Retry recapture — fires every 1s until inventory found or 5min timeout
+// ============================================================
+
+let retryHandle: ReturnType<typeof setInterval> | null = null;
+let retryStartMs = 0;
+let retryCount = 0;
+let retryNotifyHandle: NotificationHandle | null = null;
+const RETRY_TIMEOUT_MS = 5 * 60 * 1000;
+
+function startRetryRecapture(): void {
+    if (retryHandle) return;
+    retryStartMs = Date.now();
+    retryCount = 0;
+    setRetryingCapture(true);
+    log("Starting recapture retries (5min timeout)...");
+    retryHandle = setInterval(() => {
+        if (Inventory.hasAnchor()) {
+            stopRetryRecapture();
+            return;
+        }
+        if (Date.now() - retryStartMs > RETRY_TIMEOUT_MS) {
+            log("Recapture timed out after 5min.");
+            stopRetryRecapture();
+            return;
+        }
+        retryCount++;
+        if (retryCount >= 3 && !retryNotifyHandle) {
+            retryNotifyHandle = showNotification("Can't see the inventory", 0, "danger");
+        }
+        doCaptureRef();
+    }, 1000);
+}
+
+function stopRetryRecapture(): void {
+    if (retryHandle) { clearInterval(retryHandle); retryHandle = null; }
+    if (retryNotifyHandle) { retryNotifyHandle.remove(); retryNotifyHandle = null; }
+    setRetryingCapture(false);
+    if (Inventory.hasAnchor()) {
+        log("Recapture succeeded.");
+        startPolling();
+    }
+}
 
 // ============================================================
 // Core scan logic
@@ -256,6 +307,19 @@ function doScan(): void {
 
         const img = captureFullRs();
         if (!img) { log("ERROR: captureFullRs returned null — is RS linked?"); return; }
+
+        // Check if inventory moved — if BL corner pixel changed, recapture
+        if (!Inventory.checkAnchorPixel(img)) {
+            log("Inventory moved — recapturing...");
+            Inventory.clearAnchor();
+            Inventory.clearAnchorPixel();
+            Inventory.clearOuterPerm();
+            Inventory.clearEmptySlotData();
+            Inventory.resetHashes();
+            state.scanCount = 0;
+            startRetryRecapture();
+            return;
+        }
 
         const result = Inventory.scan(img, (msg) => log("  [inv] " + msg));
         state.scanCount++;
