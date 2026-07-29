@@ -441,6 +441,68 @@ export function findSlotByFingerprint(img: ImgRef): FingerprintHit | null {
     return null;
 }
 
+/** Compute HSL lightness from RGB. Returns 0-100. */
+function lightness(r: number, g: number, b: number): number {
+    const max = Math.max(r, g, b) / 255, min = Math.min(r, g, b) / 255;
+    return Math.round(((max + min) / 2) * 100);
+}
+
+/** Given a found slot1 BL corner, scan right to find slot2 BL corner and return gap width.
+ *  Gap pixels are dark (L ≤ 15%), border pixels are bright (L ≥ 17%).
+ *  Returns null if slot2 not found within search range. */
+export function measureGapToSlot2(
+    img: ImgRef,
+    slot1BL: { x: number; y: number },
+): { slot2X: number; gapWidth: number } | null {
+    try {
+        const w = img.width, h = img.height;
+        // BR of slot 1 = x + 37, same y
+        const brX = slot1BL.x + 37;
+        const y = slot1BL.y;
+        if (brX + 1 >= w || y >= h) return null;
+
+        // Read just the row we need — one pixel at a time to avoid full buffer
+        let gapCount = 0;
+        for (let sx = brX + 1; sx < Math.min(brX + 60, w); sx++) {
+            const d = img.toData(sx, y, 1, 1);
+            if (!d) return null;
+            const r = d.data[0], g = d.data[1], b = d.data[2];
+            const l = lightness(r, g, b);
+            if (l <= 15) {
+                gapCount++; // still in the gap
+            } else if (l >= 17) {
+                // Found slot2 BL corner
+                return { slot2X: sx, gapWidth: gapCount };
+            } else {
+                // Ambiguous (16%) — continue counting but don't decide
+                gapCount++;
+            }
+        }
+    } catch (e) { /* pass */ }
+    return null;
+}
+
+/** Given slot1 BL and column stride, scan right to count total columns.
+ *  Each hop checks the BL pixel: L ≥ 17% (same check as gap scan).
+ *  Stops when no border pixel found. */
+export function countColumns(
+    img: ImgRef,
+    slot1BL: { x: number; y: number },
+    colStride: number,
+    maxCols: number = 10,
+): number {
+    let count = 1; // slot 1 is column 0
+    for (let c = 1; c < maxCols; c++) {
+        const sx = slot1BL.x + c * colStride;
+        if (sx + 1 >= img.width) break;
+        const d = img.toData(sx, slot1BL.y, 1, 1);
+        if (!d) break;
+        const l = lightness(d.data[0], d.data[1], d.data[2]);
+        if (l >= 17) count++; else break;
+    }
+    return count;
+}
+
 // ============================================================
 // Resolve anchor: saved > fallback
 // ============================================================
