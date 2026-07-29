@@ -116,6 +116,21 @@ export function initOnLoad() {
     }
 
     updateUI();
+
+    // Flash setup tab icon red when auto-capture is off
+    let flashOn = false;
+    setInterval(() => {
+        const img = document.getElementById("setup-tab-icon") as HTMLImageElement | null;
+        if (!img) return;
+        if (!state.autocapture) {
+            flashOn = !flashOn;
+            img.style.filter = flashOn ? "hue-rotate(-55deg) saturate(2)" : "";
+        } else {
+            img.style.filter = "";
+            flashOn = false;
+        }
+    }, 1000);
+
     log(`Init done. inAlt1=${state.inAlt1}`);
 }
 
