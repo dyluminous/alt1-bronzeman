@@ -7,6 +7,7 @@ export interface BackpackAnchor {
     gridCols?: number;
     gridRows?: number;
     centerMismatch?: boolean;
+    scrollbar?: boolean;
 }
 
 export interface SlotState {
@@ -538,14 +539,25 @@ export function countColumns(
     img: ImgRef,
     slot1BL: { x: number; y: number },
     colStride: number,
-    maxCols: number = 10,
+    maxCols: number = 24,
 ): number {
+    const INVENTORY_BORDER_LINE_COLORS = [
+        [50,40,28], [71,57,38], [87,73,48], [44,35,26],  // #32281C #473926 #574930 #2C231A
+    ];
+    const SCROLLBAR_COLORS = [
+        [255,238,157], [255,223,145], [254,201,128], [178,139,90], [130,100,64], [104,77,47],
+        // #FFEE9D #FFDF91 #FEC980 #B28B5A #826440 #684D2F
+    ];
     let count = 1; // slot 1 is column 0
     for (let c = 1; c < maxCols; c++) {
         const sx = slot1BL.x + c * colStride;
         if (sx + 1 >= img.width) break;
         const d = img.toData(sx, slot1BL.y, 1, 1);
         if (!d) break;
+        // Stop if we hit the inventory border line
+        if (INVENTORY_BORDER_LINE_COLORS.some(([r,g,b]) => d.data[0]===r && d.data[1]===g && d.data[2]===b)) break;
+        // Scrollbar detected — return -c to signal scrollbar
+        if (SCROLLBAR_COLORS.some(([r,g,b]) => d.data[0]===r && d.data[1]===g && d.data[2]===b)) return -1;
         const l = lightness(d.data[0], d.data[1], d.data[2]);
         if (l >= 17) count++; else break;
     }
@@ -563,6 +575,7 @@ export function detectInventoryGrid(img: ImgRef): BackpackAnchor | null {
     const colStride = gap.slot2X - hit.x;
 
     const cols = countColumns(img, { x: hit.x, y: hit.y }, colStride);
+    if (cols === -1) return { x: hit.x + 1, y: hit.y - 32, method: "auto", colStride: 0, rowStride: 0, gridCols: 0, gridRows: 0, scrollbar: true };
     if (cols < 2) return null;
 
     const rowStride = 36;
@@ -574,6 +587,8 @@ export function detectInventoryGrid(img: ImgRef): BackpackAnchor | null {
         if (!d) break;
         if (lightness(d.data[0], d.data[1], d.data[2]) >= 17) rows++; else break;
     }
+    if (rows < 2) return null;
+
     if (rows < 2) return null;
 
     return {

@@ -197,7 +197,21 @@ function doCaptureRef(): void {
         }
 
         const anc = Inventory.detectInventoryGrid(img);
+        if (anc && anc.scrollbar) {
+            // Log only — "Can't see the inventory" will show after 3 retries
+            log("Scrollbar detected — cannot capture");
+            return;
+        }
         if (anc) {
+            // Verify exactly 28 slots (accounting for last-row trim)
+            const cols = anc.gridCols ?? 0;
+            const rows = anc.gridRows ?? 0;
+            const rawTotal = cols * rows;
+            const slotCount = rawTotal > 28 ? 28 : rawTotal;
+            if (slotCount !== 28) {
+                log(`Grid rejected: ${cols}×${rows}=${rawTotal}, need 28`);
+                return;
+            }
             Inventory.resetHashes();
             updateScanStatus(`Detected at (${anc.x},${anc.y})`);
             log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
@@ -1165,6 +1179,12 @@ export function debugFindSlot(): void {
     const t0 = Date.now();
     const anc = Inventory.detectInventoryGrid(img);
     const ms = Date.now() - t0;
+
+    if (anc && anc.scrollbar) {
+        log(`Scrollbar detected at (${anc.x},${anc.y}) — cannot capture`);
+        showNotification("Cannot capture inventory, detected scrollbar", 5000, "danger");
+        return;
+    }
 
     if (anc) {
         log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride} in ${ms}ms`);
