@@ -209,8 +209,13 @@ export function drawDetectDebug(anc: Inventory.BackpackAnchor, isError: boolean 
     const LEN = 11;
     const dur = 2000;
     const yc = isError ? a1lib.mixColor(255, 60, 60) : a1lib.mixColor(255, 255, 0);
-    for (let row = 0; row < Inventory.ROWS; row++) {
-        for (let col = 0; col < Inventory.COLS; col++) {
+    const rows = anc.gridRows ?? Inventory.ROWS;
+    const cols = anc.gridCols ?? Inventory.COLS;
+    const total = cols * rows;
+    const lastRowCols = total > 28 ? cols - (total - 28) : cols;
+    for (let row = 0; row < rows; row++) {
+        const slotCols = (row === rows - 1) ? lastRowCols : cols;
+        for (let col = 0; col < slotCols; col++) {
             const sx = anc.x + col * anc.colStride;
             const sy = anc.y + row * anc.rowStride;
             const r = sx + 35, b = sy + 31;
