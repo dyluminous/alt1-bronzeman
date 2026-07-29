@@ -1126,6 +1126,38 @@ export function debugPickupPixels(): void {
     log(`=== End debug ===`);
 }
 
+export function debugFindSlot(): void {
+    if (!state.inAlt1) { log("Not in Alt1"); return; }
+    const img = captureFullRs();
+    if (!img) { log("Failed to capture"); return; }
+
+    const t0 = Date.now();
+    const hit = Inventory.findSlotByFingerprint(img);
+    const ms = Date.now() - t0;
+
+    if (hit) {
+        log(`Fingerprint slot found at (${hit.x},${hit.y}) [fp #${hit.fingerIndex + 1}] in ${ms}ms`);
+        // Draw yellow 1px box around the slot (38×34 including borders)
+        // BL corner is at (hit.x, hit.y), TL = (hit.x, hit.y - 33)
+        const yc = a1lib.mixColor(255, 255, 0);
+        const dur = 5000;
+        const sx = hit.x, sy = hit.y - 33;
+        const w = 38, h = 34;
+        alt1.overLaySetGroup("bronzeman_fingerprint");
+        alt1.overLayClearGroup("bronzeman_fingerprint");
+        // Top border
+        alt1.overLayRect(yc, sx, sy, w, 1, dur, 1);
+        // Bottom border
+        alt1.overLayRect(yc, sx, sy + h - 1, w, 1, dur, 1);
+        // Left border
+        alt1.overLayRect(yc, sx, sy, 1, h, dur, 1);
+        // Right border
+        alt1.overLayRect(yc, sx + w - 1, sy, 1, h, dur, 1);
+    } else {
+        log(`No fingerprint slot found (scanned in ${ms}ms)`);
+    }
+}
+
 // Grid boundary overlay
 // ============================================================
 

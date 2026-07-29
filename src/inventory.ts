@@ -392,6 +392,56 @@ export function detectSlotBounds(img: ImgRef, cursorX: number, cursorY: number, 
 }
 
 // ============================================================
+// Fingerprint slot detection — exact 5-pixel bottom-left corner
+// match from 6 reference empty-slot images. Zero tolerances.
+// ============================================================
+
+/** 6 fingerprint sets — each is 5 pixels (15 bytes: R,G,B × 5) from bottom row of reference slots */
+const FINGERPRINTS: number[][] = [
+    [49,45,42,52,48,44,54,48,45,56,52,47,54,49,46],  // o1
+    [49,45,42,54,49,45,54,50,46,54,49,46,55,50,47],  // o2
+    [51,47,43,55,51,46,52,48,44,55,50,47,55,50,47],  // o3
+    [49,45,42,52,48,44,54,48,45,56,52,47,54,49,46],  // o4
+    [53,50,45,52,48,44,54,48,45,55,50,47,56,52,47],  // o5
+    [53,50,45,52,48,44,54,48,45,55,50,47,56,52,47],  // o6
+    [51,47,43,52,48,44,52,48,44,55,50,47,56,52,47],  // o7 — from fail_1 in-game render
+    [49,45,42,54,49,45,54,48,45,56,52,47,55,50,47],  // o8
+];
+
+export interface FingerprintHit {
+    x: number; y: number;  // BL-corner position
+    fingerIndex: number;   // which fingerprint matched (0-5)
+}
+
+/** Scan the image for an exact 5-pixel fingerprint match. Returns the first hit or null. */
+export function findSlotByFingerprint(img: ImgRef): FingerprintHit | null {
+    try {
+        const w = img.width, h = img.height;
+        // Read only the region we need — but Alt1 toData is per-call expensive.
+        // Instead read the full buffer once.
+        const buf = img.toData(0, 0, w, h);
+        const d = buf.data;
+
+        for (let y = 1; y < h; y++) {
+            for (let x = 0; x < w - 5; x++) {
+                const idx = (y * w + x) * 4;
+                for (let f = 0; f < FINGERPRINTS.length; f++) {
+                    const fp = FINGERPRINTS[f];
+                    if (d[idx] === fp[0] && d[idx + 1] === fp[1] && d[idx + 2] === fp[2] &&
+                        d[idx + 4] === fp[3] && d[idx + 5] === fp[4] && d[idx + 6] === fp[5] &&
+                        d[idx + 8] === fp[6] && d[idx + 9] === fp[7] && d[idx + 10] === fp[8] &&
+                        d[idx + 12] === fp[9] && d[idx + 13] === fp[10] && d[idx + 14] === fp[11] &&
+                        d[idx + 16] === fp[12] && d[idx + 17] === fp[13] && d[idx + 18] === fp[14]) {
+                        return { x: x + img.x, y: y + img.y, fingerIndex: f };
+                    }
+                }
+            }
+        }
+    } catch (e) { /* pass */ }
+    return null;
+}
+
+// ============================================================
 // Resolve anchor: saved > fallback
 // ============================================================
 
