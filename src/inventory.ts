@@ -505,6 +505,41 @@ export function countColumns(
     return count;
 }
 
+/** Full auto-detect: fingerprint slot 1 → measure gap → count columns → count rows.
+ *  Returns a BackpackAnchor or null. */
+export function detectInventoryGrid(img: ImgRef): BackpackAnchor | null {
+    const hit = findSlotByFingerprint(img);
+    if (!hit) return null;
+
+    const gap = measureGapToSlot2(img, { x: hit.x, y: hit.y });
+    if (!gap) return null;
+    const colStride = gap.slot2X - hit.x;
+
+    const cols = countColumns(img, { x: hit.x, y: hit.y }, colStride);
+    if (cols < 2) return null;
+
+    const rowStride = 36;
+    let rows = 0;
+    for (let r = 0; r < 10; r++) {
+        const sy = hit.y + r * rowStride;
+        if (sy >= img.height) break;
+        const d = img.toData(hit.x, sy, 1, 1);
+        if (!d) break;
+        if (lightness(d.data[0], d.data[1], d.data[2]) >= 17) rows++; else break;
+    }
+    if (rows < 2) return null;
+
+    return {
+        x: hit.x + 1,
+        y: hit.y - 32,
+        method: "auto",
+        colStride,
+        rowStride,
+        gridCols: cols,
+        gridRows: rows,
+    };
+}
+
 // ============================================================
 // Resolve anchor: saved > fallback
 // ============================================================
