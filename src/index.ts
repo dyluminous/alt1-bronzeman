@@ -2,13 +2,12 @@
 // Tracks which items you've earned yourself before allowing GE purchases.
 import * as a1lib from "alt1";
 import * as Inventory from "./inventory";
-import { BUILD, BUILD_NUM } from "./version";
 import {
     state,
-    captureFullRs, showNotification, NotificationHandle, log, POLL_INTERVAL_MS, setRetryingCapture,
+    captureFullRs, showNotification, NotificationHandle, log, setRetryingCapture,
 } from "./core";
 import {
-    updateAlt1Status, updateScanStatus, updateUI, updateDebugGrid, updateAnchorDot,
+    updateAlt1Status, updateUI, updateAnchorDot,
     drawDetectDebug,
 } from "./ui";
 import { loadState, unlockItem, resetUnlocks as dataResetUnlocks, getIgnoredItems, getIgnoredCount, clearIgnoredItems, removeIgnoredItem, initIgnoreDB } from "./data";
@@ -24,8 +23,6 @@ import "./icon.png";
 
 export function initOnLoad() {
     log("Bronzeman initializing...");
-    const bn = document.getElementById("build_num");
-    if (bn) bn.textContent = `(#${BUILD_NUM})`;
 
     state.inAlt1 = typeof window.alt1 !== "undefined";
     log(`inAlt1=${state.inAlt1}`);
@@ -66,7 +63,7 @@ export function initOnLoad() {
             }
         } else {
             log("No anchor saved. Click Capture to set grid position.");
-            updateScanStatus("No anchor set");
+
         }
     }
 
@@ -93,13 +90,9 @@ export function initOnLoad() {
 // Capture
 // ============================================================
 
-let refCountdown: ReturnType<typeof setInterval> | null = null;
-let refCountdownValue = 0;
-let calibrateHandle: NotificationHandle | null = null;
 
 
 export function captureReference(): void {
-    if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
     if (!state.inAlt1) { log("Not in Alt1."); return; }
     if (!alt1.permissionPixel) { log("No pixel permission."); return; }
 
@@ -111,10 +104,8 @@ export function captureReference(): void {
         Inventory.clearAnchorPixel();
         Inventory.clearOuterPerm();
         Inventory.clearEmptySlotData();
-        Inventory.resetHashes();
-        state.scanCount = 0;
         if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
-        updateScanStatus("Auto-capture stopped");
+
         updateUI();
         return;
     }
@@ -129,7 +120,6 @@ function doCaptureRef(): void {
     try {
         const img = captureFullRs();
         if (!img) {
-            if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
             log("Capture failed — could not read RS screen.");
             state.calibrating = false;
             updateUI();
@@ -153,14 +143,11 @@ function doCaptureRef(): void {
                 log(`Grid rejected: ${cols}×${rows}=${rawTotal}, need 28`);
                 return;
             }
-            Inventory.resetHashes();
-            updateScanStatus(`Detected at (${anc.x},${anc.y})`);
             log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
             Inventory.saveAnchor(anc);
             Inventory.saveAnchorPixel(img, anc);
             Inventory.captureOuterPerm(img, anc, (msg) => log("  [outer] " + msg));
             Inventory.captureEmptySlotData(img, anc, (msg) => log("  [empty] " + msg));
-            if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
             state.calibrating = false;
             showNotification("Inventory calibrated", 3000, "success");
             drawDetectDebug(anc, false);
@@ -168,14 +155,12 @@ function doCaptureRef(): void {
             updateUI();
             stopRetryRecapture(); // stops retry if active, starts polling
         } else {
-            if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
             state.calibrating = false;
             updateUI();
             // If auto-capture is on, start retry loop
             if (state.autocapture) startRetryRecapture();
         }
     } catch (e) {
-        if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
         log("Capture error: " + e);
         state.calibrating = false;
         updateUI();
@@ -185,20 +170,14 @@ function doCaptureRef(): void {
 
 export function clearReference(): void {
     state.calibrating = false;
-    if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
     Inventory.clearAnchor();
     Inventory.clearAnchorPixel();
     Inventory.clearOuterPerm();
     Inventory.clearEmptySlotData();
-    Inventory.resetHashes();
-    state.scanCount = 0;
     if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
     log("Anchor cleared. Capture again to set.");
-    updateScanStatus("No anchor");
     updateUI();
 }
-
-export function clearCalibration(): void { clearReference(); }
 
 // ============================================================
 // Retry recapture — fires every 1s until inventory found or 5min timeout
@@ -275,11 +254,6 @@ export function removeIgnore(hash: string): void {
     hideIgnoreTooltip();
     removeIgnoredItem(hash);
     updateUI();
-}
-
-export function toggleIgnoreLog(checked: boolean): void {
-    state.debugLogIgnores = checked;
-    log(`Ignore logging: ${checked ? "ON" : "OFF"}`);
 }
 
 // Ignore list tooltip handlers
@@ -409,24 +383,6 @@ export function updateGridBoundary(): void {
     if (!showGridBoundary) {
         alt1.overLayClearGroup("bronzeman_boundary");
     }
-}
-
-/** Called every scan to draw (or skip) the grid boundary overlay. */
-function drawBoundaryOverlay(): void {
-    if (!state.inAlt1 || !showGridBoundary) return;
-    const anc = Inventory.loadAnchor();
-    if (!anc) return;
-    const rows = anc.gridRows ?? 7;
-    const cols = anc.gridCols ?? 4;
-    // TL of first slot (including 1px border) to BR of last slot
-    const left = anc.x - 1;
-    const top = anc.y - 1;
-    const w = (cols - 1) * anc.colStride + 38;
-    const h = (rows - 1) * anc.rowStride + 34;
-    const c = a1lib.mixColor(80, 200, 255);
-    const ttl = POLL_INTERVAL_MS + 200;
-    alt1.overLaySetGroup("bronzeman_boundary");
-    alt1.overLayRect(c, left, top, w, h, ttl, 1);
 }
 
 // ============================================================

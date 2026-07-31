@@ -1,5 +1,4 @@
 // data.ts — persistence and Bronzeman unlock logic
-import * as a1lib from "alt1";
 import * as Inventory from "./inventory";
 import { state, LS_KEYS, log, showNotification } from "./core";
 
@@ -103,9 +102,6 @@ export function resetData(): void {
     localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify([]));
     localStorage.setItem(LS_KEYS.scanHistory, JSON.stringify([]));
     Inventory.clearAnchor();
-    Inventory.resetHashes();
-    state.scanCount = 0;
-    state.lastScanResult = null;
     log("All reset.");
 }
 
@@ -252,22 +248,6 @@ function saveIgnoredItems(): void {
 
 
 
-export function isIgnored(hash: string): boolean {
-    return ignoredItems.some(i => i.hash === hash);
-}
-
-export function ignoreItem(hash: string, name?: string, base64?: string): void {
-    // Update name if entry already exists
-    const existing = ignoredItems.find(i => i.hash === hash);
-    if (existing) {
-        if (name !== undefined) existing.name = name;
-        if (base64 !== undefined) existing.base64 = base64;
-        saveIgnoredItems();
-        return;
-    }
-    ignoredItems.push({ name: name ?? null, hash, base64, ignoredAt: Date.now() });
-    saveIgnoredItems();
-}
 
 export function getIgnoredItems(): IgnoredItem[] {
     return ignoredItems.slice();
