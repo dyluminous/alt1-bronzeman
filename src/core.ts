@@ -1,9 +1,8 @@
 // core.ts — utilities, constants, shared state for Bronzeman Mode
 import { ImgRef, ImgRefBind } from "alt1/base";
-import * as Inventory from "./inventory";
 
 // ============================================================
-// Alt1 workarounds
+// Alt1 capture
 // ============================================================
 
 export function ensureAlt1(): boolean {
@@ -35,10 +34,8 @@ export const LS_KEYS = {
     ignores: LS_PREFIX + "ignores",
 } as const;
 
-export const POLL_INTERVAL_MS = 1000;
-
 // ============================================================
-// Shared state (mutable object, reassignable by importers)
+// Shared state
 // ============================================================
 
 export const state = {
@@ -48,9 +45,8 @@ export const state = {
 };
 
 // ============================================================
-// Helpers
+// Notifications
 // ============================================================
-
 
 export interface NotificationHandle {
     update(msg: string): void;
@@ -106,28 +102,17 @@ export function showNotification(msg: string, duration: number = 2000, style: "i
     };
 }
 
-let anchorWarningHandle: NotificationHandle | null = null;
+// ============================================================
+// Capture retry flag — suppresses anchor warning during retry loop
+// ============================================================
 
-/** Show/hide a persistent danger notification when no anchor is set. */
 let _isRetryingCapture = false;
 export function isRetryingCapture(): boolean { return _isRetryingCapture; }
 export function setRetryingCapture(v: boolean): void { _isRetryingCapture = v; }
 
-export function updateAnchorWarning(): void {
-    try {
-        if (Inventory.loadAnchor()) {
-            if (anchorWarningHandle) { anchorWarningHandle.remove(); anchorWarningHandle = null; }
-        } else {
-            if (!anchorWarningHandle && !_isRetryingCapture) {
-                anchorWarningHandle = showNotification("Inventory not captured", 0, "danger");
-            }
-        }
-    } catch (e) {
-        if (!anchorWarningHandle && !_isRetryingCapture) {
-            anchorWarningHandle = showNotification("Inventory not captured", 0, "danger");
-        }
-    }
-}
+// ============================================================
+// Helpers
+// ============================================================
 
 export function escHtml(s: string): string {
     const d = document.createElement("div");
@@ -145,5 +130,3 @@ export function log(msg: string): void {
         while (el.children.length > 50) el.lastChild?.remove();
     }
 }
-
-

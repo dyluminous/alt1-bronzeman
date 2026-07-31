@@ -1,6 +1,6 @@
 {
 	"scripts": {
-		"prebuild": "node -e \"var n=1;try{n=1+Number(require('fs').readFileSync('src/buildnum.txt'))}catch(e){}require('fs').writeFileSync('src/version.ts','export const BUILD='+n+';\\nexport const BUILD_NUM='+n+';\\n');require('fs').writeFileSync('src/buildnum.txt',String(n))\"",
+		"prebuild": "node -e \"var n=1;try{n=1+Number(require('fs').readFileSync('src/buildnum.txt'))}catch(e){}require('fs').writeFileSync('src/version.ts','export const BUILD_NUM='+n+';\\n');require('fs').writeFileSync('src/buildnum.txt',String(n))\"",
 		"build": "webpack",
 		"watch": "webpack --watch"
 	},
