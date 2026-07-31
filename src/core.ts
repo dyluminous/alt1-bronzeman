@@ -44,12 +44,8 @@ export const POLL_INTERVAL_MS = 1000;
 
 export const state = {
     inAlt1: false,
-    polling: false,
-    pollTimer: null as ReturnType<typeof setInterval> | null,
     scanCount: 0,
     lastScanResult: null as Inventory.ScanResult | null,
-    // Which slots had items on the previous scan (by slot index)
-    prevOccupied: new Set<number>(),
     calibrating: false,
     autocapture: false,
     debugLogIgnores: false,
@@ -161,15 +157,4 @@ export function log(msg: string): void {
     }
 }
 
-// ============================================================
-// Slot status overlays toggle (off by default)
-// ============================================================
 
-export let showSlotOverlays = false;
-
-export function setShowSlotOverlays(v: boolean): void {
-    showSlotOverlays = v;
-    if (!v && typeof alt1 !== "undefined") {
-        alt1.overLayClearGroup("bronzeman_slots");
-    }
-}

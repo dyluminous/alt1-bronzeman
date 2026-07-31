@@ -1,7 +1,7 @@
 // ui.ts — DOM rendering and RS overlay drawing for Bronzeman Mode
 import * as a1lib from "alt1";
 import * as Inventory from "./inventory";
-import { state, POLL_INTERVAL_MS, escHtml, showSlotOverlays, updateAnchorWarning } from "./core";
+import { state, escHtml, updateAnchorWarning } from "./core";
 import { getUnlockedCount, getUnlockedItems, getUnlockedItemData, getIgnoredCount, getIgnoredItems } from "./data";
 import { BUILD_NUM } from "./version";
 
@@ -38,9 +38,7 @@ export function updateAnchorDot(): void {
     const el = document.getElementById("anchor_dot");
     if (!el) return;
     const anc = Inventory.loadAnchor();
-    if (anc && state.polling) {
-        el.className = "anchor-dot pulse";
-    } else if (anc) {
+    if (anc) {
         el.className = "anchor-dot";
     } else {
         el.className = "anchor-dot hidden";
@@ -154,50 +152,6 @@ export function updateDebugGrid(result: Inventory.ScanResult | null, discarded =
 }
 
 // ============================================================
-// Scan tab — show latest pickup
-// ============================================================
-
-/** Current pickup image URL and slot index for the Unlock button. */
-let currentPickupUrl: string = "";
-let currentPickupSlot: number = -1;
-
-export function showScanPickup(imageUrl: string, slotIndex: number): void {
-    currentPickupUrl = imageUrl;
-    currentPickupSlot = slotIndex;
-
-    const ph = document.getElementById("scan_placeholder");
-    if (ph) ph.style.display = "none";
-
-    const grid = document.getElementById("scan_pickup_grid");
-    if (!grid) return;
-
-    // Append a new card for this pickup
-    const card = document.createElement("div");
-    card.className = "pickup-card";
-    const idx = grid.children.length;
-    card.innerHTML = `<img src="${imageUrl}" alt="pickup">
-        <div class="pickup-actions">
-            <button class="btn-unlock-sm" onclick="Bronzeman.unlockPickup(${idx})">🔓</button>
-            <button class="btn-ignore-sm" onclick="void(0)">✕</button>
-        </div>`;
-    grid.appendChild(card);
-}
-
-
-
-export function appendChangeEntry(slot: Inventory.SlotState, time: number): void {
-    const list = document.getElementById("change_list");
-    if (!list) return;
-    const entry = document.createElement("div");
-    entry.className = "change-entry";
-    entry.innerHTML = `<span class="change-slot">#${slot.index + 1} [r${slot.row},c${slot.col}]</span>
-        <span class="change-hash">${slot.hash.slice(0, 8)}</span>
-        <span class="change-time">${new Date(time).toLocaleTimeString()}</span>`;
-    list.prepend(entry);
-    while (list.children.length > 20) list.lastChild?.remove();
-}
-
-// ============================================================
 // RS Overlays
 // ============================================================
 
@@ -231,39 +185,4 @@ export function drawDetectDebug(anc: Inventory.BackpackAnchor, isError: boolean 
     }
 }
 
-export function drawSlotOverlaysFor(slots: Inventory.SlotState[], color: { r: number; g: number; b: number }, clearFirst = true): void {
-    if (!state.inAlt1) return;
-    if (!showSlotOverlays) return;
-    if (clearFirst) {
-        alt1.overLayClearGroup("bronzeman_slots");
-        alt1.overLaySetGroup("bronzeman_slots");
-    }
-    const clr = a1lib.mixColor(color.r, color.g, color.b);
-    for (const slot of slots) {
-        alt1.overLayRect(clr, slot.x, slot.y, slot.w, slot.h, POLL_INTERVAL_MS + 200, 2);
-        alt1.overLayText(String(slot.index + 1), a1lib.mixColor(255, 255, 255), 11, slot.x + 3, slot.y + 2, POLL_INTERVAL_MS + 200);
-    }
-}
 
-export function drawSlotOverlays(result: Inventory.ScanResult, color?: { r: number; g: number; b: number }): void {
-    const changed = result.slots.filter(s => s.changed);
-    if (changed.length === 0) return;
-    drawSlotOverlaysFor(changed, color || { r: 80, g: 200, b: 80 });
-
-    alt1.overLaySetGroup("bronzeman_slots");
-    alt1.overLayRect(a1lib.mixColor(212, 168, 75), result.anchor.x - 2, result.anchor.y - 2, 5, 5, POLL_INTERVAL_MS + 200, 1);
-}
-
-/** Check if RS cursor is inside the inventory grid — likely dragging/UI interaction */
-export function isCursorInInventory(result: Inventory.ScanResult): boolean {
-    try {
-        const pos = a1lib.getMousePosition();
-        if (!pos) return false;
-        const anc = result.anchor;
-        const pad = anc.colStride;
-        const left = anc.x - pad, top = anc.y - pad;
-        const right = anc.x + 4 * anc.colStride + pad;
-        const bottom = anc.y + 7 * anc.rowStride + pad;
-        return pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom;
-    } catch { return false; }
-}
