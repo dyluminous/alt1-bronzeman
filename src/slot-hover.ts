@@ -26,8 +26,9 @@ export function startSlotHover(): void {
 
         const col = Math.floor((m.x - anc.x) / anc.colStride);
         const row = Math.floor((m.y - anc.y) / anc.rowStride);
-        const cols = anc.gridCols ?? Inventory.COLS;
-        const rows = anc.gridRows ?? Inventory.ROWS;
+        const cols = anc.gridCols;
+        const rows = anc.gridRows;
+        if (cols == null || rows == null) { clearSlotHover(); return; }
         if (col < 0 || col >= cols || row < 0 || row >= rows) {
             clearSlotHover();
             return;

@@ -1,6 +1,7 @@
 // overlay.ts — RS overlay drawing for Bronzeman Mode
 import * as a1lib from "alt1";
 import * as Inventory from "./inventory";
+import { InventorySlot } from "./inventory-slot";
 import { state, captureFullRs, log, showNotification } from "./core";
 
 // ============================================================
@@ -9,13 +10,14 @@ import { state, captureFullRs, log, showNotification } from "./core";
 
 export function drawDetectDebug(anc: Inventory.BackpackAnchor, isError: boolean = false): void {
     if (!state.inAlt1) return;
+    log(`drawDetectDebug: anc=(${anc.x},${anc.y}) cols=${anc.gridCols} rows=${anc.gridRows} stride=${anc.colStride}`);
     alt1.overLayClearGroup("bronzeman_detect");
     alt1.overLaySetGroup("bronzeman_detect");
     const LEN = 11;
     const dur = 2000;
     const yc = isError ? a1lib.mixColor(255, 60, 60) : a1lib.mixColor(255, 255, 0);
-    const rows = anc.gridRows ?? Inventory.ROWS;
-    const cols = anc.gridCols ?? Inventory.COLS;
+    const rows = anc.gridRows!;
+    const cols = anc.gridCols!;
     const total = cols * rows;
     const lastRowCols = total > 28 ? cols - (total - 28) : cols;
     for (let row = 0; row < rows; row++) {
@@ -123,13 +125,13 @@ export function drawSlotHover(
     if (lastHoverIndex === slotIndex) return;
     lastHoverIndex = slotIndex;
 
-    const c = Inventory.getSlotCenterCoordinates(anc, slotIndex);
+    const slot = new InventorySlot(anc, anc.gridCols ?? 4, slotIndex);
     const yellow = a1lib.mixColor(255, 255, 0);
 
     alt1.overLaySetGroup(HOVER_GROUP);
     if (hoverFrozen) { alt1.overLayContinueGroup(HOVER_GROUP); }
     alt1.overLayClearGroup(HOVER_GROUP);
-    alt1.overLayRect(yellow, c.x - 6, c.y - 6, 12, 12, 0, 1);
+    alt1.overLayRect(yellow, slot.cx - 6, slot.cy - 6, 12, 12, 0, 1);
     alt1.overLayFreezeGroup(HOVER_GROUP);
     hoverFrozen = true;
 }
@@ -140,4 +142,31 @@ export function clearSlotHover(): void {
     hoverFrozen = false;
     alt1.overLayContinueGroup(HOVER_GROUP);
     alt1.overLayClearGroup(HOVER_GROUP);
+}
+
+// ============================================================
+// Slot corner debug — magenta dots at TL,TR,BL,BR for all 28 slots
+// ============================================================
+
+const CORNERS_GROUP = "bronzeman_corners";
+
+export function drawSlotCornersDebug(
+    anc: Inventory.BackpackAnchor,
+    slots: InventorySlot[],
+): void {
+    if (!state.inAlt1) return;
+    log(`drawSlotCornersDebug: anc=(${anc.x},${anc.y}) cols=${anc.gridCols} rows=${anc.gridRows} stride=${anc.colStride}`);
+    const magenta = a1lib.mixColor(255, 0, 255);
+    const dur = 10000;
+
+    alt1.overLaySetGroup(CORNERS_GROUP);
+    alt1.overLaySetGroupZIndex(CORNERS_GROUP, 1);
+    alt1.overLayClearGroup(CORNERS_GROUP);
+
+    for (const slot of slots) {
+        // 3×3 dot at each corner
+        for (const p of [slot.tl, slot.tr, slot.bl, slot.br]) {
+            alt1.overLayRect(magenta, p.x, p.y, 1, 1, dur, 1);
+        }
+    }
 }

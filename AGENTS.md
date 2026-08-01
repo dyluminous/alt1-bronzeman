@@ -13,6 +13,7 @@ Build: `npm run build` — webpack bundles into `dist/main.js`
 | `ui.ts` | DOM rendering + UI action handlers (ignore tooltips, reset buttons, modal calls) |
 | `capture.ts` | Auto-capture lifecycle + retry loop |
 | `overlay.ts` | RS overlay drawing (`drawDetectDebug`, `debugFindSlot`, `updateGridBoundary`, `drawSlotHover`) |
+| `inventory-slot.ts` | `InventorySlot` class — geometry (x,y,cx,cy,tl,tr,bl,br) + corner pixel data |
 | `slot-hover.ts` | Polls `getMousePosition`, maps to slot, draws yellow hover square |
 | `modal.ts` | Confirm dialog |
 | `style.css` | All CSS — imported by index.ts, injected at runtime via style-loader |
