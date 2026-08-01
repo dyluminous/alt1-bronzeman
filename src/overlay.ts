@@ -5,6 +5,7 @@ import type { BackpackAnchor } from "./inventory";
 import * as Detect from "./inventory-detect";
 import { InventorySlot } from "./inventory-slot";
 import { state, captureFullRs, log, showNotification } from "./core";
+import { getAnchorWatchPoints } from "./anchor-watch";
 
 // ============================================================
 // Detection debug — corner brackets on all slots
@@ -16,8 +17,12 @@ export function drawDetectDebug(anc: BackpackAnchor, isError: boolean = false): 
     alt1.overLaySetGroup("bronzeman_detect");
     const LEN = 8;
     const dur = 2000;
-    const magenta = a1lib.mixColor(255, 0, 255);
     const yellow = isError ? a1lib.mixColor(255, 60, 60) : a1lib.mixColor(255, 255, 0);
+    // Pixels the anchor-watch monitors — we must not paint over them or the
+    // watch's reference colors get polluted by the overlay (Alt1 captures
+    // include overlays), which would trigger a recalibrate loop.
+    const watch = new Set(getAnchorWatchPoints().map(p => `${p.x},${p.y}`));
+    const skip = (p: { x: number; y: number }): boolean => watch.has(`${p.x},${p.y}`);
     const rows = anc.gridRows!;
     const cols = anc.gridCols!;
     const total = cols * rows;
@@ -29,22 +34,17 @@ export function drawDetectDebug(anc: BackpackAnchor, isError: boolean = false): 
             const slot = new InventorySlot(anc, anc.gridCols!, idx++);
             // Yellow L-brackets on the border
             // TL: right + down
-            alt1.overLayRect(yellow, slot.tl.x, slot.tl.y, LEN, 1, dur, 1);
-            alt1.overLayRect(yellow, slot.tl.x, slot.tl.y, 1, LEN, dur, 1);
+            if (!skip(slot.tl)) alt1.overLayRect(yellow, slot.tl.x, slot.tl.y, LEN, 1, dur, 1);
+            if (!skip(slot.tl)) alt1.overLayRect(yellow, slot.tl.x, slot.tl.y, 1, LEN, dur, 1);
             // TR: left + down
-            alt1.overLayRect(yellow, slot.tr.x - LEN + 1, slot.tr.y, LEN, 1, dur, 1);
-            alt1.overLayRect(yellow, slot.tr.x, slot.tr.y, 1, LEN, dur, 1);
+            if (!skip(slot.tr)) alt1.overLayRect(yellow, slot.tr.x - LEN + 1, slot.tr.y, LEN, 1, dur, 1);
+            if (!skip(slot.tr)) alt1.overLayRect(yellow, slot.tr.x, slot.tr.y, 1, LEN, dur, 1);
             // BL: right + up
-            alt1.overLayRect(yellow, slot.bl.x, slot.bl.y - LEN + 1, 1, LEN, dur, 1);
-            alt1.overLayRect(yellow, slot.bl.x, slot.bl.y, LEN, 1, dur, 1);
+            if (!skip(slot.bl)) alt1.overLayRect(yellow, slot.bl.x, slot.bl.y - LEN + 1, 1, LEN, dur, 1);
+            if (!skip(slot.bl)) alt1.overLayRect(yellow, slot.bl.x, slot.bl.y, LEN, 1, dur, 1);
             // BR: left + up
-            alt1.overLayRect(yellow, slot.br.x - LEN + 1, slot.br.y, LEN, 1, dur, 1);
-            alt1.overLayRect(yellow, slot.br.x, slot.br.y - LEN + 1, 1, LEN, dur, 1);
-            // Magenta pixel at each corner (on top)
-            alt1.overLayRect(magenta, slot.tl.x, slot.tl.y, 1, 1, dur, 1);
-            alt1.overLayRect(magenta, slot.tr.x, slot.tr.y, 1, 1, dur, 1);
-            alt1.overLayRect(magenta, slot.bl.x, slot.bl.y, 1, 1, dur, 1);
-            alt1.overLayRect(magenta, slot.br.x, slot.br.y, 1, 1, dur, 1);
+            if (!skip(slot.br)) alt1.overLayRect(yellow, slot.br.x - LEN + 1, slot.br.y, LEN, 1, dur, 1);
+            if (!skip(slot.br)) alt1.overLayRect(yellow, slot.br.x, slot.br.y - LEN + 1, 1, LEN, dur, 1);
         }
     }
 }

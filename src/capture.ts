@@ -1,7 +1,7 @@
 // capture.ts — inventory capture lifecycle for Bronzeman Mode
 import * as Detect from "./inventory-detect";
 import { inventory } from "./inventory";
-import { state, captureFullRs, showNotification, NotificationHandle, log, setSearchingGrid } from "./core";
+import { state, captureFullRs, showNotification, NotificationHandle, log } from "./core";
 import { updateUI } from "./ui";
 import { drawDetectDebug, updateGridBoundary, drawAnchorWatchDot, clearAnchorWatchDot } from "./overlay";
 import { startSlotHover, stopSlotHover } from "./slot-hover";
@@ -82,6 +82,10 @@ export function calibrateGrid(opts?: { silent?: boolean }): void {
         } else {
             state.calibrating = false;
             updateUI();
+            // Auto-capture is on and the inventory can't be seen — start the
+            // 5-min scan. startGridSearch drops any stale anchor so the scan
+            // actually runs; the interval's isCalibrated check is for the case
+            // where a parallel path already re-calibrated.
             if (state.autocapture) startGridSearch();
         }
     } catch (e) {
@@ -113,39 +117,53 @@ export function clearReference(): void {
 
 let gridSearchHandle: ReturnType<typeof setInterval> | null = null;
 let gridSearchStarted = 0;
-let gridSearchTries = 0;
 let gridSearchNotify: NotificationHandle | null = null;
 const GRID_SEARCH_TIMEOUT_MS = 5 * 60 * 1000;
 
+/** Format ms as mm:ss (e.g. 05:00), used for the scanning countdown. */
+function formatCountdown(ms: number): string {
+    const total = Math.max(0, Math.ceil(ms / 1000));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 function startGridSearch(): void {
     if (gridSearchHandle) return;
+    stopAnchorWatch(); // a fresh scan replaces the resize watch
+    // A stale anchor means we were calibrated but can't see the inventory now.
+    // Drop it so the interval below actually scans instead of instantly
+    // stopping on the isCalibrated check.
+    if (inventory.isCalibrated) {
+        inventory.clear();
+        updateUI();
+    }
     gridSearchStarted = Date.now();
-    gridSearchTries = 0;
-    setSearchingGrid(true);
     log("Starting initial grid search (5min timeout)...");
+    gridSearchNotify = showNotification(`Scanning... (${formatCountdown(GRID_SEARCH_TIMEOUT_MS)})`, 0, "info");
     gridSearchHandle = setInterval(() => {
         if (inventory.isCalibrated) {
             stopGridSearch();
             return;
         }
-        if (Date.now() - gridSearchStarted > GRID_SEARCH_TIMEOUT_MS) {
+        const remaining = GRID_SEARCH_TIMEOUT_MS - (Date.now() - gridSearchStarted);
+        if (remaining <= 0) {
             log("Grid search timed out after 5min.");
             stopGridSearch();
             return;
         }
-        gridSearchTries++;
-        if (gridSearchTries >= 3 && !gridSearchNotify) {
-            gridSearchNotify = showNotification("Can't see the inventory", 0, "danger");
-        }
+        gridSearchNotify?.update(`Scanning... (${formatCountdown(remaining)})`);
         calibrateGrid();
     }, 1000);
 }
 
 function stopGridSearch(): void {
+    const wasActive = gridSearchHandle !== null;
     if (gridSearchHandle) { clearInterval(gridSearchHandle); gridSearchHandle = null; }
     if (gridSearchNotify) { gridSearchNotify.remove(); gridSearchNotify = null; }
-    setSearchingGrid(false);
-    if (inventory.isCalibrated) {
+    // Only claim success when a search was actually running — the success path
+    // of every normal calibrate calls stopGridSearch() too.
+    if (wasActive && inventory.isCalibrated) {
         log("Grid search succeeded.");
     }
 }

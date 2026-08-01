@@ -111,13 +111,6 @@ export function showNotification(msg: string, duration: number = 2000, style: "i
 }
 
 // ============================================================
-// Capture retry flag — suppresses anchor warning during retry loop
-// ============================================================
-
-let _isSearchingGrid = false;
-export function setSearchingGrid(v: boolean): void { _isSearchingGrid = v; }
-
-// ============================================================
 // Helpers
 // ============================================================
 
