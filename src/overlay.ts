@@ -10,30 +10,39 @@ import { state, captureFullRs, log, showNotification } from "./core";
 
 export function drawDetectDebug(anc: Inventory.BackpackAnchor, isError: boolean = false): void {
     if (!state.inAlt1) return;
-    log(`drawDetectDebug: anc=(${anc.x},${anc.y}) cols=${anc.gridCols} rows=${anc.gridRows} stride=${anc.colStride}`);
     alt1.overLayClearGroup("bronzeman_detect");
     alt1.overLaySetGroup("bronzeman_detect");
-    const LEN = 11;
+    const LEN = 8;
     const dur = 2000;
-    const yc = isError ? a1lib.mixColor(255, 60, 60) : a1lib.mixColor(255, 255, 0);
+    const magenta = a1lib.mixColor(255, 0, 255);
+    const yellow = isError ? a1lib.mixColor(255, 60, 60) : a1lib.mixColor(255, 255, 0);
     const rows = anc.gridRows!;
     const cols = anc.gridCols!;
     const total = cols * rows;
     const lastRowCols = total > 28 ? cols - (total - 28) : cols;
+    let idx = 0;
     for (let row = 0; row < rows; row++) {
         const slotCols = (row === rows - 1) ? lastRowCols : cols;
         for (let col = 0; col < slotCols; col++) {
-            const sx = anc.x + col * anc.colStride;
-            const sy = anc.y + row * anc.rowStride;
-            const r = sx + 35, b = sy + 31;
-            alt1.overLayRect(yc, sx, sy, LEN, 1, dur, 1);
-            alt1.overLayRect(yc, sx, sy, 1, LEN, dur, 1);
-            alt1.overLayRect(yc, r - LEN + 1, sy, LEN, 1, dur, 1);
-            alt1.overLayRect(yc, r, sy, 1, LEN, dur, 1);
-            alt1.overLayRect(yc, sx, b, LEN, 1, dur, 1);
-            alt1.overLayRect(yc, sx, b - LEN + 1, 1, LEN, dur, 1);
-            alt1.overLayRect(yc, r - LEN + 1, b, LEN, 1, dur, 1);
-            alt1.overLayRect(yc, r, b - LEN + 1, 1, LEN, dur, 1);
+            const slot = new InventorySlot(anc, anc.gridCols!, idx++);
+            // Yellow L-brackets on the border
+            // TL: right + down
+            alt1.overLayRect(yellow, slot.tl.x, slot.tl.y, LEN, 1, dur, 1);
+            alt1.overLayRect(yellow, slot.tl.x, slot.tl.y, 1, LEN, dur, 1);
+            // TR: left + down
+            alt1.overLayRect(yellow, slot.tr.x - LEN + 1, slot.tr.y, LEN, 1, dur, 1);
+            alt1.overLayRect(yellow, slot.tr.x, slot.tr.y, 1, LEN, dur, 1);
+            // BL: right + up
+            alt1.overLayRect(yellow, slot.bl.x, slot.bl.y - LEN + 1, 1, LEN, dur, 1);
+            alt1.overLayRect(yellow, slot.bl.x, slot.bl.y, LEN, 1, dur, 1);
+            // BR: left + up
+            alt1.overLayRect(yellow, slot.br.x - LEN + 1, slot.br.y, LEN, 1, dur, 1);
+            alt1.overLayRect(yellow, slot.br.x, slot.br.y - LEN + 1, 1, LEN, dur, 1);
+            // Magenta pixel at each corner (on top)
+            alt1.overLayRect(magenta, slot.tl.x, slot.tl.y, 1, 1, dur, 1);
+            alt1.overLayRect(magenta, slot.tr.x, slot.tr.y, 1, 1, dur, 1);
+            alt1.overLayRect(magenta, slot.bl.x, slot.bl.y, 1, 1, dur, 1);
+            alt1.overLayRect(magenta, slot.br.x, slot.br.y, 1, 1, dur, 1);
         }
     }
 }
@@ -60,28 +69,26 @@ export function debugFindSlot(): void {
     if (anc) {
         log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride} in ${ms}ms`);
 
-        const total = (anc.gridCols ?? 4) * (anc.gridRows ?? 7);
-        const lastRowCols = total > 28 ? (anc.gridCols ?? 4) - (total - 28) : (anc.gridCols ?? 4);
+        const cols = anc.gridCols!, rows = anc.gridRows!;
+        const total = cols * rows;
+        const lastRowCols = total > 28 ? cols - (total - 28) : cols;
 
         const yc = a1lib.mixColor(255, 255, 0);
         const white = a1lib.mixColor(255, 255, 255);
-        const dur = 5000, sh = 34, sw = 38;
-        const hitX = anc.x - 1, hitY = anc.y + 32;
-        const cols = anc.gridCols ?? 4, rows = anc.gridRows ?? 7;
+        const dur = 5000;
         alt1.overLaySetGroup("bronzeman_fingerprint");
         alt1.overLayClearGroup("bronzeman_fingerprint");
-        let slotNum = 0;
+        let idx = 0;
         for (let r = 0; r < rows; r++) {
             const slotCols = (r === rows - 1) ? lastRowCols : cols;
             for (let c = 0; c < slotCols; c++) {
-                slotNum++;
-                const sx = hitX + c * anc.colStride;
-                const sy = hitY - 33 + r * anc.rowStride;
-                alt1.overLayRect(yc, sx, sy, sw, 1, dur, 1);
-                alt1.overLayRect(yc, sx, sy + sh - 1, sw, 1, dur, 1);
-                alt1.overLayRect(yc, sx, sy, 1, sh, dur, 1);
-                alt1.overLayRect(yc, sx + sw - 1, sy, 1, sh, dur, 1);
-                alt1.overLayText(String(slotNum), white, 10, sx + sw / 2 - 6, sy + sh / 2 - 5, dur);
+                const slot = new InventorySlot(anc, cols, idx++);
+                const sw = 38, sh = 34;
+                alt1.overLayRect(yc, slot.tl.x, slot.tl.y, sw, 1, dur, 1);
+                alt1.overLayRect(yc, slot.tl.x, slot.br.y, sw, 1, dur, 1);
+                alt1.overLayRect(yc, slot.tl.x, slot.tl.y, 1, sh, dur, 1);
+                alt1.overLayRect(yc, slot.br.x, slot.tl.y, 1, sh, dur, 1);
+                alt1.overLayText(String(idx), white, 10, slot.cx - 6, slot.cy - 5, dur);
             }
         }
         log(`Total: ${Date.now() - t0}ms`);
@@ -125,7 +132,7 @@ export function drawSlotHover(
     if (lastHoverIndex === slotIndex) return;
     lastHoverIndex = slotIndex;
 
-    const slot = new InventorySlot(anc, anc.gridCols ?? 4, slotIndex);
+    const slot = new InventorySlot(anc, anc.gridCols!, slotIndex);
     const yellow = a1lib.mixColor(255, 255, 0);
 
     alt1.overLaySetGroup(HOVER_GROUP);
@@ -144,9 +151,7 @@ export function clearSlotHover(): void {
     alt1.overLayClearGroup(HOVER_GROUP);
 }
 
-// ============================================================
-// Slot corner debug — magenta dots at TL,TR,BL,BR for all 28 slots
-// ============================================================
+
 
 const CORNERS_GROUP = "bronzeman_corners";
 
@@ -155,7 +160,6 @@ export function drawSlotCornersDebug(
     slots: InventorySlot[],
 ): void {
     if (!state.inAlt1) return;
-    log(`drawSlotCornersDebug: anc=(${anc.x},${anc.y}) cols=${anc.gridCols} rows=${anc.gridRows} stride=${anc.colStride}`);
     const magenta = a1lib.mixColor(255, 0, 255);
     const dur = 10000;
 

@@ -1,5 +1,4 @@
 import { ImgRef } from "alt1/base";
-import { InventorySlot, SlotCorners } from "./inventory-slot";
 
 export interface BackpackAnchor {
     x: number; y: number;
@@ -10,7 +9,6 @@ export interface BackpackAnchor {
     centerMismatch?: boolean;
     scrollbar?: boolean;
 }
-
 
 // ============================================================
 // Anchor & stride persistence in localStorage
@@ -30,43 +28,18 @@ export function clearAnchor(): void { localStorage.removeItem(ANCHOR_KEY); }
 export function hasAnchor(): boolean { return !!localStorage.getItem(ANCHOR_KEY); }
 
 // ============================================================
-// Slot corner capture — 4 pixels (TL,TR,BL,BR) per slot × 28
-// ============================================================
-
-/** Read the 4 corner pixels for all 28 slots and return InventorySlot instances. */
-export function captureSlotCorners(img: ImgRef, anc: BackpackAnchor): InventorySlot[] {
-    const slots: InventorySlot[] = [];
-    for (let i = 0; i < 28; i++) {
-        const slot = new InventorySlot(anc, anc.gridCols ?? 4, i);
-        slot.corners = {
-            tl: readPixel(img, slot.tl.x, slot.tl.y),
-            tr: readPixel(img, slot.tr.x, slot.tr.y),
-            bl: readPixel(img, slot.bl.x, slot.bl.y),
-            br: readPixel(img, slot.br.x, slot.br.y),
-        };
-        slots.push(slot);
-    }
-    return slots;
-}
-
-function readPixel(img: ImgRef, x: number, y: number): [number, number, number] {
-    const d = img.toData(x, y, 1, 1);
-    return [d.data[0], d.data[1], d.data[2]];
-}
-
-// ============================================================
 // Anchor pixel tracking — detect when inventory moves
 // ============================================================
 const ANCHOR_PIXEL_KEY = "Bronzeman/anchorPixel";
 
 export interface AnchorPixel {
-    x: number; y: number;  // BL corner position
+    x: number; y: number;  // cell TL position
     r: number; g: number; b: number;
 }
 
 export function saveAnchorPixel(img: ImgRef, anc: BackpackAnchor): void {
-    const bx = anc.x - 1;  // BL corner x
-    const by = anc.y + 32; // BL corner y
+    const bx = anc.x;      // BL corner x
+    const by = anc.y + 33; // BL corner y
     if (bx < 0 || by < 0 || bx >= img.width || by >= img.height) return;
     const d = img.toData(bx, by, 1, 1);
     if (!d) return;
@@ -216,7 +189,7 @@ export function detectInventoryGrid(img: ImgRef): BackpackAnchor | null {
     const colStride = gap.slot2X - hit.x;
 
     const cols = countColumns(img, { x: hit.x, y: hit.y }, colStride);
-    if (cols === -1) return { x: hit.x + 1, y: hit.y - 32, method: "auto", colStride: 0, rowStride: 0, gridCols: 0, gridRows: 0, scrollbar: true };
+    if (cols === -1) return { x: hit.x, y: hit.y - 33, method: "auto", colStride: 0, rowStride: 0, gridCols: 0, gridRows: 0, scrollbar: true };
     if (cols < 2) return null;
 
     const rowStride = 36;
@@ -233,8 +206,8 @@ export function detectInventoryGrid(img: ImgRef): BackpackAnchor | null {
     if (rows < 2) return null;
 
     return {
-        x: hit.x + 1,
-        y: hit.y - 32,
+        x: hit.x,
+        y: hit.y - 33,
         method: "auto",
         colStride,
         rowStride,
@@ -242,6 +215,4 @@ export function detectInventoryGrid(img: ImgRef): BackpackAnchor | null {
         gridRows: rows,
     };
 }
-
-
 

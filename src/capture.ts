@@ -2,7 +2,7 @@
 import * as Inventory from "./inventory";
 import { state, captureFullRs, showNotification, NotificationHandle, log, setSearchingGrid } from "./core";
 import { updateUI } from "./ui";
-import { drawDetectDebug, updateGridBoundary, drawSlotCornersDebug } from "./overlay";
+import { drawDetectDebug, updateGridBoundary } from "./overlay";
 import { startSlotHover, stopSlotHover } from "./slot-hover";
 
 // ============================================================
@@ -63,8 +63,6 @@ export function calibrateGrid(): void {
             log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
             Inventory.saveAnchor(anc);
             Inventory.saveAnchorPixel(img, anc);
-            const slots = Inventory.captureSlotCorners(img, anc);
-            drawSlotCornersDebug(anc, slots);
             state.calibrating = false;
             state.autocapture = true;
             showNotification("Inventory calibrated", 3000, "success");
