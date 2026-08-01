@@ -1,6 +1,6 @@
 // capture.ts — inventory capture lifecycle for Bronzeman Mode
 import * as Inventory from "./inventory";
-import { state, captureFullRs, showNotification, NotificationHandle, log, setRetryingCapture } from "./core";
+import { state, captureFullRs, showNotification, NotificationHandle, log, setSearchingGrid } from "./core";
 import { updateUI } from "./ui";
 import { drawDetectDebug, updateGridBoundary } from "./overlay";
 
@@ -15,7 +15,7 @@ export function captureReference(): void {
     if (state.autocapture) {
         // Turn OFF
         state.autocapture = false;
-        stopRetryRecapture();
+        stopGridSearch();
         Inventory.clearAnchor();
         Inventory.clearAnchorPixel();
         Inventory.clearOuterPerm();
@@ -70,11 +70,11 @@ function doCaptureRef(): void {
             drawDetectDebug(anc, false);
             updateGridBoundary();
             updateUI();
-            stopRetryRecapture();
+            stopGridSearch();
         } else {
             state.calibrating = false;
             updateUI();
-            if (state.autocapture) startRetryRecapture();
+            if (state.autocapture) startGridSearch();
         }
     } catch (e) {
         log("Capture error: " + e);
@@ -90,7 +90,7 @@ function doCaptureRef(): void {
 
 export function clearReference(): void {
     state.calibrating = false;
-    stopRetryRecapture();
+    stopGridSearch();
     Inventory.clearAnchor();
     Inventory.clearAnchorPixel();
     Inventory.clearOuterPerm();
@@ -101,44 +101,44 @@ export function clearReference(): void {
 }
 
 // ============================================================
-// Retry recapture — fires every 1s until inventory found or 5min timeout
+// Initial grid search — fires every 1s until inventory found or 5min timeout
 // ============================================================
 
-let retryHandle: ReturnType<typeof setInterval> | null = null;
-let retryStartMs = 0;
-let retryCount = 0;
-let retryNotifyHandle: NotificationHandle | null = null;
-const RETRY_TIMEOUT_MS = 5 * 60 * 1000;
+let gridSearchHandle: ReturnType<typeof setInterval> | null = null;
+let gridSearchStarted = 0;
+let gridSearchTries = 0;
+let gridSearchNotify: NotificationHandle | null = null;
+const GRID_SEARCH_TIMEOUT_MS = 5 * 60 * 1000;
 
-function startRetryRecapture(): void {
-    if (retryHandle) return;
-    retryStartMs = Date.now();
-    retryCount = 0;
-    setRetryingCapture(true);
-    log("Starting recapture retries (5min timeout)...");
-    retryHandle = setInterval(() => {
+function startGridSearch(): void {
+    if (gridSearchHandle) return;
+    gridSearchStarted = Date.now();
+    gridSearchTries = 0;
+    setSearchingGrid(true);
+    log("Starting initial grid search (5min timeout)...");
+    gridSearchHandle = setInterval(() => {
         if (Inventory.hasAnchor()) {
-            stopRetryRecapture();
+            stopGridSearch();
             return;
         }
-        if (Date.now() - retryStartMs > RETRY_TIMEOUT_MS) {
-            log("Recapture timed out after 5min.");
-            stopRetryRecapture();
+        if (Date.now() - gridSearchStarted > GRID_SEARCH_TIMEOUT_MS) {
+            log("Grid search timed out after 5min.");
+            stopGridSearch();
             return;
         }
-        retryCount++;
-        if (retryCount >= 3 && !retryNotifyHandle) {
-            retryNotifyHandle = showNotification("Can't see the inventory", 0, "danger");
+        gridSearchTries++;
+        if (gridSearchTries >= 3 && !gridSearchNotify) {
+            gridSearchNotify = showNotification("Can't see the inventory", 0, "danger");
         }
         doCaptureRef();
     }, 1000);
 }
 
-function stopRetryRecapture(): void {
-    if (retryHandle) { clearInterval(retryHandle); retryHandle = null; }
-    if (retryNotifyHandle) { retryNotifyHandle.remove(); retryNotifyHandle = null; }
-    setRetryingCapture(false);
+function stopGridSearch(): void {
+    if (gridSearchHandle) { clearInterval(gridSearchHandle); gridSearchHandle = null; }
+    if (gridSearchNotify) { gridSearchNotify.remove(); gridSearchNotify = null; }
+    setSearchingGrid(false);
     if (Inventory.hasAnchor()) {
-        log("Recapture succeeded.");
+        log("Grid search succeeded.");
     }
 }
