@@ -55,10 +55,17 @@
         <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;">
             <div class="btn btn-primary" onclick="Bronzeman.dumpIgnoredItems()" style="width:100%;padding-top:6px;padding-bottom:6px;">Ignored &gt; Console</div>
             <div class="btn btn-primary" onclick="Bronzeman.debugFindSlot()" style="width:100%;padding-top:6px;padding-bottom:6px;">Fingerprint Slot</div>
+            <div class="btn btn-primary" onclick="Bronzeman.openSlotDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">Slot Hash Debug</div>
         </div>
 
         <div id="log" style="display:none;"></div>
         
+    </div>
+
+    <!-- Slot hash debug pane — covers the tab area; click outside the grid to close -->
+    <div id="slot_debug_pane" class="slot-debug-pane" style="display:none;" onclick="Bronzeman.closeSlotDebug()">
+        <div class="slot-debug-header">Slot hashes <span class="slot-debug-close">✕</span></div>
+        <div id="slot_debug_grid" class="slot-debug-grid" onclick="event.stopPropagation()"></div>
     </div>
 
     <script src="./main.js"></script>

@@ -6,6 +6,7 @@ import { updateUI } from "./ui";
 import { drawDetectDebug, updateGridBoundary, drawAnchorWatchDot, clearAnchorWatchDot } from "./overlay";
 import { startSlotHover, stopSlotHover } from "./slot-hover";
 import { startAnchorWatch, stopAnchorWatch } from "./anchor-watch";
+import { startSlotScan, stopSlotScan, captureCornerRefs } from "./slot-scan";
 
 // ============================================================
 // Toggle auto-capture on/off
@@ -21,6 +22,7 @@ export function captureReference(): void {
         stopGridSearch();
         stopSlotHover();
         stopAnchorWatch();
+        stopSlotScan();
         inventory.clear();
         if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
         updateUI();
@@ -62,6 +64,9 @@ export function calibrateGrid(opts?: { silent?: boolean }): void {
             }
             log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
             inventory.calibrate(anc);
+            // Baseline the per-slot corner refs from the same capture detection
+            // used (taken before any overlay drawing, so the refs are clean).
+            captureCornerRefs(img);
             state.calibrating = false;
             state.autocapture = true;
             if (!opts?.silent) showNotification("Inventory calibrated", 3000, "success");
@@ -71,6 +76,7 @@ export function calibrateGrid(opts?: { silent?: boolean }): void {
             updateUI();
             stopGridSearch();
             startSlotHover();
+            startSlotScan();
             startAnchorWatch(() => {
                 // Hide the old dot while recalibrating — a failed re-capture
                 // otherwise leaves a stale marker floating mid-slot.
@@ -103,6 +109,7 @@ export function clearReference(): void {
     stopGridSearch();
     stopSlotHover();
     stopAnchorWatch();
+    stopSlotScan();
     inventory.clear();
     if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
     log("Anchor cleared. Capture again to set.");
@@ -129,6 +136,7 @@ function formatCountdown(ms: number): string {
 function startGridSearch(): void {
     if (gridSearchHandle) return;
     stopAnchorWatch(); // a fresh scan replaces the resize watch
+    stopSlotScan();
     // A stale anchor means we were calibrated but can't see the inventory now.
     // Drop it so the interval below actually scans instead of instantly
     // stopping on the isCalibrated check.

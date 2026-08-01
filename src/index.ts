@@ -59,6 +59,9 @@ export { captureReference, clearReference } from "./capture";
 // Overlay
 export { debugFindSlot, updateGridBoundary } from "./overlay";
 
+// Slot scan diagnostics
+export { diagnoseSlotScan, dumpSlotHash } from "./slot-scan";
+
 // Modal
 export { modalCancel, modalOk } from "./modal";
 
@@ -67,6 +70,7 @@ export {
     resetUnlocks, resetIgnores,
     dumpIgnoredItems, removeIgnore,
     showIgnoreTooltip, hideIgnoreTooltip, moveIgnoreTooltip,
+    openSlotDebug, closeSlotDebug,
 } from "./ui";
 
 // ============================================================

@@ -14,6 +14,11 @@ export class InventorySlot {
     /** Top-left Y of the slot cell. */
     readonly y: number;
 
+    /** Reference border colors captured at calibration, in [TL, TR, BL, BR] order. */
+    cornerRefs: [number, number, number][] = [];
+    /** Hash of the slot contents from the last clean scan (null = no baseline yet). */
+    previousHash: string | null = null;
+
     constructor(anc: BackpackAnchor, cols: number, index: number) {
         this.index = index;
         this.col = index % cols;
@@ -35,4 +40,7 @@ export class InventorySlot {
     get bl(): Point { return { x: this.x, y: this.y + 33 }; }
     /** Bottom-right corner of the slot border. */
     get br(): Point { return { x: this.x + 37, y: this.y + 33 }; }
+
+    /** The four border corners in [TL, TR, BL, BR] order — matches cornerRefs. */
+    get corners(): Point[] { return [this.tl, this.tr, this.bl, this.br]; }
 }

@@ -1,6 +1,7 @@
 // detect.ts — pure inventory grid detection. No state; feeds the Inventory class.
 import { ImgRef } from "alt1/base";
 import type { BackpackAnchor } from "./inventory";
+import { lightness } from "./core";
 
 // ============================================================
 // Fingerprint slot detection
@@ -53,12 +54,6 @@ function findSlotByFingerprint(img: ImgRef): FingerprintHit | null {
         }
     } catch (e) { /* pass */ }
     return null;
-}
-
-/** Compute HSL lightness from RGB. Returns 0-100. */
-function lightness(r: number, g: number, b: number): number {
-    const max = Math.max(r, g, b) / 255, min = Math.min(r, g, b) / 255;
-    return Math.round(((max + min) / 2) * 100);
 }
 
 /** Given a found slot1 BL corner, scan right to find slot2 BL corner and return gap width.

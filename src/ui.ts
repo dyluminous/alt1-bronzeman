@@ -1,6 +1,6 @@
 // ui.ts — DOM rendering and UI action handlers for Bronzeman Mode
 import { inventory } from "./inventory";
-import { state, escHtml, showNotification, log } from "./core";
+import { state, escHtml, showNotification, log, captureFullRs } from "./core";
 import { getUnlockedCount, getUnlockedItemData, getIgnoredItems, clearIgnoredItems, removeIgnoredItem, resetUnlocks as dataResetUnlocks } from "./data";
 import { showModal } from "./modal";
 import { BUILD_NUM } from "./version";
@@ -116,6 +116,61 @@ export function updateUI(): void {
 
     updateAnchorDot();
     updateAnchorWarning();
+}
+
+// ============================================================
+// Slot hash debug pane
+// ============================================================
+
+let slotDebugTimer: ReturnType<typeof setInterval> | null = null;
+
+export function openSlotDebug(): void {
+    const pane = document.getElementById("slot_debug_pane");
+    if (!pane) return;
+    pane.style.display = "flex";
+    renderSlotDebug();
+    if (!slotDebugTimer) {
+        // Keep the pane in sync with the slot-scan hashes as they update.
+        slotDebugTimer = setInterval(renderSlotDebug, 500);
+    }
+}
+
+export function closeSlotDebug(): void {
+    if (slotDebugTimer) { clearInterval(slotDebugTimer); slotDebugTimer = null; }
+    const pane = document.getElementById("slot_debug_pane");
+    if (pane) pane.style.display = "none";
+}
+
+function renderSlotDebug(): void {
+    const grid = document.getElementById("slot_debug_grid");
+    if (!grid) return;
+    const slots = inventory.slots;
+    if (slots.length === 0) {
+        grid.innerHTML = '<div class="slot-debug-note">Inventory not calibrated.</div>';
+        return;
+    }
+    // Capture once, then draw every slot's interior from the same buffer.
+    const img = captureFullRs();
+    // Preserve the grid orientation (columns from calibration).
+    grid.style.gridTemplateColumns = `repeat(${inventory.cols}, minmax(64px, auto))`;
+    grid.innerHTML = slots.map(slot => {
+        const h = slot.previousHash;
+        const empty = h === null || h === "empty";
+        return `<div class="slot-debug-cell${empty ? " empty" : ""}" title="${escHtml(h ?? "")}">
+            <canvas class="slot-debug-canvas" width="36" height="32"></canvas>
+            <div class="idx">#${slot.index}</div>
+        </div>`;
+    }).join("");
+
+    if (!img) return;
+    slots.forEach((slot, i) => {
+        const canvas = grid.children[i]?.querySelector("canvas");
+        const ctx = canvas?.getContext("2d");
+        if (!canvas || !ctx) return;
+        // Interior of the slot cell: 36×32, skipping the 1px border.
+        const d = img.toData(slot.x + 1, slot.y + 1, 36, 32);
+        if (d) ctx.putImageData(d, 0, 0);
+    });
 }
 
 // ============================================================
