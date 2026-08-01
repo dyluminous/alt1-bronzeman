@@ -82,7 +82,7 @@ function isCovered(slot: InventorySlot, img: ImgRef): boolean {
 
 /** True when the interior has no item shadow pixels (#000001 or #000002).
  *  Every RS item has a 1px drop shadow; empty brown slots never do. */
-function slotIsEmpty(data: Uint8ClampedArray): boolean {
+function isSlotEmpty(data: Uint8ClampedArray): boolean {
     for (let i = 0; i < data.length; i += 4) {
         if (data[i] === 0 && data[i + 1] === 0 && (data[i + 2] === 1 || data[i + 2] === 2)) return false;
     }
@@ -149,7 +149,7 @@ function skipReason(slot: InventorySlot, img: ImgRef, obscured: Set<number>): st
     }
     const data = readInterior(slot, img);
     const light = interiorLightness(data);
-    const empty = data ? slotIsEmpty(data) : false;
+    const empty = data ? isSlotEmpty(data) : false;
     return `baseline-pending light=${light} empty=${empty}`;
 }
 
@@ -178,7 +178,7 @@ export function dumpSlotHash(index: number): void {
     const data = readInterior(slot, img);
     if (!data) { log("[diag] interior unreadable"); return; }
     const h = hashInterior(data);
-    log(`[diag] slot ${index}: rawHash=${h} empty=${slotIsEmpty(data)}`);
+    log(`[diag] slot ${index}: rawHash=${h} empty=${isSlotEmpty(data)}`);
 }
 
 /** Debug one slot's corner gate — call while a menu covers the slot:
@@ -221,7 +221,7 @@ function scanTick(): void {
         const data = readInterior(slot, img);
         if (!data) continue;
         slot.lastValidPixels = data;
-        const cur = slotIsEmpty(data) ? EMPTY_HASH : hashInterior(data);
+        const cur = isSlotEmpty(data) ? EMPTY_HASH : hashInterior(data);
 
         // Non-unlocked tracking — always update every tick so the gold dot
         // appears immediately after baseline and persists across steady-state.
