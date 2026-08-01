@@ -13,16 +13,8 @@ import { isHashUnlocked } from "./data";
 const SCAN_MS = 500;
 /** Sentinel previousHash for an empty slot. */
 const EMPTY_HASH = "empty";
-/** Per-channel tolerance when matching a slot against the empty reference. */
-const EMPTY_TOL = 4;
-/** Max pixels allowed to differ from the empty reference and still count as empty.
- *  Data-derived: 28 empty slots mismatched the slot-27 ref by 41–84 px (mean ≈ 54),
- *  so 100 sits comfortably above the empties and below any item. */
-const EMPTY_MISMATCH_PX = 100;
 
 let scanHandle: ReturnType<typeof setInterval> | null = null;
-/** Raw 36×32 interior RGBA of the known-empty slot (index 27), captured at calibration. */
-let emptyRef: Uint8ClampedArray | null = null;
 
 /** Slots whose current interior hash is not in the unlocked set. */
 let nonUnlockedSlots: Set<number> = new Set();
@@ -68,11 +60,6 @@ export function captureCornerRefs(img: ImgRef): void {
         slot.previousHash = null;
         slot.lastValidPixels = null;
     }
-    // Slot 27 is assumed always-empty (user-verified) — store its raw interior
-    // as the empty reference. Any slot matching it exactly is empty.
-    const emptySlot = inventory.getSlot(27);
-    const data = emptySlot ? readInterior(emptySlot, img) : null;
-    emptyRef = data ? new Uint8ClampedArray(data) : null;
 }
 
 // ============================================================
@@ -93,23 +80,13 @@ function isCovered(slot: InventorySlot, img: ImgRef): boolean {
     });
 }
 
-/** Number of interior pixels differing from the empty reference beyond tolerance. */
-function emptyMismatchCount(data: Uint8ClampedArray): number {
-    if (!emptyRef) return Infinity;
-    let mismatched = 0;
-    for (let i = 0; i < emptyRef.length; i += 4) {
-        if (Math.abs(data[i] - emptyRef[i]) > EMPTY_TOL
-            || Math.abs(data[i + 1] - emptyRef[i + 1]) > EMPTY_TOL
-            || Math.abs(data[i + 2] - emptyRef[i + 2]) > EMPTY_TOL) {
-            mismatched++;
-        }
+/** True when the interior has no item shadow pixels (#000001 or #000002).
+ *  Every RS item has a 1px drop shadow; empty brown slots never do. */
+function slotIsEmpty(data: Uint8ClampedArray): boolean {
+    for (let i = 0; i < data.length; i += 4) {
+        if (data[i] === 0 && data[i + 1] === 0 && (data[i + 2] === 1 || data[i + 2] === 2)) return false;
     }
-    return mismatched;
-}
-
-/** True when the interior buffer is (near-)identical to the empty reference. */
-function isEmptyInterior(data: Uint8ClampedArray): boolean {
-    return emptyMismatchCount(data) <= EMPTY_MISMATCH_PX;
+    return true;
 }
 
 /** 8×8 cells, 4-bit brightness → 64-char hex. */
@@ -172,8 +149,8 @@ function skipReason(slot: InventorySlot, img: ImgRef, obscured: Set<number>): st
     }
     const data = readInterior(slot, img);
     const light = interiorLightness(data);
-    const mismatch = data ? emptyMismatchCount(data) : -1;
-    return `baseline-pending light=${light} emptyMismatch=${mismatch}`;
+    const empty = data ? slotIsEmpty(data) : false;
+    return `baseline-pending light=${light} empty=${empty}`;
 }
 
 /** One-shot full report of every slot's scan state — call from console: Bronzeman.diagnoseSlotScan(). */
@@ -201,7 +178,7 @@ export function dumpSlotHash(index: number): void {
     const data = readInterior(slot, img);
     if (!data) { log("[diag] interior unreadable"); return; }
     const h = hashInterior(data);
-    log(`[diag] slot ${index}: rawHash=${h} emptyMismatch=${emptyMismatchCount(data)}`);
+    log(`[diag] slot ${index}: rawHash=${h} empty=${slotIsEmpty(data)}`);
 }
 
 /** Debug one slot's corner gate — call while a menu covers the slot:
@@ -244,7 +221,7 @@ function scanTick(): void {
         const data = readInterior(slot, img);
         if (!data) continue;
         slot.lastValidPixels = data;
-        const cur = isEmptyInterior(data) ? EMPTY_HASH : hashInterior(data);
+        const cur = slotIsEmpty(data) ? EMPTY_HASH : hashInterior(data);
 
         // Non-unlocked tracking — always update every tick so the gold dot
         // appears immediately after baseline and persists across steady-state.
