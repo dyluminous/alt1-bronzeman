@@ -30,12 +30,15 @@ export class Inventory {
     calibrate(anchor: BackpackAnchor): void {
         this._anchor = anchor;
         this._slots = [];
-        const cols = anchor.gridCols ?? 0;
-        const rawTotal = cols * (anchor.gridRows ?? 0);
-        const slotCount = rawTotal > 28 ? 28 : rawTotal;
-        for (let i = 0; i < slotCount; i++) {
-            this._slots.push(new InventorySlot(anchor, cols, i));
+        for (let i = 0; i < this.getSlotCount(anchor); i++) {
+            this._slots.push(new InventorySlot(anchor, this.cols, i));
         }
+    }
+
+    /** Number of slots a cols×rows grid yields, capped at the 28-slot backpack. */
+    getSlotCount(anchor: BackpackAnchor): number {
+        const raw = (anchor.gridCols ?? 0) * (anchor.gridRows ?? 0);
+        return raw > 28 ? 28 : raw;
     }
 
     /** Drop calibration entirely. */
@@ -63,6 +66,17 @@ export class Inventory {
     /** The final slot in the grid (bottom-right-most existing slot). */
     getLastSlotIndex(): number {
         return this._slots.length - 1;
+    }
+
+    /** The slot index under viewport coords (x,y), or null when outside the grid. */
+    getSlotIndexAt(x: number, y: number): number | null {
+        const anc = this._anchor;
+        if (!anc || anc.gridCols == null || anc.gridRows == null) return null;
+        const col = Math.floor((x - anc.x) / anc.colStride);
+        const row = Math.floor((y - anc.y) / anc.rowStride);
+        if (col < 0 || col >= anc.gridCols || row < 0 || row >= anc.gridRows) return null;
+        const idx = row * anc.gridCols + col;
+        return idx < this._slots.length ? idx : null;
     }
 }
 

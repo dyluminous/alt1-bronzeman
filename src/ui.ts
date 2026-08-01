@@ -1,7 +1,7 @@
 // ui.ts — DOM rendering and UI action handlers for Bronzeman Mode
 import { inventory } from "./inventory";
 import { state, escHtml, showNotification, log } from "./core";
-import { getUnlockedCount, getUnlockedItems, getUnlockedItemData, getIgnoredItems, getIgnoredCount, clearIgnoredItems, removeIgnoredItem, resetUnlocks as dataResetUnlocks } from "./data";
+import { getUnlockedCount, getUnlockedItemData, getIgnoredItems, clearIgnoredItems, removeIgnoredItem, resetUnlocks as dataResetUnlocks } from "./data";
 import { showModal } from "./modal";
 import { BUILD_NUM } from "./version";
 
@@ -26,7 +26,7 @@ export function updateAlt1Status(): void {
 // Anchor dot + warning
 // ============================================================
 
-export function updateAnchorDot(): void {
+function updateAnchorDot(): void {
     const el = document.getElementById("anchor_dot");
     if (!el) return;
     const anc = inventory.anchor;
@@ -35,7 +35,7 @@ export function updateAnchorDot(): void {
 
 let anchorWarningHandle: import("./core").NotificationHandle | null = null;
 
-export function updateAnchorWarning(): void {
+function updateAnchorWarning(): void {
     try {
         if (inventory.anchor) {
             if (anchorWarningHandle) { anchorWarningHandle.remove(); anchorWarningHandle = null; }

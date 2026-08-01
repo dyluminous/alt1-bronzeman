@@ -56,10 +56,8 @@ export function calibrateGrid(opts?: { silent?: boolean }): void {
         if (anc) {
             const cols = anc.gridCols ?? 0;
             const rows = anc.gridRows ?? 0;
-            const rawTotal = cols * rows;
-            const slotCount = rawTotal > 28 ? 28 : rawTotal;
-            if (slotCount !== 28) {
-                log(`Grid rejected: ${cols}×${rows}=${rawTotal}, need 28`);
+            if (inventory.getSlotCount(anc) !== 28) {
+                log(`Grid rejected: ${cols}×${rows}=${cols * rows}, need 28`);
                 return;
             }
             log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);

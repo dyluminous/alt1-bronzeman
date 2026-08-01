@@ -15,7 +15,7 @@ import "./style.css";
 // Init
 // ============================================================
 
-export function initOnLoad() {
+function initOnLoad() {
     log("Bronzeman initializing...");
 
     state.inAlt1 = typeof window.alt1 !== "undefined";
@@ -52,9 +52,6 @@ export function initOnLoad() {
 // ============================================================
 // Bronzeman namespace — re-exports for HTML onclick handlers
 // ============================================================
-
-// Data
-export { unlockItem, isUnlocked, getUnlockedCount, getUnlockedItems, resetData } from "./data";
 
 // Capture
 export { captureReference, clearReference } from "./capture";
