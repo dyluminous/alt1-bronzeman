@@ -1,5 +1,6 @@
 // core.ts — utilities, constants, shared state for Bronzeman Mode
 import { ImgRef, ImgRefBind } from "alt1/base";
+import * as a1lib from "alt1";
 
 // ============================================================
 // Alt1 capture
@@ -20,6 +21,14 @@ export function captureFullRs(): ImgRef | null {
     } catch {
         return null;
     }
+}
+
+/** Read a single RGB pixel from the RS viewport, or null when unavailable. */
+export function capturePixel(x: number, y: number): [number, number, number] | null {
+    if (!ensureAlt1() || !alt1.permissionPixel) return null;
+    const img = a1lib.capture(x, y, 1, 1);
+    if (!img || !img.data || img.data.length < 3) return null;
+    return [img.data[0], img.data[1], img.data[2]];
 }
 
 // ============================================================

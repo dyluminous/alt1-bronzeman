@@ -1,5 +1,6 @@
 // overlay.ts — RS overlay drawing for Bronzeman Mode
 import * as a1lib from "alt1";
+import { inventory } from "./inventory";
 import type { BackpackAnchor } from "./inventory";
 import * as Detect from "./inventory-detect";
 import { InventorySlot } from "./inventory-slot";
@@ -114,7 +115,38 @@ export function updateGridBoundary(): void {
     if (!showGridBoundary) {
         alt1.overLayClearGroup("bronzeman_boundary");
         alt1.overLayClearGroup("bronzeman_hover");
+        clearAnchorWatchDot();
+    } else {
+        drawAnchorWatchDot();
     }
+}
+
+// ============================================================
+// Anchor-watch dot — green dot on the watched TR pixel
+// ============================================================
+
+const ANCHOR_WATCH_GROUP = "bronzeman_anchorwatch";
+let anchorWatchFrozen = false;
+
+/** Draw a green dot on the TR border pixel of the top-right slot (the pixel anchor-watch monitors). */
+export function drawAnchorWatchDot(): void {
+    if (!state.inAlt1 || !showGridBoundary || !inventory.isCalibrated) return;
+    const slot = inventory.slots[inventory.getLastColumnFirstRowIndex()];
+    if (!slot) return;
+    const green = a1lib.mixColor(28, 228, 1);
+    alt1.overLaySetGroup(ANCHOR_WATCH_GROUP);
+    if (anchorWatchFrozen) { alt1.overLayContinueGroup(ANCHOR_WATCH_GROUP); }
+    alt1.overLayClearGroup(ANCHOR_WATCH_GROUP);
+    alt1.overLayRect(green, slot.tr.x, slot.tr.y, 1, 1, 0, 1);
+    alt1.overLayFreezeGroup(ANCHOR_WATCH_GROUP);
+    anchorWatchFrozen = true;
+}
+
+export function clearAnchorWatchDot(): void {
+    if (!anchorWatchFrozen) return;
+    anchorWatchFrozen = false;
+    alt1.overLayContinueGroup(ANCHOR_WATCH_GROUP);
+    alt1.overLayClearGroup(ANCHOR_WATCH_GROUP);
 }
 
 // ============================================================
@@ -152,26 +184,3 @@ export function clearSlotHover(): void {
     alt1.overLayClearGroup(HOVER_GROUP);
 }
 
-
-
-const CORNERS_GROUP = "bronzeman_corners";
-
-export function drawSlotCornersDebug(
-    anc: BackpackAnchor,
-    slots: InventorySlot[],
-): void {
-    if (!state.inAlt1) return;
-    const magenta = a1lib.mixColor(255, 0, 255);
-    const dur = 10000;
-
-    alt1.overLaySetGroup(CORNERS_GROUP);
-    alt1.overLaySetGroupZIndex(CORNERS_GROUP, 1);
-    alt1.overLayClearGroup(CORNERS_GROUP);
-
-    for (const slot of slots) {
-        // 3×3 dot at each corner
-        for (const p of [slot.tl, slot.tr, slot.bl, slot.br]) {
-            alt1.overLayRect(magenta, p.x, p.y, 1, 1, dur, 1);
-        }
-    }
-}
