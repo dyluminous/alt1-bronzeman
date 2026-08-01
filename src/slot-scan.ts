@@ -8,6 +8,7 @@ import { inventory } from "./inventory";
 import { captureFullRs, log, lightness } from "./core";
 import type { ImgRef } from "alt1/base";
 import { InventorySlot } from "./inventory-slot";
+import { isHashUnlocked } from "./data";
 
 const SCAN_MS = 500;
 /** Sentinel previousHash for an empty slot. */
@@ -22,6 +23,13 @@ const EMPTY_MISMATCH_PX = 100;
 let scanHandle: ReturnType<typeof setInterval> | null = null;
 /** Raw 36×32 interior RGBA of the known-empty slot (index 27), captured at calibration. */
 let emptyRef: Uint8ClampedArray | null = null;
+
+/** Slots whose current interior hash is not in the unlocked set. */
+let nonUnlockedSlots: Set<number> = new Set();
+
+export function getNonUnlockedSlotIndices(): Set<number> {
+    return nonUnlockedSlots;
+}
 
 // ============================================================
 // Low-level reads from a captured image
@@ -237,6 +245,15 @@ function scanTick(): void {
         if (!data) continue;
         slot.lastValidPixels = data;
         const cur = isEmptyInterior(data) ? EMPTY_HASH : hashInterior(data);
+
+        // Non-unlocked tracking — always update every tick so the gold dot
+        // appears immediately after baseline and persists across steady-state.
+        if (cur === EMPTY_HASH || isHashUnlocked(cur)) {
+            nonUnlockedSlots.delete(slot.index);
+        } else {
+            nonUnlockedSlots.add(slot.index);
+        }
+
         const prev = slot.previousHash;
         if (prev === null) {
             // First clean sighting since calibrate — record the baseline, no event.

@@ -45,6 +45,7 @@ export const LS_KEYS = {
     unlockedItems: "Bronzeman/unlockedItems",
     unlockedItemData: "Bronzeman/unlockedItemData",
     ignores: "Bronzeman/ignores",
+    unlockedHashes: "Bronzeman/unlockedHashes",
 } as const;
 
 // ============================================================

@@ -9,6 +9,7 @@ import { getAnchorWatchPoints } from "./anchor-watch";
 import { SlotBorderAnimation } from "./slot-animation";
 import goldDot from "./assets/images/gold_dot.png";
 import { TooltipScanner } from "./tooltip-read";
+import { getNonUnlockedSlotIndices } from "./slot-scan";
 
 // ============================================================
 // Detection debug — corner brackets on all slots
@@ -278,6 +279,45 @@ export function toggleSlotAnimation(): void {
         slotAnimation?.stop();
         stopSlotDot();
     }
+}
+
+// ============================================================
+// Non-unlocked dot — gold dot on every slot not in the unlocked set
+// ============================================================
+
+const NON_UNLOCKED_DOT_GROUP = "bronzeman_nonunlock";
+
+let nonUnlockedDotTimer: ReturnType<typeof setInterval> | null = null;
+let nonUnlockedDotEncoded: string | null = null;
+
+function drawNonUnlockedDots(): void {
+    if (!state.inAlt1 || !inventory.isCalibrated || !nonUnlockedDotEncoded) return;
+    const indices = getNonUnlockedSlotIndices();
+    alt1.overLaySetGroup(NON_UNLOCKED_DOT_GROUP);
+    alt1.overLayClearGroup(NON_UNLOCKED_DOT_GROUP);
+    indices.forEach(idx => {
+        const slot = inventory.getSlot(idx);
+        if (!slot) return;
+        alt1.overLayImage(slot.x + SLOT_DOT_X, slot.y + SLOT_DOT_Y, nonUnlockedDotEncoded, SLOT_DOT_W, SLOT_DOT_DURATION_MS);
+    });
+}
+
+export function startNonUnlockedDotRefresh(): void {
+    void loadGoldDotEncoded().then(encoded => {
+        nonUnlockedDotEncoded = encoded;
+        if (!nonUnlockedDotTimer) {
+            nonUnlockedDotTimer = setInterval(drawNonUnlockedDots, 500);
+        }
+    });
+}
+
+export function stopNonUnlockedDotRefresh(): void {
+    if (nonUnlockedDotTimer) { clearInterval(nonUnlockedDotTimer); nonUnlockedDotTimer = null; }
+    nonUnlockedDotEncoded = null;
+    try {
+        alt1.overLaySetGroup(NON_UNLOCKED_DOT_GROUP);
+        alt1.overLayClearGroup(NON_UNLOCKED_DOT_GROUP);
+    } catch { /* group already gone */ }
 }
 
 // ============================================================

@@ -3,7 +3,7 @@ import * as Detect from "./inventory-detect";
 import { inventory } from "./inventory";
 import { state, captureFullRs, showNotification, NotificationHandle, log } from "./core";
 import { updateUI } from "./ui";
-import { drawDetectDebug, updateGridDebug, drawAnchorWatchDot, clearAnchorWatchDot } from "./overlay";
+import { drawDetectDebug, updateGridDebug, drawAnchorWatchDot, clearAnchorWatchDot, startNonUnlockedDotRefresh, stopNonUnlockedDotRefresh } from "./overlay";
 import { startSlotHover, stopSlotHover } from "./slot-hover";
 import { startAnchorWatch, stopAnchorWatch } from "./anchor-watch";
 import { startSlotScan, stopSlotScan, captureCornerRefs } from "./slot-scan";
@@ -23,6 +23,7 @@ export function captureReference(): void {
         stopSlotHover();
         stopAnchorWatch();
         stopSlotScan();
+        stopNonUnlockedDotRefresh();
         inventory.clear();
         updateUI();
         return;
@@ -76,6 +77,7 @@ export function calibrateGrid(opts?: { silent?: boolean }): void {
             stopGridSearch();
             startSlotHover();
             startSlotScan();
+            startNonUnlockedDotRefresh();
             startAnchorWatch(() => {
                 // Hide the old dot while recalibrating — a failed re-capture
                 // otherwise leaves a stale marker floating mid-slot.
@@ -109,6 +111,7 @@ export function clearReference(): void {
     stopSlotHover();
     stopAnchorWatch();
     stopSlotScan();
+    stopNonUnlockedDotRefresh();
     inventory.clear();
     log("Anchor cleared. Capture again to set.");
     updateUI();
@@ -135,6 +138,7 @@ function startGridSearch(): void {
     if (gridSearchHandle) return;
     stopAnchorWatch(); // a fresh scan replaces the resize watch
     stopSlotScan();
+    stopNonUnlockedDotRefresh();
     // A stale anchor means we were calibrated but can't see the inventory now.
     // Drop it so the interval below actually scans instead of instantly
     // stopping on the isCalibrated check.
