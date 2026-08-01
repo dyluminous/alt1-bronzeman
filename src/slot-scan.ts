@@ -10,8 +10,6 @@ import type { ImgRef } from "alt1/base";
 import type { InventorySlot } from "./inventory-slot";
 
 const SCAN_MS = 500;
-/** Per-channel tolerance when comparing a corner to its calibration ref. */
-const CORNER_TOL = 8;
 /** Sentinel previousHash for an empty slot. */
 const EMPTY_HASH = "empty";
 /** Per-channel tolerance when matching a slot against the empty reference. */
@@ -22,8 +20,6 @@ const EMPTY_TOL = 4;
 const EMPTY_MISMATCH_PX = 100;
 
 let scanHandle: ReturnType<typeof setInterval> | null = null;
-/** Last logged skip reason per slot (null = not logged yet) — for change-only diag logging. */
-let lastSkipReason: (string | null)[] = [];
 /** Raw 36×32 interior RGBA of the known-empty slot (index 27), captured at calibration. */
 let emptyRef: Uint8ClampedArray | null = null;
 
@@ -54,10 +50,9 @@ export function captureCornerRefs(img: ImgRef): void {
 // Per-slot checks
 // ============================================================
 
+/** True when the corner pixel exactly matches its calibration ref. */
 function cornerMatches(corner: [number, number, number], ref: [number, number, number]): boolean {
-    return Math.abs(corner[0] - ref[0]) <= CORNER_TOL
-        && Math.abs(corner[1] - ref[1]) <= CORNER_TOL
-        && Math.abs(corner[2] - ref[2]) <= CORNER_TOL;
+    return corner[0] === ref[0] && corner[1] === ref[1] && corner[2] === ref[2];
 }
 
 /** True when any corner no longer matches its calibration ref (slot is covered). */
@@ -117,6 +112,22 @@ function hashInterior(slot: InventorySlot, img: ImgRef): string {
     return h;
 }
 
+/** Slots the scan must not read: covered (corner mismatch) or under/adjacent to the
+ *  cursor. Their previousHash is left untouched so no false change is recorded. */
+export function getObscuredSlotIndices(img: ImgRef): Set<number> {
+    const obscured = new Set<number>();
+    const m = a1lib.getMousePosition();
+    const hovered = m ? inventory.getSlotIndexAt(m.x, m.y) : null;
+    if (hovered !== null) {
+        obscured.add(hovered);
+        for (const a of inventory.getAdjacentSlotIndices(hovered)) obscured.add(a);
+    }
+    for (const slot of inventory.slots) {
+        if (isCovered(slot, img)) obscured.add(slot.index);
+    }
+    return obscured;
+}
+
 // ============================================================
 // Scan loop
 // ============================================================
@@ -125,26 +136,23 @@ function hashInterior(slot: InventorySlot, img: ImgRef): string {
 function skipReason(
     slot: InventorySlot,
     img: ImgRef,
-    excluded: Set<number>,
-    hovered: number | null,
+    obscured: Set<number>,
 ): string {
-    if (excluded.has(slot.index)) {
-        return hovered === slot.index
-            ? "excluded: under cursor"
-            : `excluded: adjacent to cursor slot ${hovered}`;
+    if (obscured.has(slot.index)) {
+        const names = ["TL", "TR", "BL", "BR"];
+        const bad: string[] = [];
+        slot.corners.forEach((c, i) => {
+            const d = img.toData(c.x, c.y, 1, 1);
+            const live = d ? [d.data[0], d.data[1], d.data[2]] as [number, number, number] : null;
+            const ref = slot.cornerRefs[i];
+            const ok = !!live && !!ref && cornerMatches(live, ref);
+            if (!ok) {
+                bad.push(`${names[i]} ref=(${ref?.join(",")}) live=(${live?.join(",") ?? "null"})`);
+            }
+        });
+        if (bad.length > 0) return "covered: " + bad.join(" ");
+        return "excluded: cursor/adjacent";
     }
-    const names = ["TL", "TR", "BL", "BR"];
-    const bad: string[] = [];
-    slot.corners.forEach((c, i) => {
-        const d = img.toData(c.x, c.y, 1, 1);
-        const live = d ? [d.data[0], d.data[1], d.data[2]] as [number, number, number] : null;
-        const ref = slot.cornerRefs[i];
-        const ok = !!live && !!ref && cornerMatches(live, ref);
-        if (!ok) {
-            bad.push(`${names[i]} ref=(${ref?.join(",")}) live=(${live?.join(",") ?? "null"})`);
-        }
-    });
-    if (bad.length > 0) return "covered: " + bad.join(" ");
     const d = img.toData(slot.x + 1, slot.y + 1, 36, 32);
     let sum = 0, cnt = 0;
     if (d) {
@@ -162,19 +170,12 @@ export function diagnoseSlotScan(): void {
     if (!inventory.isCalibrated) { log("[diag] inventory not calibrated"); return; }
     const img = captureFullRs();
     if (!img) { log("[diag] capture failed"); return; }
-    const excluded = new Set<number>();
-    let hovered: number | null = null;
     const m = a1lib.getMousePosition();
-    if (m) {
-        hovered = inventory.getSlotIndexAt(m.x, m.y);
-        if (hovered !== null) {
-            excluded.add(hovered);
-            for (const a of inventory.getAdjacentSlotIndices(hovered)) excluded.add(a);
-        }
-    }
+    const hovered = m ? inventory.getSlotIndexAt(m.x, m.y) : null;
+    const obscured = getObscuredSlotIndices(img);
     log(`[diag] mouse=(${m?.x},${m?.y}) hoveredSlot=${hovered} cols=${inventory.cols} rows=${inventory.rows}`);
     for (const slot of inventory.slots) {
-        log(`[diag] slot ${slot.index}: prevHash=${slot.previousHash ?? "null"} → ${skipReason(slot, img, excluded, hovered)}`);
+        log(`[diag] slot ${slot.index}: prevHash=${slot.previousHash ?? "null"} → ${skipReason(slot, img, obscured)}`);
     }
 }
 
@@ -190,31 +191,42 @@ export function dumpSlotHash(index: number): void {
     log(`[diag] slot ${index}: rawHash=${h} emptyMismatch=${emptyMismatchCount(slot, img)}`);
 }
 
+/** Debug one slot's corner gate — call while a menu covers the slot:
+ *  Bronzeman.debugCorners(10). Prints each corner's coordinate, ref colour,
+ *  live colour, and whether the gate flags it as covered. */
+export function debugCorners(index: number): void {
+    if (!inventory.isCalibrated) { log("[diag] inventory not calibrated"); return; }
+    const slot = inventory.getSlot(index);
+    if (!slot) { log(`[diag] slot ${index} does not exist`); return; }
+    const img = captureFullRs();
+    if (!img) { log("[diag] capture failed"); return; }
+    const names = ["TL", "TR", "BL", "BR"];
+    const refs = slot.cornerRefs;
+    log(`[diag] slot ${index}: x=${slot.x} y=${slot.y} cornerRefsLen=${refs.length}`);
+    slot.corners.forEach((c, i) => {
+        const d = img.toData(c.x, c.y, 1, 1);
+        const live = d ? [d.data[0], d.data[1], d.data[2]] as [number, number, number] : null;
+        const ref = refs[i];
+        const ok = !!live && !!ref && cornerMatches(live, ref);
+        log(`[diag]   ${names[i]} (${c.x},${c.y}): ref=(${ref?.join(",")}) live=(${live?.join(",") ?? "null"}) ${ok ? "MATCH" : "COVERED"}`);
+    });
+}
+
 function scanTick(): void {
     if (!inventory.isCalibrated) { stopSlotScan(); return; }
     const img = captureFullRs();
     if (!img) return;
 
-    // Slots under the cursor or adjacent to it are excluded — the hovered slot's
-    // interior is visually altered and its neighbours may be under the tooltip.
-    const excluded = new Set<number>();
-    let hovered: number | null = null;
-    const m = a1lib.getMousePosition();
-    if (m) {
-        hovered = inventory.getSlotIndexAt(m.x, m.y);
-        if (hovered !== null) {
-            excluded.add(hovered);
-            for (const a of inventory.getAdjacentSlotIndices(hovered)) excluded.add(a);
-        }
-    }
+    // Slots under/adjacent to the cursor or with covered corners are obscured —
+    // their previousHash is left untouched so no false change is recorded.
+    const obscured = getObscuredSlotIndices(img);
 
     const appeared: { index: number; hash: string }[] = [];
     const removed: { index: number; hash: string }[] = [];
     const changed: { index: number }[] = [];
 
     for (const slot of inventory.slots) {
-        if (excluded.has(slot.index)) continue;
-        if (isCovered(slot, img)) continue;
+        if (obscured.has(slot.index)) continue;
 
         const cur = isEmptySlot(slot, img) ? EMPTY_HASH : hashInterior(slot, img);
         const prev = slot.previousHash;
@@ -229,20 +241,6 @@ function scanTick(): void {
         else if (prev === EMPTY_HASH) appeared.push({ index: slot.index, hash: cur });
         else changed.push({ index: slot.index });
         slot.previousHash = cur;
-    }
-
-    // Diagnostics: when a slot stays un-baselined, log WHY — but only when the
-    // reason changes, so we don't spam identical lines every tick.
-    if (lastSkipReason.length !== inventory.slots.length) {
-        lastSkipReason = new Array(inventory.slots.length).fill(null);
-    }
-    for (const slot of inventory.slots) {
-        if (slot.previousHash !== null) { lastSkipReason[slot.index] = null; continue; }
-        const reason = skipReason(slot, img, excluded, hovered);
-        if (reason !== lastSkipReason[slot.index]) {
-            lastSkipReason[slot.index] = reason;
-            log(`[diag] slot ${slot.index} greyed: ${reason}`);
-        }
     }
 
     // Pair same-tick removals + appearances by matching hash → "moved".
