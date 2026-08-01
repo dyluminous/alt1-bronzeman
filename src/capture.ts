@@ -28,14 +28,14 @@ export function captureReference(): void {
     // Turn ON — run fingerprint detection immediately
     state.autocapture = true;
     updateUI();
-    doCaptureRef();
+    calibrateGrid();
 }
 
 // ============================================================
 // Run fingerprint detection
 // ============================================================
 
-function doCaptureRef(): void {
+function calibrateGrid(): void {
     try {
         const img = captureFullRs();
         if (!img) {
@@ -130,7 +130,7 @@ function startGridSearch(): void {
         if (gridSearchTries >= 3 && !gridSearchNotify) {
             gridSearchNotify = showNotification("Can't see the inventory", 0, "danger");
         }
-        doCaptureRef();
+        calibrateGrid();
     }, 1000);
 }
 
