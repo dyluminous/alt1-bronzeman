@@ -197,11 +197,14 @@ const ANIM_STEP_MS = 33;
 const ANIM_PERIMETER = 2 * (InventorySlot.CELL_W + InventorySlot.CELL_H);
 /** One full loop: ~3px/frame → 48 frames. */
 const ANIM_CYCLE_MS = Math.ceil(ANIM_PERIMETER / 3) * ANIM_STEP_MS;
-/** Trail length — exactly half the ring, so the tail is 72px behind the head. */
-const ANIM_TAIL_PX = ANIM_PERIMETER / 2;
+/** Trail length — a 34px comet tail. */
+const ANIM_TAIL_PX = 34;
 /** How long a drawn pixel stays visible: the time the head takes to advance ANIM_TAIL_PX.
- *  Oldest pixels expire one-by-one in draw order, keeping the trail at a constant 72px. */
+ *  Oldest pixels expire one-by-one in draw order, keeping the trail at a constant length. */
 const ANIM_TAIL_MS = Math.round(ANIM_TAIL_PX / ANIM_PERIMETER * ANIM_CYCLE_MS);
+/** The second comet launches when the first is this far in (half a lap), so the
+ *  two comets are always 72px apart and circle the slot together. */
+const ANIM_COMET_OFFSET = ANIM_PERIMETER / 2;
 
 /** The border edge at perimeter-distance d from TL, going clockwise.
  *  Perimeter is 2×(W+H); corners are counted once at the start of each edge,
@@ -231,18 +234,31 @@ function drawBorderSegment(slot: InventorySlot, d: number, len: number, dur: num
     }
 }
 
-/** One frame: draw the segment from the last frame's head position to the current one.
- *  Tiling [prev, cur) keeps the trail contiguous — rounding the endpoints can't
+/** One frame: draw each comet's segment from its last head position to the current one.
+ *  Tiling [prev, cur) keeps each trail contiguous — rounding the endpoints can't
  *  leave 1px gaps the way rounding a fixed 3px step per frame can. */
 function slotAnimTick(): void {
     if (!inventory.isCalibrated) return;
     const slot = inventory.getSlot(27);
     if (!slot) return;
     const pos = (Date.now() - animStart) / ANIM_CYCLE_MS * ANIM_PERIMETER;
-    const start = Math.round(animLastPos) % ANIM_PERIMETER;
-    const end = Math.round(pos) % ANIM_PERIMETER;
-    const len = (end - start + ANIM_PERIMETER) % ANIM_PERIMETER;
-    if (len > 0) drawBorderSegment(slot, start, len, ANIM_TAIL_MS);
+    const norm = (v: number): number => ((Math.round(v) % ANIM_PERIMETER) + ANIM_PERIMETER) % ANIM_PERIMETER;
+
+    // Comet 1 — always running.
+    const start1 = norm(animLastPos);
+    const end1 = norm(pos);
+    const len1 = (end1 - start1 + ANIM_PERIMETER) % ANIM_PERIMETER;
+    if (len1 > 0) drawBorderSegment(slot, start1, len1, ANIM_TAIL_MS);
+
+    // Comet 2 — launches when comet 1 is ANIM_COMET_OFFSET in, then stays exactly
+    // one offset behind it forever (clamped to 0 so nothing draws before launch).
+    const pos2 = Math.max(0, pos - ANIM_COMET_OFFSET);
+    const lastPos2 = Math.max(0, animLastPos - ANIM_COMET_OFFSET);
+    const start2 = norm(lastPos2);
+    const end2 = norm(pos2);
+    const len2 = (end2 - start2 + ANIM_PERIMETER) % ANIM_PERIMETER;
+    if (len2 > 0) drawBorderSegment(slot, start2, len2, ANIM_TAIL_MS);
+
     animLastPos = pos;
 }
 
