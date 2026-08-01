@@ -42,6 +42,7 @@ export function initOnLoad() {
                     const ok = Inventory.validateAnchor(img, saved, (msg) => log("  [validate] " + msg));
                     log(`[init] validateAnchor returned: ${ok}`);
                     if (ok) {
+                        state.autocapture = true;
                         log("Anchor valid — grid online.");
                         showNotification("Inventory calibrated", 2000, "success");
                         drawDetectDebug(saved, false);
