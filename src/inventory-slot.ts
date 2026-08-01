@@ -8,6 +8,9 @@ export class InventorySlot {
     /** Interior cell size (36×32) — the slot cell minus its 1px border. */
     static readonly INTERIOR_W = 36;
     static readonly INTERIOR_H = 32;
+    /** Full cell size (38×34) — includes the 1px border. */
+    static readonly CELL_W = 38;
+    static readonly CELL_H = 34;
     /** Corner labels in the same order as corners/cornerRefs. */
     static readonly CORNER_NAMES = ["TL", "TR", "BL", "BR"] as const;
 
