@@ -104,13 +104,13 @@ let showGridBoundary = false;
 
 export function isGridDebugEnabled(): boolean { return showGridBoundary; }
 
-export function updateGridBoundary(): void {
+/** Re-read the "Inventory debugging" checkbox and update the debug overlays. */
+export function updateGridDebug(): void {
     const cb = document.getElementById("show_grid_boundary") as HTMLInputElement;
     showGridBoundary = cb?.checked ?? false;
-    log(`updateGridBoundary: show=${showGridBoundary} inAlt1=${state.inAlt1}`);
+    log(`updateGridDebug: show=${showGridBoundary} inAlt1=${state.inAlt1}`);
     if (!state.inAlt1) return;
     if (!showGridBoundary) {
-        alt1.overLayClearGroup("bronzeman_boundary");
         alt1.overLayClearGroup("bronzeman_hover");
         clearAnchorWatchDot();
     } else {

@@ -3,7 +3,7 @@ import * as Detect from "./inventory-detect";
 import { inventory } from "./inventory";
 import { state, captureFullRs, showNotification, NotificationHandle, log } from "./core";
 import { updateUI } from "./ui";
-import { drawDetectDebug, updateGridBoundary, drawAnchorWatchDot, clearAnchorWatchDot } from "./overlay";
+import { drawDetectDebug, updateGridDebug, drawAnchorWatchDot, clearAnchorWatchDot } from "./overlay";
 import { startSlotHover, stopSlotHover } from "./slot-hover";
 import { startAnchorWatch, stopAnchorWatch } from "./anchor-watch";
 import { startSlotScan, stopSlotScan, captureCornerRefs } from "./slot-scan";
@@ -24,7 +24,6 @@ export function captureReference(): void {
         stopAnchorWatch();
         stopSlotScan();
         inventory.clear();
-        if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
         updateUI();
         return;
     }
@@ -71,7 +70,7 @@ export function calibrateGrid(opts?: { silent?: boolean }): void {
             state.autocapture = true;
             if (!opts?.silent) showNotification("Inventory calibrated", 3000, "success");
             drawDetectDebug(false);
-            updateGridBoundary();
+            updateGridDebug();
             drawAnchorWatchDot();
             updateUI();
             stopGridSearch();
@@ -111,7 +110,6 @@ export function clearReference(): void {
     stopAnchorWatch();
     stopSlotScan();
     inventory.clear();
-    if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
     log("Anchor cleared. Capture again to set.");
     updateUI();
 }
