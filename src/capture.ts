@@ -70,7 +70,7 @@ export function calibrateGrid(opts?: { silent?: boolean }): void {
             state.calibrating = false;
             state.autocapture = true;
             if (!opts?.silent) showNotification("Inventory calibrated", 3000, "success");
-            drawDetectDebug(anc, false);
+            drawDetectDebug(false);
             updateGridBoundary();
             drawAnchorWatchDot();
             updateUI();

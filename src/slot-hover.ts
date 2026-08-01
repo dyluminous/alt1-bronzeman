@@ -1,6 +1,5 @@
 // slot-hover.ts — poll cursor position and draw yellow square over hovered slot
 import { inventory } from "./inventory";
-import * as a1lib from "alt1";
 import { state } from "./core";
 import { drawSlotHover, clearSlotHover, isGridDebugEnabled } from "./overlay";
 
@@ -21,10 +20,7 @@ export function startSlotHover(): void {
         const anc = inventory.anchor;
         if (!anc) { clearSlotHover(); return; }
 
-        const m = a1lib.getMousePosition();
-        if (!m) { clearSlotHover(); return; }
-
-        const slotIndex = inventory.getSlotIndexAt(m.x, m.y);
+        const slotIndex = inventory.getHoveredSlotIndex();
         if (slotIndex === null) { clearSlotHover(); return; }
 
         drawSlotHover(slotIndex);

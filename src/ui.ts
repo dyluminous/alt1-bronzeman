@@ -1,5 +1,6 @@
 // ui.ts — DOM rendering and UI action handlers for Bronzeman Mode
 import { inventory } from "./inventory";
+import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, showNotification, log, captureFullRs } from "./core";
 import { getUnlockedCount, getUnlockedItemData, getIgnoredItems, clearIgnoredItems, removeIgnoredItem, resetUnlocks as dataResetUnlocks } from "./data";
 import { showModal } from "./modal";
@@ -179,7 +180,7 @@ function renderSlotDebug(): void {
         const ctx = canvas?.getContext("2d");
         if (!canvas || !ctx) return;
         // Interior of the slot cell: 36×32, skipping the 1px border.
-        const d = img.toData(slot.x + 1, slot.y + 1, 36, 32);
+        const d = img.toData(slot.interiorX, slot.interiorY, InventorySlot.INTERIOR_W, InventorySlot.INTERIOR_H);
         if (d) ctx.putImageData(d, 0, 0);
     });
 }

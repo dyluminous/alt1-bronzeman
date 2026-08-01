@@ -12,11 +12,11 @@ import { getAnchorWatchPoints } from "./anchor-watch";
 // Detection debug — corner brackets on all slots
 // ============================================================
 
-export function drawDetectDebug(anc: BackpackAnchor, isError: boolean = false): void {
+export function drawDetectDebug(isError: boolean = false): void {
     // Debug visual — only draw when Inventory debugging is enabled. Drawing
     // brackets over slot corners would pollute the cornerRefs the slot-scan
     // uses for occlusion detection (Alt1 captures include overlays).
-    if (!state.inAlt1 || !isGridDebugEnabled()) return;
+    if (!state.inAlt1 || !isGridDebugEnabled() || !inventory.isCalibrated) return;
     alt1.overLayClearGroup("bronzeman_detect");
     alt1.overLaySetGroup("bronzeman_detect");
     const LEN = 8;
@@ -27,31 +27,23 @@ export function drawDetectDebug(anc: BackpackAnchor, isError: boolean = false): 
     // include overlays), which would trigger a recalibrate loop. Also skip the
     // TL of the first slot (index 0).
     const watch = new Set(getAnchorWatchPoints().map(p => `${p.x},${p.y}`));
-    const first = new InventorySlot(anc, anc.gridCols!, 0);
-    watch.add(`${first.tl.x},${first.tl.y}`);
+    const first = inventory.getSlot(0);
+    if (first) watch.add(`${first.tl.x},${first.tl.y}`);
     const skip = (p: { x: number; y: number }): boolean => watch.has(`${p.x},${p.y}`);
-    const rows = anc.gridRows!;
-    const cols = anc.gridCols!;
-    const lastRowCols = Inventory.lastRowCols(anc);
-    let idx = 0;
-    for (let row = 0; row < rows; row++) {
-        const slotCols = (row === rows - 1) ? lastRowCols : cols;
-        for (let col = 0; col < slotCols; col++) {
-            const slot = new InventorySlot(anc, anc.gridCols!, idx++);
-            // Yellow L-brackets on the border
-            // TL: right + down
-            if (!skip(slot.tl)) alt1.overLayRect(yellow, slot.tl.x, slot.tl.y, LEN, 1, dur, 1);
-            if (!skip(slot.tl)) alt1.overLayRect(yellow, slot.tl.x, slot.tl.y, 1, LEN, dur, 1);
-            // TR: left + down
-            if (!skip(slot.tr)) alt1.overLayRect(yellow, slot.tr.x - LEN + 1, slot.tr.y, LEN, 1, dur, 1);
-            if (!skip(slot.tr)) alt1.overLayRect(yellow, slot.tr.x, slot.tr.y, 1, LEN, dur, 1);
-            // BL: right + up
-            if (!skip(slot.bl)) alt1.overLayRect(yellow, slot.bl.x, slot.bl.y - LEN + 1, 1, LEN, dur, 1);
-            if (!skip(slot.bl)) alt1.overLayRect(yellow, slot.bl.x, slot.bl.y, LEN, 1, dur, 1);
-            // BR: left + up
-            if (!skip(slot.br)) alt1.overLayRect(yellow, slot.br.x - LEN + 1, slot.br.y, LEN, 1, dur, 1);
-            if (!skip(slot.br)) alt1.overLayRect(yellow, slot.br.x, slot.br.y - LEN + 1, 1, LEN, dur, 1);
-        }
+    for (const slot of inventory.slots) {
+        // Yellow L-brackets on the border
+        // TL: right + down
+        if (!skip(slot.tl)) alt1.overLayRect(yellow, slot.tl.x, slot.tl.y, LEN, 1, dur, 1);
+        if (!skip(slot.tl)) alt1.overLayRect(yellow, slot.tl.x, slot.tl.y, 1, LEN, dur, 1);
+        // TR: left + down
+        if (!skip(slot.tr)) alt1.overLayRect(yellow, slot.tr.x - LEN + 1, slot.tr.y, LEN, 1, dur, 1);
+        if (!skip(slot.tr)) alt1.overLayRect(yellow, slot.tr.x, slot.tr.y, 1, LEN, dur, 1);
+        // BL: right + up
+        if (!skip(slot.bl)) alt1.overLayRect(yellow, slot.bl.x, slot.bl.y - LEN + 1, 1, LEN, dur, 1);
+        if (!skip(slot.bl)) alt1.overLayRect(yellow, slot.bl.x, slot.bl.y, LEN, 1, dur, 1);
+        // BR: left + up
+        if (!skip(slot.br)) alt1.overLayRect(yellow, slot.br.x - LEN + 1, slot.br.y, LEN, 1, dur, 1);
+        if (!skip(slot.br)) alt1.overLayRect(yellow, slot.br.x, slot.br.y - LEN + 1, 1, LEN, dur, 1);
     }
 }
 
