@@ -223,17 +223,6 @@ export function resetIgnores(): void {
     });
 }
 
-export function dumpIgnoredItems(): void {
-    const items = getIgnoredItems();
-    if (items.length === 0) { log("Ignore list is empty."); return; }
-    console.table(items.map(i => ({
-        name: i.name ?? "(unnamed)",
-        hash: i.hash.slice(0, 16) + "…",
-        ignoredAt: new Date(i.ignoredAt).toLocaleString()
-    })));
-    log(`Ignore list: ${items.length} item(s) logged to console.`);
-}
-
 export function removeIgnore(hash: string): void {
     hideIgnoreTooltip();
     removeIgnoredItem(hash);

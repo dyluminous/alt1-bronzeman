@@ -57,7 +57,7 @@ function initOnLoad() {
 export { captureReference, clearReference } from "./capture";
 
 // Overlay
-export { debugFindSlot, updateGridDebug } from "./overlay";
+export { debugFindSlot, updateGridDebug, testSlotAnimation } from "./overlay";
 
 // Slot scan diagnostics
 export { diagnoseSlotScan, dumpSlotHash, debugCorners } from "./slot-scan";
@@ -68,7 +68,7 @@ export { modalCancel, modalOk } from "./modal";
 // UI action handlers
 export {
     resetUnlocks, resetIgnores,
-    dumpIgnoredItems, removeIgnore,
+    removeIgnore,
     showIgnoreTooltip, hideIgnoreTooltip, moveIgnoreTooltip,
     openSlotDebug, closeSlotDebug, refreshSlotDebug,
 } from "./ui";
