@@ -19,7 +19,6 @@ export function captureReference(): void {
         stopGridSearch();
         stopSlotHover();
         Inventory.clearAnchor();
-        Inventory.clearAnchorPixel();
         if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
         updateUI();
         return;
@@ -62,7 +61,6 @@ export function calibrateGrid(): void {
             }
             log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
             Inventory.saveAnchor(anc);
-            Inventory.saveAnchorPixel(img, anc);
             state.calibrating = false;
             state.autocapture = true;
             showNotification("Inventory calibrated", 3000, "success");
@@ -93,7 +91,6 @@ export function clearReference(): void {
     stopGridSearch();
     stopSlotHover();
     Inventory.clearAnchor();
-    Inventory.clearAnchorPixel();
     if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
     log("Anchor cleared. Capture again to set.");
     updateUI();

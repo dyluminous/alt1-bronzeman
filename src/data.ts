@@ -40,9 +40,6 @@ export function loadState(): void {
         } else {
             localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify([]));
         }
-        if (!localStorage.getItem(LS_KEYS.scanHistory)) {
-            localStorage.setItem(LS_KEYS.scanHistory, JSON.stringify([]));
-        }
     } catch (e) { log("ERROR loading: " + e); }
 }
 
@@ -66,7 +63,6 @@ export function unlockItem(itemName: string, base64: string = ""): boolean {
         unlockedItemDataList.push({ name: n, base64, time: Date.now() });
     }
     saveState();
-    addScanHistory(n, "unlocked");
     log(`UNLOCKED: "${n}"${base64 ? " (with raster)" : ""}`);
     if (state.inAlt1) showNotification("Unlocked: " + n, 3000, "success");
     return true;
@@ -76,16 +72,6 @@ export function isUnlocked(name: string): boolean { return unlockedItems.has(nam
 export function getUnlockedCount(): number { return unlockedItems.size; }
 export function getUnlockedItems(): string[] { return Array.from(unlockedItems).sort(); }
 export function getUnlockedItemData(): UnlockedItemData[] { return unlockedItemDataList; }
-
-function addScanHistory(item: string, action: string): void {
-    try {
-        const raw = localStorage.getItem(LS_KEYS.scanHistory);
-        const h: { item: string; action: string; time: string }[] = raw ? JSON.parse(raw) : [];
-        h.push({ item, action, time: new Date().toISOString() });
-        while (h.length > 500) h.shift();
-        localStorage.setItem(LS_KEYS.scanHistory, JSON.stringify(h));
-    } catch (e) { /* ignore */ }
-}
 
 // ============================================================
 // Reset
@@ -97,10 +83,8 @@ export function resetData(): void {
     unlockedItemDataList = [];
     localStorage.removeItem(LS_KEYS.unlockedItems);
     localStorage.removeItem(LS_KEYS.unlockedItemData);
-    localStorage.removeItem(LS_KEYS.scanHistory);
     localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
     localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify([]));
-    localStorage.setItem(LS_KEYS.scanHistory, JSON.stringify([]));
     Inventory.clearAnchor();
     log("All reset.");
 }
