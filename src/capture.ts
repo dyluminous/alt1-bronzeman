@@ -1,5 +1,6 @@
 // capture.ts — inventory capture lifecycle for Bronzeman Mode
-import * as Inventory from "./inventory";
+import * as Detect from "./inventory-detect";
+import { inventory } from "./inventory";
 import { state, captureFullRs, showNotification, NotificationHandle, log, setSearchingGrid } from "./core";
 import { updateUI } from "./ui";
 import { drawDetectDebug, updateGridBoundary } from "./overlay";
@@ -18,7 +19,7 @@ export function captureReference(): void {
         state.autocapture = false;
         stopGridSearch();
         stopSlotHover();
-        Inventory.clearAnchor();
+        inventory.clear();
         if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
         updateUI();
         return;
@@ -45,7 +46,7 @@ export function calibrateGrid(): void {
             return;
         }
 
-        const anc = Inventory.detectInventoryGrid(img);
+        const anc = Detect.detectInventoryGrid(img);
         if (anc && anc.scrollbar) {
             log("Scrollbar detected — cannot capture");
             return;
@@ -60,7 +61,7 @@ export function calibrateGrid(): void {
                 return;
             }
             log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
-            Inventory.saveAnchor(anc);
+            inventory.calibrate(anc);
             state.calibrating = false;
             state.autocapture = true;
             showNotification("Inventory calibrated", 3000, "success");
@@ -90,7 +91,7 @@ export function clearReference(): void {
     state.calibrating = false;
     stopGridSearch();
     stopSlotHover();
-    Inventory.clearAnchor();
+    inventory.clear();
     if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
     log("Anchor cleared. Capture again to set.");
     updateUI();
@@ -113,7 +114,7 @@ function startGridSearch(): void {
     setSearchingGrid(true);
     log("Starting initial grid search (5min timeout)...");
     gridSearchHandle = setInterval(() => {
-        if (Inventory.hasAnchor()) {
+        if (inventory.isCalibrated) {
             stopGridSearch();
             return;
         }
@@ -134,7 +135,7 @@ function stopGridSearch(): void {
     if (gridSearchHandle) { clearInterval(gridSearchHandle); gridSearchHandle = null; }
     if (gridSearchNotify) { gridSearchNotify.remove(); gridSearchNotify = null; }
     setSearchingGrid(false);
-    if (Inventory.hasAnchor()) {
+    if (inventory.isCalibrated) {
         log("Grid search succeeded.");
     }
 }
