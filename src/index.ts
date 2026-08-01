@@ -70,7 +70,7 @@ export {
     resetUnlocks, resetIgnores,
     dumpIgnoredItems, removeIgnore,
     showIgnoreTooltip, hideIgnoreTooltip, moveIgnoreTooltip,
-    openSlotDebug, closeSlotDebug,
+    openSlotDebug, closeSlotDebug, refreshSlotDebug,
 } from "./ui";
 
 // ============================================================

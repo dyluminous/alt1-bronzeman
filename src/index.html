@@ -64,7 +64,13 @@
 
     <!-- Slot hash debug pane — covers the tab area; click outside the grid to close -->
     <div id="slot_debug_pane" class="slot-debug-pane" style="display:none;" onclick="Bronzeman.closeSlotDebug()">
-        <div class="slot-debug-header">Slot hashes <span class="slot-debug-close">✕</span></div>
+        <div class="slot-debug-header">
+            <label class="slot-debug-toggle" onclick="event.stopPropagation()">
+                <input type="checkbox" class="pixel-checkbox" id="slot_debug_show_occluded" checked onchange="event.stopPropagation(); Bronzeman.refreshSlotDebug()">
+                <span>Show occluded slots</span>
+            </label>
+            <span class="slot-debug-close" onclick="event.stopPropagation(); Bronzeman.closeSlotDebug()">✕</span>
+        </div>
         <div id="slot_debug_grid" class="slot-debug-grid" onclick="event.stopPropagation()"></div>
     </div>
 

@@ -371,6 +371,10 @@
     .slot-debug-close {
         cursor: pointer; color: #aaa; font-size: 13px;
     }
+    .slot-debug-toggle {
+        display: flex; align-items: center; gap: 6px;
+        color: var(--rs-gold); font-size: 12px; cursor: pointer;
+    }
     .slot-debug-grid {
         display: grid;
         gap: 4px;
