@@ -1,12 +1,10 @@
 // index.ts — Bronzeman Mode entry point
 // Bootstrap + Bronzeman namespace for HTML onclick handlers. All feature code
 // lives in domain modules: capture, overlay, ui, modal, data, inventory, core.
-import * as a1lib from "alt1";
-import * as Inventory from "./inventory";
-import { state, captureFullRs, showNotification, log } from "./core";
+import { state, log } from "./core";
 import { updateAlt1Status, updateUI } from "./ui";
-import { drawDetectDebug, updateGridBoundary } from "./overlay";
 import { loadState, initIgnoreDB } from "./data";
+import { calibrateGrid } from "./capture";
 
 import "./index.html";
 import "./appconfig.json";
@@ -29,38 +27,7 @@ export function initOnLoad() {
 
     if (state.inAlt1) {
         alt1.identifyAppUrl("./appconfig.json");
-
-        const saved = Inventory.loadAnchor();
-        if (saved) {
-            log(`[init] Anchor loaded at (${saved.x},${saved.y}) — validating...`);
-            try {
-                const img = captureFullRs();
-                if (!img) {
-                    log("[init] captureFullRs returned null — clearing anchor.");
-                    Inventory.clearAnchor();
-                } else {
-                    const ok = Inventory.validateAnchor(img, saved, (msg) => log("  [validate] " + msg));
-                    log(`[init] validateAnchor returned: ${ok}`);
-                    if (ok) {
-                        state.autocapture = true;
-                        log("Anchor valid — grid online.");
-                        showNotification("Inventory calibrated", 2000, "success");
-                        drawDetectDebug(saved, false);
-                        updateGridBoundary();
-                    } else {
-                        log("Anchor INVALID — cleared. Recapture.");
-                        showNotification("Calibration failed", 2000, "danger");
-                        drawDetectDebug(saved, true);
-                        Inventory.clearAnchor();
-                    }
-                }
-            } catch (e) {
-                log("Anchor validation error: " + e + " — clearing anchor.");
-                Inventory.clearAnchor();
-            }
-        } else {
-            log("No anchor saved. Click Capture to set grid position.");
-        }
+        calibrateGrid();
     }
 
     updateUI();

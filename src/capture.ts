@@ -3,6 +3,7 @@ import * as Inventory from "./inventory";
 import { state, captureFullRs, showNotification, NotificationHandle, log, setSearchingGrid } from "./core";
 import { updateUI } from "./ui";
 import { drawDetectDebug, updateGridBoundary } from "./overlay";
+import { startSlotHover, stopSlotHover } from "./slot-hover";
 
 // ============================================================
 // Toggle auto-capture on/off
@@ -16,6 +17,7 @@ export function captureReference(): void {
         // Turn OFF
         state.autocapture = false;
         stopGridSearch();
+        stopSlotHover();
         Inventory.clearAnchor();
         Inventory.clearAnchorPixel();
         Inventory.clearOuterPerm();
@@ -35,7 +37,7 @@ export function captureReference(): void {
 // Run fingerprint detection
 // ============================================================
 
-function calibrateGrid(): void {
+export function calibrateGrid(): void {
     try {
         const img = captureFullRs();
         if (!img) {
@@ -71,6 +73,7 @@ function calibrateGrid(): void {
             updateGridBoundary();
             updateUI();
             stopGridSearch();
+            startSlotHover();
         } else {
             state.calibrating = false;
             updateUI();
@@ -91,6 +94,7 @@ function calibrateGrid(): void {
 export function clearReference(): void {
     state.calibrating = false;
     stopGridSearch();
+    stopSlotHover();
     Inventory.clearAnchor();
     Inventory.clearAnchorPixel();
     Inventory.clearOuterPerm();

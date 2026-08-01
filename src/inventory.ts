@@ -30,6 +30,16 @@ export function loadAnchor(): BackpackAnchor | null {
 export function clearAnchor(): void { localStorage.removeItem(ANCHOR_KEY); }
 export function hasAnchor(): boolean { return !!localStorage.getItem(ANCHOR_KEY); }
 
+/** Returns the center pixel of a slot (0-indexed) given the anchor grid. */
+export function getSlotCenterCoordinates(anc: BackpackAnchor, slotIndex: number): { x: number; y: number } {
+    const col = slotIndex % COLS;
+    const row = Math.floor(slotIndex / COLS);
+    return {
+        x: anc.x + col * anc.colStride + 19,
+        y: anc.y + row * anc.rowStride + 17,
+    };
+}
+
 // ============================================================
 // Anchor pixel tracking — detect when inventory moves
 // ============================================================
@@ -275,53 +285,4 @@ export function detectInventoryGrid(img: ImgRef): BackpackAnchor | null {
 }
 
 
-// ============================================================
-// Validate anchor: check center pixels of all 28 slots for consistency
-// ============================================================
-
-export function validateAnchor(img: ImgRef, anc: BackpackAnchor, debug: DebugLog): boolean {
-    const corners: [number,number,number,number,number][] = [];
-    for (let row = 0; row < ROWS; row++) {
-        for (let col = 0; col < COLS; col++) {
-            // Bottom-right interior pixel of each slot (NW of border corner #35322d)
-            const cx = anc.x + col * anc.colStride + 35;
-            const cy = anc.y + row * anc.rowStride + 31;
-            if (cx >= 0 && cy >= 0 && cx < img.width && cy < img.height) {
-                const cd = img.toData(cx, cy, 1, 1);
-                corners.push([row, col, cd.data[0], cd.data[1], cd.data[2]]);
-            }
-        }
-    }
-    debug(`validate: read ${corners.length}/28 slot BR-interior pixels`);
-    if (corners.length < 28) {
-        debug(`validate: only ${corners.length} corners read — possible out-of-bounds. Failing.`);
-        return false;
-    }
-
-    // Dump first 4 and last 4 corners for diagnosis
-    const sample: string[] = [];
-    for (let i = 0; i < Math.min(4, corners.length); i++) {
-        const c = corners[i];
-        sample.push(`[${c[0]},${c[1]}]=(${c[2]},${c[3]},${c[4]})`);
-    }
-    if (corners.length > 8) {
-        sample.push("...");
-        for (let i = corners.length - 4; i < corners.length; i++) {
-            const c = corners[i];
-            sample.push(`[${c[0]},${c[1]}]=(${c[2]},${c[3]},${c[4]})`);
-        }
-    }
-    debug(`validate: samples: ${sample.join(" ")}`);
-
-    let sumR = 0, sumG = 0, sumB = 0;
-    for (const c of corners) { sumR += c[2]; sumG += c[3]; sumB += c[4]; }
-    const avgR = sumR / corners.length, avgG = sumG / corners.length, avgB = sumB / corners.length;
-    let maxDev = 0, worstRow = -1, worstCol = -1;
-    for (const c of corners) {
-        const d = Math.abs(c[2]-avgR) + Math.abs(c[3]-avgG) + Math.abs(c[4]-avgB);
-        if (d > maxDev) { maxDev = d; worstRow = c[0]; worstCol = c[1]; }
-    }
-    debug(`validate: avg=(${avgR.toFixed(0)},${avgG.toFixed(0)},${avgB.toFixed(0)}) maxDev=${maxDev.toFixed(0)} worst=slot[r${worstRow},c${worstCol}]`);
-    return maxDev <= 45;
-}
 

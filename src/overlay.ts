@@ -94,6 +94,8 @@ export function debugFindSlot(): void {
 
 let showGridBoundary = false;
 
+export function isGridDebugEnabled(): boolean { return showGridBoundary; }
+
 export function updateGridBoundary(): void {
     const cb = document.getElementById("show_grid_boundary") as HTMLInputElement;
     showGridBoundary = cb?.checked ?? false;
@@ -101,5 +103,41 @@ export function updateGridBoundary(): void {
     if (!state.inAlt1) return;
     if (!showGridBoundary) {
         alt1.overLayClearGroup("bronzeman_boundary");
+        alt1.overLayClearGroup("bronzeman_hover");
     }
+}
+
+// ============================================================
+// Slot hover — yellow square at mouse cursor
+// ============================================================
+
+const HOVER_GROUP = "bronzeman_hover";
+let lastHoverIndex: number | null = null;
+let hoverFrozen = false;
+
+export function drawSlotHover(
+    anc: Inventory.BackpackAnchor,
+    slotIndex: number,
+): void {
+    if (!state.inAlt1 || !showGridBoundary) return;
+    if (lastHoverIndex === slotIndex) return;
+    lastHoverIndex = slotIndex;
+
+    const c = Inventory.getSlotCenterCoordinates(anc, slotIndex);
+    const yellow = a1lib.mixColor(255, 255, 0);
+
+    alt1.overLaySetGroup(HOVER_GROUP);
+    if (hoverFrozen) { alt1.overLayContinueGroup(HOVER_GROUP); }
+    alt1.overLayClearGroup(HOVER_GROUP);
+    alt1.overLayRect(yellow, c.x - 6, c.y - 6, 12, 12, 0, 1);
+    alt1.overLayFreezeGroup(HOVER_GROUP);
+    hoverFrozen = true;
+}
+
+export function clearSlotHover(): void {
+    if (lastHoverIndex === null) return;
+    lastHoverIndex = null;
+    hoverFrozen = false;
+    alt1.overLayContinueGroup(HOVER_GROUP);
+    alt1.overLayClearGroup(HOVER_GROUP);
 }
