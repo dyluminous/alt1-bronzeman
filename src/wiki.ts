@@ -11,6 +11,13 @@ export interface DisambiguationOption {
     description: string;
 }
 
+export interface ItemImage {
+    filename: string;
+    /** The quantity number parsed from the filename, e.g. 500 from "Radiant energy 500.png".
+     *  null when the filename has no number. */
+    count: number | null;
+}
+
 export interface WikiQueryResult {
     ok: boolean;
     /** The parsed value of |tradeable = ..., when found. */
@@ -19,6 +26,9 @@ export interface WikiQueryResult {
     status?: string | number;
     /** When the page is a disambiguation page — the selectable options. */
     disambig?: DisambiguationOption[];
+    /** Item inventory images, with parsed quantities. Stackable items use |image
+     *  (multi-model) — the counts drive the stackableQuantity picker. */
+    images?: ItemImage[];
 }
 
 /** Pull the redirect target from "#REDIRECT [[Abyssal Whip]]" (or "[[Page|label]]"). */
@@ -32,6 +42,39 @@ function extractRedirectTarget(wikitext: string): string | null {
 function extractTradeable(wikitext: string): string | null {
     const m = /\|tradeable\s*=\s*([^\n|]*)/.exec(wikitext);
     return m ? m[1].trim() : null;
+}
+
+/** Parse all [[File:...]].png tokens from a raw image field value. 
+ *  Extracts a count digit-suffix from each filename (e.g. 500 from "Radiant energy 500.png"). */
+function parseImageTokens(raw: string): ItemImage[] {
+    const re = /\[\[File:([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+    const results: ItemImage[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(raw)) !== null) {
+        const fn = m[1].trim();
+        const numMatch = /\b(\d+)(?=\.\w+$)/.exec(fn); // digits just before extension
+        results.push({ filename: fn, count: numMatch ? parseInt(numMatch[1], 10) : null });
+    }
+    return results;
+}
+
+/** Read a specific image field (e.g. "image" or "image1") from wikitext. */
+function parseImageTokensFromField(wikitext: string, field: string): ItemImage[] {
+    const regex = new RegExp(`\\|${field}\\s*=\\s*(.+)`, "m");
+    const m = regex.exec(wikitext);
+    return m ? parseImageTokens(m[1]) : [];
+}
+
+/** Pick the best image for a given stackable quantity: the one with the largest
+ *  count ≤ qty. Returns null when no matching tier is found (< smallest count). */
+export function pickImageForQuantity(images: ItemImage[], qty: number): ItemImage | null {
+    const counted = images.filter(i => i.count !== null).sort((a, b) => a.count! - b.count!);
+    let best: ItemImage | null = null;
+    for (const img of counted) {
+        if (img.count! <= qty) best = img;
+        else break;
+    }
+    return best;
 }
 
 /** True when the wikitext is a disambiguation page. */
@@ -157,7 +200,8 @@ export async function fetchItemTradeable(itemName: string): Promise<WikiQueryRes
             log(`Wiki API: no "tradeable" field found for "${page}"`);
             return { ok: false };
         }
-        return { ok: true, tradeable }; 
+        const images = parseImageTokensFromField(r.wikitext, "image");
+        return { ok: true, tradeable, images }; 
     }
     log(`Wiki API: too many redirects resolving "${itemName}"`);
     return { ok: false };

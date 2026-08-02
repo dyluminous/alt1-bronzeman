@@ -350,13 +350,20 @@ export function ocrStackableDebug(): void {
         sx, sy, STACK_DIGIT_W, STACK_DIGIT_H,
     );
     log(`ocrStackableDebug slot 27: text="${result?.text ?? ""}"`);
+}
 
-    // Debug canvas: show the raw pixels at that region
-    const d = img.toData(sx, sy, STACK_DIGIT_W, STACK_DIGIT_H);
-    const canvas = document.getElementById("ocr_debug_canvas") as HTMLCanvasElement | null;
-    if (canvas && d) {
-        canvas.style.display = "block";
-        const ctx = canvas.getContext("2d");
-        if (ctx) ctx.putImageData(d, 0, 0);
-    }
+/** OCR the stackable quantity from a slot's digit region. Returns the number
+ *  string (e.g. "99999") or empty string on failure. */
+export function readStackableQuantity(slotIndex: number): string {
+    const img = captureFullRs();
+    if (!img) return "";
+    const slot = inventory.slots[slotIndex];
+    if (!slot) return "";
+    const sx = slot.interiorX + STACK_DIGIT_X;
+    const sy = slot.interiorY + STACK_DIGIT_Y;
+    const result = OCR.findReadLine(
+        img.toData(), stackableFont, [[255, 255, 0]],
+        sx, sy, STACK_DIGIT_W, STACK_DIGIT_H,
+    );
+    return result?.text ?? "";
 }

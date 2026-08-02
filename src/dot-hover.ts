@@ -10,8 +10,9 @@ import { state, captureFullRs, log, showNotification } from "./core";
 import { SlotLoadingAnimation } from "./slot-animation";
 import { SLOT_DOT_X, SLOT_DOT_Y, SLOT_DOT_W, loadGoldDotEncoded } from "./gold-dot";
 import { getNonUnlockedSlotIndices } from "./slot-scan";
+import { readStackableQuantity } from "./slot-scan";
 import { readTooltipItemName } from "./tooltip-read";
-import { fetchItemTradeable } from "./wiki";
+import { fetchItemTradeable, pickImageForQuantity } from "./wiki";
 import type { WikiQueryResult } from "./wiki";
 import { addUnlockedItem, isHashUnlocked } from "./data";
 import { recordUnlock } from "./recent-unlocks";
@@ -74,13 +75,21 @@ class UnlockHoverFlow {
         this.hoverResolved = true;
     }
 
-    private handleWikiResult(result: WikiQueryResult, queriedName: string, slotHash: string | null, slotIndex: number): void {
+    private handleWikiResult(result: WikiQueryResult, queriedName: string, slotHash: string | null, slotIndex: number, stackQty: number | null): void {
         this.queryBusy = false;
         if (result.ok) {
             log(`Wiki: "${queriedName}" tradeable = ${result.tradeable}`);
-            // Store the unlock: name + tradeable flag + the slot's hash.
+            // Pick the stackable tier count from the wiki images: find the
+            // largest count ≤ the OCR'd quantity.
+            const slot = inventory.getSlot(slotIndex);
+            const isStackable = !!slot?.isStackable;
+            let qtyToStore: number | null = null;
+            if (isStackable && result.images && result.images.length > 0 && stackQty) {
+                const picked = pickImageForQuantity(result.images, stackQty);
+                qtyToStore = picked?.count ?? null;
+            }
             if (slotHash) {
-                addUnlockedItem(queriedName, result.tradeable?.toLowerCase() === "yes", slotHash);
+                addUnlockedItem(queriedName, result.tradeable?.toLowerCase() === "yes", slotHash, qtyToStore);
             } else {
                 log(`No slot hash available — skipping unlock record for "${queriedName}"`);
             }
@@ -100,7 +109,7 @@ class UnlockHoverFlow {
                 const name = result.disambig[0].name;
                 log(`Wiki disambiguation: only one item "${name}", continuing`);
                 this.queryBusy = true;
-                void fetchItemTradeable(name).then(r => this.handleWikiResult(r, name, slotHash, slotIndex));
+                void fetchItemTradeable(name).then(r => this.handleWikiResult(r, name, slotHash, slotIndex, stackQty));
                 return;
             }
             // Ask the user which option is the right item — animation keeps running.
@@ -110,7 +119,7 @@ class UnlockHoverFlow {
                     this.disambigOpen = false;
                     log(`Wiki disambiguation: selected "${name}"`);
                     this.queryBusy = true;
-                    void fetchItemTradeable(name).then(r => this.handleWikiResult(r, name, slotHash, slotIndex));
+                    void fetchItemTradeable(name).then(r => this.handleWikiResult(r, name, slotHash, slotIndex, stackQty));
                 },
                 () => {
                     // ✕ or click-outside — abandoned, end the flow.
@@ -138,6 +147,14 @@ class UnlockHoverFlow {
         // The scanned interior hash of this slot — the item identity used for storage.
         const slot = inventory.getSlot(slotIndex);
         const slotHash = slot && slot.previousHash && slot.previousHash !== "empty" ? slot.previousHash : null;
+        let stackQty: number | null = null;
+        if (slot?.isStackable) {
+            const qty = readStackableQuantity(slotIndex);
+            if (qty) {
+                const n = parseInt(qty, 10);
+                if (!isNaN(n)) { stackQty = n; log(`Stackable quantity slot ${slotIndex}: ${n}`); }
+            }
+        }
         const itemName = readTooltipItemName();
         if (!itemName) {
             showNotification("Failed to read item name", 3000, "danger");
@@ -150,7 +167,7 @@ class UnlockHoverFlow {
         }
         log(`Hovered item: "${itemName}" (slot ${slotIndex}) hash=${slotHash ? slotHash.slice(0, 12) + "…" : "n/a"}`);
         this.queryBusy = true;
-        void fetchItemTradeable(itemName).then(result => this.handleWikiResult(result, itemName, slotHash, slotIndex));
+        void fetchItemTradeable(itemName).then(result => this.handleWikiResult(result, itemName, slotHash, slotIndex, stackQty));
     }
 
     // ----------------------------------------------------------
