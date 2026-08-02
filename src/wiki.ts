@@ -39,6 +39,24 @@ function isDisambiguation(wikitext: string): boolean {
     return /\{\{Disambig\}\}/.test(wikitext) || /\bmay refer to:\b/.test(wikitext.slice(0, 400));
 }
 
+/** True when the wikitext is an item page — has the {{Infobox Item}} template.
+ *  Emotes/skills/scenery/etc use different infoboxes and are filtered out. */
+function isItemPage(wikitext: string): boolean {
+    return /\{\{Infobox Item\b/.test(wikitext);
+}
+
+/** Fetch the wikitext of every disambig option in parallel and keep only the
+ *  ones that are actual items ({{Infobox Item}}). */
+async function filterItemOptions(options: DisambiguationOption[]): Promise<DisambiguationOption[]> {
+    const results = await Promise.all(options.map(async o => {
+        const r = await queryPage(o.name);
+        return { o, wt: r.wikitext };
+    }));
+    return results
+        .filter(r => r.wt !== null && isItemPage(r.wt))
+        .map(r => r.o);
+}
+
 /** Parse disambiguation options from lines like "* [[Name]], description".
  *  Name strips any "|display" pipe; description is everything after "]]". */
 function extractDisambiguation(wikitext: string): DisambiguationOption[] {
@@ -48,7 +66,10 @@ function extractDisambiguation(wikitext: string): DisambiguationOption[] {
         if (!m) continue;
         const name = m[1].trim();
         if (!name) continue;
-        options.push({ name, description: m[2].trim() });
+        const desc = m[2].trim();
+        // Capitalize the first letter of the description if it's a letter.
+        const description = desc.charAt(0).match(/[a-z]/) ? desc.charAt(0).toUpperCase() + desc.slice(1) : desc;
+        options.push({ name, description });
     }
     return options;
 }
@@ -128,9 +149,10 @@ export async function fetchItemTradeable(itemName: string): Promise<WikiQueryRes
             // Not a normal item page — disambiguation pages have no tradeable
             // field but list the real item pages, so surface the options.
             if (isDisambiguation(r.wikitext)) {
-                const disambig = extractDisambiguation(r.wikitext);
-                log(`Wiki API: "${page}" is a disambiguation page (${disambig.length} option(s))`);
-                return { ok: false, disambig };
+                const raw = extractDisambiguation(r.wikitext);
+                const items = await filterItemOptions(raw);
+                log(`Wiki API: "${page}" is a disambiguation page (${raw.length} option(s), ${items.length} item(s))`);
+                return { ok: false, disambig: items };
             }
             log(`Wiki API: no "tradeable" field found for "${page}"`);
             return { ok: false };

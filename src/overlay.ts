@@ -316,6 +316,14 @@ function handleWikiResult(result: WikiQueryResult, queriedName: string): void {
         log(`Wiki: "${queriedName}" tradeable = ${result.tradeable}`);
         finishHoverFlow();
     } else if (result.disambig && result.disambig.length > 0) {
+        // Only one item option after filtering — continue without a dialog.
+        if (result.disambig.length === 1) {
+            const name = result.disambig[0].name;
+            log(`Wiki disambiguation: only one item "${name}", continuing`);
+            queryBusy = true;
+            void fetchItemTradeable(name).then(r => handleWikiResult(r, name));
+            return;
+        }
         // Ask the user which option is the right item — animation keeps running.
         disambigOpen = true;
         showDisambiguation(result.disambig,
