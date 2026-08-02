@@ -30,6 +30,9 @@ export class InventorySlot {
     /** Interior RGBA from the last clean (non-obscured) scan — shown in the debug
      *  pane when the slot is currently occluded. Null until first clean read. */
     lastValidPixels: Uint8ClampedArray | null = null;
+    /** True when the slot currently shows a stack-quantity digit (yellow) —
+     *  i.e. the item is stackable. Updated by the scan tick. */
+    isStackable: boolean = false;
 
     constructor(anc: BackpackAnchor, cols: number, index: number) {
         this.index = index;

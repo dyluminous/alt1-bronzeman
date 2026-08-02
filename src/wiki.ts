@@ -15,8 +15,6 @@ export interface WikiQueryResult {
     ok: boolean;
     /** The parsed value of |tradeable = ..., when found. */
     tradeable?: string;
-    /** The parsed value of |stackable = Yes — true when the item stacks. */
-    stackable?: boolean;
     /** HTTP status or MediaWiki error code when the query failed. */
     status?: string | number;
     /** When the page is a disambiguation page — the selectable options. */
@@ -34,11 +32,6 @@ function extractRedirectTarget(wikitext: string): string | null {
 function extractTradeable(wikitext: string): string | null {
     const m = /\|tradeable\s*=\s*([^\n|]*)/.exec(wikitext);
     return m ? m[1].trim() : null;
-}
-
-/** True when the item stacks — |stackable = Yes in the infobox. */
-function extractStackable(wikitext: string): boolean {
-    return /\|stackable\s*=\s*Yes/i.test(wikitext);
 }
 
 /** True when the wikitext is a disambiguation page. */
@@ -164,7 +157,7 @@ export async function fetchItemTradeable(itemName: string): Promise<WikiQueryRes
             log(`Wiki API: no "tradeable" field found for "${page}"`);
             return { ok: false };
         }
-        return { ok: true, tradeable, stackable: extractStackable(r.wikitext) };
+        return { ok: true, tradeable }; 
     }
     log(`Wiki API: too many redirects resolving "${itemName}"`);
     return { ok: false };

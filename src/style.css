@@ -410,6 +410,10 @@
         opacity: 0.5;
     }
 
+    .slot-debug-cell.stackable {
+        border-color: #ffff00;
+    }
+
     /* Wiki disambiguation pane — reuses slot-debug-pane/header/close */
     .wiki-disambig-body {
         padding: 10px;

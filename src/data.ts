@@ -16,7 +16,6 @@ interface UnlockedItemData {
 export interface UnlockedItemRecord {
     name: string;
     tradeable: boolean;
-    stackable: boolean;
     /** Every known interior hash for this item (stackables can have several). */
     hashes: string[];
     unlockedAt: number;
@@ -33,6 +32,19 @@ let unlockedItemDataList: UnlockedItemData[] = [];
 let unlockedHashes: Set<string> = new Set();
 /** Names already in the unlock DB — a name hit means "append hash, no notify". */
 let unlockedNames: Set<string> = new Set();
+
+/** Quantity-invariant lower-half slice (cell rows 3–7) → record name. The
+ *  scan tick consults this ONLY for slots proven stackable by the yellow-digit
+ *  check (slot.isStackable), so a lower-half hit means "stackable variant of
+ *  an already-unlocked item" → no dot. */
+let stackableLowerHalfIndex: Map<string, string> = new Map();
+
+/** The 192-char hash's lower-half slice — cell rows 3–7 (interior rows
+ *  12–31), where the quantity digit never renders. Indexed by char offset:
+ *  8 cells/row × 3 nibbles/cell × 3 rows = char 72..191. */
+function lowerHalfOf(hash: string): string {
+    return hash.slice(72);
+}
 
 // ============================================================
 // IndexedDB — unlock storage (tradable + untradable stores)
@@ -154,7 +166,6 @@ export async function initUnlockDB(): Promise<void> {
                     const rec: UnlockedItemRecord = {
                         name: "(unknown)",
                         tradeable: true,
-                        stackable: false,
                         hashes: fresh,
                         unlockedAt: Date.now(),
                     };
@@ -168,6 +179,11 @@ export async function initUnlockDB(): Promise<void> {
         for (const r of [...tradable, ...untradable]) {
             for (const h of r.hashes) unlockedHashes.add(h);
             unlockedNames.add(r.name);
+            // Index the quantity-invariant lower-half slice of every hash. The
+            // scan tick only consults this for yellow-detected stackable
+            // slots, so no flag filter is needed — non-stackables never reach
+            // it.
+            for (const h of r.hashes) stackableLowerHalfIndex.set(lowerHalfOf(h), r.name);
         }
         log(`Unlock DB ready: ${tradable.length} tradable, ${untradable.length} untradable, ${unlockedHashes.size} hashes.`);
     } catch (e) {
@@ -180,13 +196,14 @@ export async function initUnlockDB(): Promise<void> {
  *  stackable quantity variants share one record. Idempotent by name — a name
  *  already in the DB appends silently (no notification), only genuinely new
  *  names notify. */
-export function addUnlockedItem(name: string, tradeable: boolean, stackable: boolean, hash: string): void {
+export function addUnlockedItem(name: string, tradeable: boolean, hash: string): void {
     const store = tradeable ? STORE_TRADABLE : STORE_UNTRADABLE;
     if (unlockedHashes.has(hash)) {
         log(`Hash already unlocked for "${name}" — skipped.`);
         return;
     }
     unlockedHashes.add(hash);
+    stackableLowerHalfIndex.set(lowerHalfOf(hash), name);
     const isNewName = !unlockedNames.has(name);
     if (isNewName) unlockedNames.add(name);
 
@@ -201,14 +218,14 @@ export function addUnlockedItem(name: string, tradeable: boolean, stackable: boo
             await dbPut(_db, store, existing);
         } else {
             const rec: UnlockedItemRecord = {
-                name, tradeable, stackable, hashes: [hash], unlockedAt: Date.now(),
+                name, tradeable, hashes: [hash], unlockedAt: Date.now(),
             };
             await dbPut(_db, store, rec);
         }
     };
     void persist();
     if (isNewName) {
-        log(`UNLOCKED: "${name}" (${tradeable ? "tradable" : "untradable"}, ${stackable ? "stackable" : "non-stackable"}) hash=${hash.slice(0, 12)}…`);
+        log(`UNLOCKED: "${name}" (${tradeable ? "tradable" : "untradable"}) hash=${hash.slice(0, 12)}…`);
         if (state.inAlt1) showNotification("Unlocked: " + name, 3000, "success");
     } else {
         log(`New hash appended to existing item "${name}" (${hash.slice(0, 12)}…)`);
@@ -217,6 +234,13 @@ export function addUnlockedItem(name: string, tradeable: boolean, stackable: boo
 
 export function isHashUnlocked(hash: string): boolean {
     return unlockedHashes.has(hash);
+}
+
+/** True when the hash's lower-half slice matches an already-unlocked item's
+ *  lower half. Only meaningful for yellow-detected stackable slots — a hit
+ *  means the item is a quantity-variant of something already unlocked. */
+export function isLowerHalfUnlocked(lowerHalf: string): boolean {
+    return stackableLowerHalfIndex.has(lowerHalf);
 }
 
 /** Debug: log every record in the tradable unlock store to the console. */
@@ -319,6 +343,7 @@ export function resetData(): void {
     unlockedItemDataList = [];
     unlockedHashes.clear();
     unlockedNames.clear();
+    stackableLowerHalfIndex.clear();
     localStorage.removeItem(LS_KEYS.unlockedItems);
     localStorage.removeItem(LS_KEYS.unlockedItemData);
     localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
@@ -336,6 +361,7 @@ export function resetUnlocks(): void {
     unlockedItemDataList = [];
     unlockedHashes.clear();
     unlockedNames.clear();
+    stackableLowerHalfIndex.clear();
     localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
     localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify([]));
     if (_db) {
