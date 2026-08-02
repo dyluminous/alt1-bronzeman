@@ -92,7 +92,9 @@ export async function getItemRecord(store: string, name: string): Promise<Unlock
     return dbGetByKey(_db, storeName, name);
 }
 
-/** Render an 8×8 brightness-grid PNG (one cell per hash char, scaled) as a data URL. */
+/** Render an 8×8 grid PNG from a 192-char hash (3 hex nibbles per cell: R, G,
+ *  B channel averages) as a data URL. Cells render in their actual colour —
+ *  each nibble ×17 recovers the channel average. */
 export function hashToPngDataUrl(hash: string, scale: number): string {
     const canvas = document.createElement("canvas");
     canvas.width = 8 * scale;
@@ -101,9 +103,11 @@ export function hashToPngDataUrl(hash: string, scale: number): string {
     if (!ctx) return "";
     for (let y = 0; y < 8; y++) {
         for (let x = 0; x < 8; x++) {
-            const v = parseInt(hash[y * 8 + x] ?? "0", 16);
-            const lum = Math.round((v / 15) * 255);
-            ctx.fillStyle = `rgb(${lum},${lum},${lum})`;
+            const i = (y * 8 + x) * 3;
+            const r = parseInt(hash[i] ?? "0", 16) * 17;
+            const g = parseInt(hash[i + 1] ?? "0", 16) * 17;
+            const b = parseInt(hash[i + 2] ?? "0", 16) * 17;
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
             ctx.fillRect(x * scale, y * scale, scale, scale);
         }
     }
