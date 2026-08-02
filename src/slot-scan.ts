@@ -26,8 +26,9 @@ let scanHandle: ReturnType<typeof setInterval> | null = null;
 
 /** Slots whose current interior hash is not in the unlocked set. */
 let nonUnlockedSlots: Set<number> = new Set();
-/** Slots that were skipped by the noted/Use gate in the previous tick. */
-let prevExcluded: Set<number> = new Set();
+/** Slots that were in Use state in the previous tick — re‑added to the dot
+ *  set on exit so the dot reappears instantly even while the mouse is nearby. */
+let prevUseSlots: Set<number> = new Set();
 
 export function getNonUnlockedSlotIndices(): Set<number> {
     return nonUnlockedSlots;
@@ -261,10 +262,10 @@ function scanTick(): void {
     const removed: { index: number; hash: string }[] = [];
     const changed: { index: number }[] = [];
 
-    // Track which slots are excluded by noted/Use this tick.  When a slot
-    // exits Use state, the dot must reappear instantly — if the slot is still
-    // obscured the normal scan won't touch it, so we re-add it here.
-    const excludedThisTick = new Set<number>();
+    // Track which slots are in Use state this tick.  When a slot exits Use
+    // state, the dot must reappear instantly — if the slot is still obscured
+    // the normal scan won't touch it, so we re‑add it here.
+    const useSlotsThisTick = new Set<number>();
 
     for (const slot of inventory.slots) {
         // Noted and "Use"‑state items are ignored regardless of occlusion —
@@ -272,19 +273,18 @@ function scanTick(): void {
         // checks must run before the obscured gate.
         if (isNotedItem(slot, img)) {
             nonUnlockedSlots.delete(slot.index);
-            excludedThisTick.add(slot.index);
             continue;
         }
         if (isInUseState(slot, img)) {
             nonUnlockedSlots.delete(slot.index);
-            excludedThisTick.add(slot.index);
+            useSlotsThisTick.add(slot.index);
             continue;
         }
 
-        // Re‑add slots that were excluded last tick but are scannable now —
-        // this is the instant‑reappear path (e.g. Use state cleared).
-        if (prevExcluded.has(slot.index)) {
-            prevExcluded.delete(slot.index);
+        // Re‑add slots that were in Use state last tick but aren't now —
+        // this is the instant‑reappear path (Use state cleared).
+        if (prevUseSlots.has(slot.index)) {
+            prevUseSlots.delete(slot.index);
             nonUnlockedSlots.add(slot.index);
         }
 
@@ -332,7 +332,7 @@ function scanTick(): void {
     for (const a of appeared) log(`Slot ${a.index}: item appeared`);
     for (const c of changed) log(`Slot ${c.index}: item changed`);
 
-    prevExcluded = excludedThisTick;
+    prevUseSlots = useSlotsThisTick;
 }
 
 export function startSlotScan(): void {
