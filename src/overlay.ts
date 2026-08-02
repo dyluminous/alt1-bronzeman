@@ -401,7 +401,7 @@ export function startNonUnlockedDotRefresh(): void {
     void loadGoldDotEncoded().then(encoded => {
         nonUnlockedDotEncoded = encoded;
         if (!nonUnlockedDotTimer) {
-            nonUnlockedDotTimer = setInterval(drawNonUnlockedDots, 500);
+            nonUnlockedDotTimer = setInterval(drawNonUnlockedDots, 250);
         }
     });
 }

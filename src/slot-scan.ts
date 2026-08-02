@@ -89,6 +89,34 @@ export function isNotedItem(slot: InventorySlot, img: ImgRef): boolean {
         && shadow[0] === NOTED_SHADOW[0] && shadow[1] === NOTED_SHADOW[1] && shadow[2] === NOTED_SHADOW[2];
 }
 
+/** True when the item is in "Use" state — the white outline replaces the
+ *  item shadow. Captures the 38×34 cell once, then scans the buffer BR→BL
+ *  upward for a #FFFFFF pixel surrounded on all 4 sides by shadow. */
+export function isInUseState(slot: InventorySlot, img: ImgRef): boolean {
+    const W = InventorySlot.CELL_W;
+    const H = InventorySlot.CELL_H;
+    const buf = img.toData(slot.x, slot.y, W, H);
+    if (!buf) return false;
+    const d = buf.data;
+    const stride = W * 4;
+    const shadow = (i: number): boolean =>
+        d[i] === 0 && d[i + 1] === 0 && (d[i + 2] === 1 || d[i + 2] === 2);
+    for (let y = H - 1; y >= 0; y--) {
+        const row = y * stride;
+        for (let x = W - 1; x >= 0; x--) {
+            const i = row + x * 4;
+            if (d[i] !== 255 || d[i + 1] !== 255 || d[i + 2] !== 255) continue;
+            if (y > 0 && shadow(i - stride)
+                && y < H - 1 && shadow(i + stride)
+                && x > 0 && shadow(i - 4)
+                && x < W - 1 && shadow(i + 4)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 /** True when any corner no longer matches its calibration ref (slot is covered). */
 function isCovered(slot: InventorySlot, img: ImgRef): boolean {
     if (slot.cornerRefs.length !== 4) return true;
@@ -236,6 +264,13 @@ function scanTick(): void {
 
         // Noted items are ignored entirely — never tracked, never dotted.
         if (isNotedItem(slot, img)) {
+            nonUnlockedSlots.delete(slot.index);
+            continue;
+        }
+
+        // "Use" state items are ignored — the white outline makes them
+        // visually noisy and the player hasn't confirmed they're in inventory.
+        if (isInUseState(slot, img)) {
             nonUnlockedSlots.delete(slot.index);
             continue;
         }
