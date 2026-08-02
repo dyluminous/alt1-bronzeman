@@ -1,11 +1,11 @@
 // ui.ts — DOM rendering and UI action handlers for Bronzeman Mode
 import { inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
-import { state, escHtml, showNotification, log, captureFullRs } from "./core";
-import { getUnlockedCount, getUnlockedItemData, resetUnlocks as dataResetUnlocks } from "./data";
+import { state, escHtml, showNotification, captureFullRs } from "./core";
+import { resetUnlocks as dataResetUnlocks } from "./data";
 import { getItemRecord, hashToPngDataUrl } from "./data";
 import { showModal } from "./modal";
-import { getObscuredSlotIndices, isNotedItem, isInUseState } from "./slot-scan";
+import { getObscuredSlotIndices } from "./slot-scan";
 import type { DisambiguationOption } from "./wiki";
 import { BUILD_NUM } from "./version";
 
@@ -61,26 +61,12 @@ function updateAnchorWarning(): void {
 // ============================================================
 
 export function updateUI(): void {
-    const count = getUnlockedCount();
+    // The Unlocks tab is intentionally empty for now — the legacy
+    // localStorage unlock list was removed; a DB-backed view comes later.
     const ue = document.getElementById("unlocked_count_items");
-    if (ue) ue.textContent = String(count);
-
-    // Render unlocks
+    if (ue) ue.textContent = "";
     const ug = document.getElementById("unlocked_grid");
-    if (ug) {
-        const data = getUnlockedItemData();
-        if (data.length === 0) {
-            ug.style.display = "none";
-        } else {
-            ug.style.display = "flex";
-            ug.innerHTML = data.slice().reverse().map(d =>
-                `<div class="unlocked-thumb" title="${escHtml(d.name)}">
-                    <img src="${d.base64}" alt="${escHtml(d.name)}">
-                    <div class="unlocked-label">${escHtml(d.name)}</div>
-                </div>`
-            ).join("");
-        }
-    }
+    if (ug) ug.style.display = "none";
 
     const calBtn = document.getElementById("calibrate_btn");
     if (calBtn) {
@@ -152,8 +138,8 @@ function renderSlotDebug(): void {
         const h = slot.previousHash;
         // Noted items are skipped by the scan (previousHash stays null) but are
         // NOT empty — give them their own border colour.
-        const noted = !!img && isNotedItem(slot, img);
-        const inuse = !!img && isInUseState(slot, img);
+        const noted = !!img && slot.isNoted(img);
+        const inuse = !!img && slot.isInUseState(img);
         const empty = !noted && !inuse && (h === null || h === "empty");
         const blocked = obscured.has(slot.index) && showOccludedSlots;
         const cls = [

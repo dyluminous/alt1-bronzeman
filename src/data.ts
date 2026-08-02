@@ -1,16 +1,6 @@
-// data.ts — persistence and Bronzeman unlock logic
-import { inventory } from "./inventory";
+// data.ts — UnlockStore: IndexedDB persistence + in-memory unlock lookup
 import { state, LS_KEYS, log, showNotification } from "./core";
-
-// ============================================================
-// Types
-// ============================================================
-
-interface UnlockedItemData {
-    name: string;
-    base64: string;  // base64 data URL of the item raster
-    time: number;     // Date.now() when unlocked
-}
+import { lowerHalfOf } from "./hash";
 
 /** One item record in the unlock IndexedDB stores. */
 export interface UnlockedItemRecord {
@@ -22,32 +12,8 @@ export interface UnlockedItemRecord {
 }
 
 // ============================================================
-// State
-// ============================================================
-
-let unlockedItems: Set<string> = new Set();
-let unlockedItemDataList: UnlockedItemData[] = [];
-
-/** Flat hash lookup — the O(1) hot path used by the scan tick. */
-let unlockedHashes: Set<string> = new Set();
-/** Names already in the unlock DB — a name hit means "append hash, no notify". */
-let unlockedNames: Set<string> = new Set();
-
-/** Quantity-invariant lower-half slice (cell rows 3–7) → record name. The
- *  scan tick consults this ONLY for slots proven stackable by the yellow-digit
- *  check (slot.isStackable), so a lower-half hit means "stackable variant of
- *  an already-unlocked item" → no dot. */
-let stackableLowerHalfIndex: Map<string, string> = new Map();
-
-/** The 192-char hash's lower-half slice — cell rows 3–7 (interior rows
- *  12–31), where the quantity digit never renders. Indexed by char offset:
- *  8 cells/row × 3 nibbles/cell × 3 rows = char 72..191. */
-function lowerHalfOf(hash: string): string {
-    return hash.slice(72);
-}
-
-// ============================================================
-// IndexedDB — unlock storage (tradable + untradable stores)
+// UnlockStore — IndexedDB (tradable + untradable stores) plus the
+// in-memory Sets that back the scan tick's O(1) lookups
 // ============================================================
 
 const DB_NAME = "Bronzeman";
@@ -55,54 +21,281 @@ const DB_VERSION = 2;
 const STORE_TRADABLE = "unlocks_tradable";
 const STORE_UNTRADABLE = "unlocks_untradable";
 
-let _db: IDBDatabase | null = null;
+class UnlockStore {
+    private _db: IDBDatabase | null = null;
 
-function openDB(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            // v1 had an "ignores" store — now unused, drop it.
-            if (db.objectStoreNames.contains("ignores")) {
-                db.deleteObjectStore("ignores");
+    /** Flat hash lookup — the O(1) hot path used by the scan tick. */
+    private hashes: Set<string> = new Set();
+    /** Names already in the unlock DB — a name hit means "append hash, no notify". */
+    private names: Set<string> = new Set();
+    /** Quantity-invariant lower-half slice (cell rows 3–7) → record name. The
+     *  scan tick consults this ONLY for slots proven stackable by the
+     *  yellow-digit check (slot.isStackable), so a lower-half hit means
+     *  "stackable variant of an already-unlocked item" → no dot. */
+    private lowerHalfIndex: Map<string, string> = new Map();
+
+    private get ready(): boolean { return this._db !== null; }
+
+    private storeName(store: string): string {
+        return store === "untradable" ? STORE_UNTRADABLE : STORE_TRADABLE;
+    }
+
+    // ----------------------------------------------------------
+    // IndexedDB helpers
+    // ----------------------------------------------------------
+
+    private openDB(): Promise<IDBDatabase> {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open(DB_NAME, DB_VERSION);
+            req.onupgradeneeded = () => {
+                const db = req.result;
+                // v1 had an "ignores" store — now unused, drop it.
+                if (db.objectStoreNames.contains("ignores")) {
+                    db.deleteObjectStore("ignores");
+                }
+                if (!db.objectStoreNames.contains(STORE_TRADABLE)) {
+                    db.createObjectStore(STORE_TRADABLE, { keyPath: "name" });
+                }
+                if (!db.objectStoreNames.contains(STORE_UNTRADABLE)) {
+                    db.createObjectStore(STORE_UNTRADABLE, { keyPath: "name" });
+                }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    private getAll(storeName: string): Promise<UnlockedItemRecord[]> {
+        return new Promise((resolve, reject) => {
+            const tx = this._db!.transaction(storeName, "readonly");
+            const req = tx.objectStore(storeName).getAll();
+            req.onsuccess = () => resolve(req.result ?? []);
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    private getByKey(storeName: string, name: string): Promise<UnlockedItemRecord | undefined> {
+        return new Promise((resolve, reject) => {
+            const tx = this._db!.transaction(storeName, "readonly");
+            const req = tx.objectStore(storeName).get(name);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    private put(storeName: string, record: UnlockedItemRecord): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const tx = this._db!.transaction(storeName, "readwrite");
+            tx.objectStore(storeName).put(record);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    private clear(storeName: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const tx = this._db!.transaction(storeName, "readwrite");
+            tx.objectStore(storeName).clear();
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    // ----------------------------------------------------------
+    // Public API
+    // ----------------------------------------------------------
+
+    /** Open the DB, load both unlock stores, rebuild the flat hash Set.
+     *  Also migrates any localStorage unlockedHashes from the old scheme. */
+    async init(): Promise<void> {
+        try {
+            this._db = await this.openDB();
+            const [tradable, untradable] = await Promise.all([
+                this.getAll(STORE_TRADABLE),
+                this.getAll(STORE_UNTRADABLE),
+            ]);
+
+            // Migrate the old localStorage hash list into the tradable store once.
+            // Isolated in its own try/catch — corrupt legacy data must not
+            // block the rest of init.
+            try {
+                const rawHashes = localStorage.getItem(LS_KEYS.unlockedHashes);
+                if (rawHashes) {
+                    const legacy: string[] = JSON.parse(rawHashes);
+                    if (legacy.length > 0) {
+                        const existing = new Set<string>();
+                        for (const r of [...tradable, ...untradable]) for (const h of r.hashes) existing.add(h);
+                        const fresh = legacy.filter(h => !existing.has(h));
+                        if (fresh.length > 0) {
+                            const rec: UnlockedItemRecord = {
+                                name: "(unknown)",
+                                tradeable: true,
+                                hashes: fresh,
+                                unlockedAt: Date.now(),
+                            };
+                            await this.put(STORE_TRADABLE, rec);
+                            // Feed the migrated hashes into the in-memory Sets
+                            // too, so they're live on this very boot (the
+                            // records array below was read before the put).
+                            for (const h of fresh) {
+                                this.hashes.add(h);
+                                this.lowerHalfIndex.set(lowerHalfOf(h), rec.name);
+                            }
+                            this.names.add(rec.name);
+                            log(`Migrated ${fresh.length} legacy hashes to IndexedDB.`);
+                        }
+                    }
+                    localStorage.removeItem(LS_KEYS.unlockedHashes);
+                }
+            } catch (e) {
+                log(`Legacy hash migration skipped: ${e}`);
             }
-            if (!db.objectStoreNames.contains(STORE_TRADABLE)) {
-                db.createObjectStore(STORE_TRADABLE, { keyPath: "name" });
+
+            for (const r of [...tradable, ...untradable]) {
+                for (const h of r.hashes) this.hashes.add(h);
+                this.names.add(r.name);
+                // Index the quantity-invariant lower-half slice of every hash.
+                // The scan tick only consults this for yellow-detected
+                // stackable slots, so no flag filter is needed — non-stackables
+                // never reach it.
+                for (const h of r.hashes) this.lowerHalfIndex.set(lowerHalfOf(h), r.name);
             }
-            if (!db.objectStoreNames.contains(STORE_UNTRADABLE)) {
-                db.createObjectStore(STORE_UNTRADABLE, { keyPath: "name" });
+            log(`Unlock DB ready: ${tradable.length} tradable, ${untradable.length} untradable, ${this.hashes.size} hashes.`);
+        } catch (e) {
+            log(`Unlock DB init error: ${e}`);
+        }
+    }
+
+    /** One unlock record by store ("tradable" | "untradable") and name. */
+    async getRecord(store: string, name: string): Promise<UnlockedItemRecord | undefined> {
+        if (!this.ready) return undefined;
+        return this.getByKey(this.storeName(store), name);
+    }
+
+    /** Record an unlocked item (called after the wiki query resolves). Routes
+     *  to the tradable/untradable store by tradeable flag; appends the hash so
+     *  stackable quantity variants share one record. Idempotent by name — a
+     *  name already in the DB appends silently (no notification), only
+     *  genuinely new names notify. */
+    add(name: string, tradeable: boolean, hash: string): void {
+        const store = this.storeName(tradeable ? "tradable" : "untradable");
+        if (this.hashes.has(hash)) {
+            log(`Hash already unlocked for "${name}" — skipped.`);
+            return;
+        }
+        this.hashes.add(hash);
+        this.lowerHalfIndex.set(lowerHalfOf(hash), name);
+        const isNewName = !this.names.has(name);
+        if (isNewName) this.names.add(name);
+
+        // Load the record, append the hash, persist. If the DB isn't ready
+        // yet, the hash is in memory and the record is lost on reload —
+        // acceptable while the async init finishes (ms).
+        const persist = async (): Promise<void> => {
+            if (!this.ready) return;
+            const existing = (await this.getAll(store)).find(r => r.name === name);
+            if (existing) {
+                if (!existing.hashes.includes(hash)) existing.hashes.push(hash);
+                await this.put(store, existing);
+            } else {
+                const rec: UnlockedItemRecord = {
+                    name, tradeable, hashes: [hash], unlockedAt: Date.now(),
+                };
+                await this.put(store, rec);
             }
         };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
+        void persist();
+        if (isNewName) {
+            log(`UNLOCKED: "${name}" (${tradeable ? "tradable" : "untradable"}) hash=${hash.slice(0, 12)}…`);
+            if (state.inAlt1) showNotification("Unlocked: " + name, 3000, "success");
+        } else {
+            log(`New hash appended to existing item "${name}" (${hash.slice(0, 12)}…)`);
+        }
+    }
+
+    isHashUnlocked(hash: string): boolean {
+        return this.hashes.has(hash);
+    }
+
+    /** True when the hash's lower-half slice matches an already-unlocked item's
+     *  lower half. Only meaningful for yellow-detected stackable slots — a hit
+     *  means the item is a quantity-variant of something already unlocked. */
+    isLowerHalfUnlocked(lowerHalf: string): boolean {
+        return this.lowerHalfIndex.has(lowerHalf);
+    }
+
+    /** Debug: log every record in the tradable unlock store to the console. */
+    async dumpTradable(): Promise<void> {
+        if (!this.ready) { log("[diag] Unlock DB not ready"); return; }
+        try {
+            console.table(await this.getAll(STORE_TRADABLE));
+        } catch (e) {
+            log(`[diag] dump error: ${e}`);
+        }
+    }
+
+    /** Debug: log every record in the untradable unlock store to the console. */
+    async dumpUntradable(): Promise<void> {
+        if (!this.ready) { log("[diag] Unlock DB not ready"); return; }
+        try {
+            console.table(await this.getAll(STORE_UNTRADABLE));
+        } catch (e) {
+            log(`[diag] dump error: ${e}`);
+        }
+    }
+
+    /** Debug: log the hashes array of one item record.
+     *  store: "tradable" | "untradable". */
+    async dumpItemHashes(store: string, name: string): Promise<void> {
+        if (!this.ready) { log("[diag] Unlock DB not ready"); return; }
+        const storeName = this.storeName(store);
+        try {
+            const rec = await this.getByKey(storeName, name);
+            if (!rec) {
+                log(`[diag] no record "${name}" in ${storeName}`);
+                return;
+            }
+            console.log(`[diag] "${rec.name}" hashes (${rec.hashes.length}):`);
+            rec.hashes.forEach((h, i) => console.log(`  [${i}] ${h}`));
+        } catch (e) {
+            log(`[diag] dump error: ${e}`);
+        }
+    }
+
+    /** Clear every unlock (both stores + all in-memory indexes). */
+    resetUnlocks(): void {
+        this.hashes.clear();
+        this.names.clear();
+        this.lowerHalfIndex.clear();
+        if (this.ready) {
+            void this.clear(STORE_TRADABLE).catch(() => {});
+            void this.clear(STORE_UNTRADABLE).catch(() => {});
+        }
+        log("Unlocks cleared.");
+    }
 }
 
-function dbGetAll(db: IDBDatabase, storeName: string): Promise<UnlockedItemRecord[]> {
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(storeName, "readonly");
-        const req = tx.objectStore(storeName).getAll();
-        req.onsuccess = () => resolve(req.result ?? []);
-        req.onerror = () => reject(req.error);
-    });
-}
+/** Module-wide singleton. */
+const unlockStore = new UnlockStore();
 
-/** Fetch a single record by its name key (keyPath: "name"). */
-function dbGetByKey(db: IDBDatabase, storeName: string, name: string): Promise<UnlockedItemRecord | undefined> {
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(storeName, "readonly");
-        const req = tx.objectStore(storeName).get(name);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
-}
+// ============================================================
+// Re-exports — keep the module's public API surface stable for
+// importers (index.ts, ui.ts, slot-scan.ts, overlay.ts)
+// ============================================================
 
-/** Public access to one unlock record. store: "tradable" | "untradable". */
-export async function getItemRecord(store: string, name: string): Promise<UnlockedItemRecord | undefined> {
-    if (!_db) return undefined;
-    const storeName = store === "untradable" ? STORE_UNTRADABLE : STORE_TRADABLE;
-    return dbGetByKey(_db, storeName, name);
-}
+export const initUnlockDB = (): Promise<void> => unlockStore.init();
+export const getItemRecord = (store: string, name: string): Promise<UnlockedItemRecord | undefined> => unlockStore.getRecord(store, name);
+export const addUnlockedItem = (name: string, tradeable: boolean, hash: string): void => unlockStore.add(name, tradeable, hash);
+export const isHashUnlocked = (hash: string): boolean => unlockStore.isHashUnlocked(hash);
+export const isLowerHalfUnlocked = (lowerHalf: string): boolean => unlockStore.isLowerHalfUnlocked(lowerHalf);
+export const dumpTradableUnlocks = (): Promise<void> => unlockStore.dumpTradable();
+export const dumpUntradableUnlocks = (): Promise<void> => unlockStore.dumpUntradable();
+export const dumpItemHashes = (store: string, name: string): Promise<void> => unlockStore.dumpItemHashes(store, name);
+export const resetUnlocks = (): void => unlockStore.resetUnlocks();
+
+// ============================================================
+// Debug rendering — hash → colour-grid PNG for the debug panes
+// ============================================================
 
 /** Render an 8×8 grid PNG from a 192-char hash (3 hex nibbles per cell: R, G,
  *  B channel averages) as a data URL. Cells render in their actual colour —
@@ -124,249 +317,4 @@ export function hashToPngDataUrl(hash: string, scale: number): string {
         }
     }
     return canvas.toDataURL("image/png");
-}
-
-function dbPut(db: IDBDatabase, storeName: string, record: UnlockedItemRecord): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(storeName, "readwrite");
-        tx.objectStore(storeName).put(record);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
-}
-
-function dbClear(db: IDBDatabase, storeName: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(storeName, "readwrite");
-        tx.objectStore(storeName).clear();
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
-}
-
-/** Open the DB, load both unlock stores, rebuild the flat hash Set.
- *  Also migrates any localStorage unlockedHashes from the old scheme. */
-export async function initUnlockDB(): Promise<void> {
-    try {
-        _db = await openDB();
-        const [tradable, untradable] = await Promise.all([
-            dbGetAll(_db, STORE_TRADABLE),
-            dbGetAll(_db, STORE_UNTRADABLE),
-        ]);
-
-        // Migrate the old localStorage hash list into the tradable store once.
-        const rawHashes = localStorage.getItem(LS_KEYS.unlockedHashes);
-        if (rawHashes) {
-            const legacy: string[] = JSON.parse(rawHashes);
-            if (legacy.length > 0) {
-                const existing = new Set<string>();
-                for (const r of [...tradable, ...untradable]) for (const h of r.hashes) existing.add(h);
-                const fresh = legacy.filter(h => !existing.has(h));
-                if (fresh.length > 0) {
-                    const rec: UnlockedItemRecord = {
-                        name: "(unknown)",
-                        tradeable: true,
-                        hashes: fresh,
-                        unlockedAt: Date.now(),
-                    };
-                    await dbPut(_db, STORE_TRADABLE, rec);
-                    log(`Migrated ${fresh.length} legacy hashes to IndexedDB.`);
-                }
-            }
-            localStorage.removeItem(LS_KEYS.unlockedHashes);
-        }
-
-        for (const r of [...tradable, ...untradable]) {
-            for (const h of r.hashes) unlockedHashes.add(h);
-            unlockedNames.add(r.name);
-            // Index the quantity-invariant lower-half slice of every hash. The
-            // scan tick only consults this for yellow-detected stackable
-            // slots, so no flag filter is needed — non-stackables never reach
-            // it.
-            for (const h of r.hashes) stackableLowerHalfIndex.set(lowerHalfOf(h), r.name);
-        }
-        log(`Unlock DB ready: ${tradable.length} tradable, ${untradable.length} untradable, ${unlockedHashes.size} hashes.`);
-    } catch (e) {
-        log(`Unlock DB init error: ${e}`);
-    }
-}
-
-/** Record an unlocked item (called after the wiki query resolves). Routes to
- *  the tradable/untradable store by tradeable flag; appends the hash so
- *  stackable quantity variants share one record. Idempotent by name — a name
- *  already in the DB appends silently (no notification), only genuinely new
- *  names notify. */
-export function addUnlockedItem(name: string, tradeable: boolean, hash: string): void {
-    const store = tradeable ? STORE_TRADABLE : STORE_UNTRADABLE;
-    if (unlockedHashes.has(hash)) {
-        log(`Hash already unlocked for "${name}" — skipped.`);
-        return;
-    }
-    unlockedHashes.add(hash);
-    stackableLowerHalfIndex.set(lowerHalfOf(hash), name);
-    const isNewName = !unlockedNames.has(name);
-    if (isNewName) unlockedNames.add(name);
-
-    // Load the record, append the hash, persist. If the DB isn't ready yet,
-    // the hash is in memory and the record is lost on reload — acceptable
-    // while the async init finishes (ms).
-    const persist = async (): Promise<void> => {
-        if (!_db) return;
-        const existing = (await dbGetAll(_db, store)).find(r => r.name === name);
-        if (existing) {
-            if (!existing.hashes.includes(hash)) existing.hashes.push(hash);
-            await dbPut(_db, store, existing);
-        } else {
-            const rec: UnlockedItemRecord = {
-                name, tradeable, hashes: [hash], unlockedAt: Date.now(),
-            };
-            await dbPut(_db, store, rec);
-        }
-    };
-    void persist();
-    if (isNewName) {
-        log(`UNLOCKED: "${name}" (${tradeable ? "tradable" : "untradable"}) hash=${hash.slice(0, 12)}…`);
-        if (state.inAlt1) showNotification("Unlocked: " + name, 3000, "success");
-    } else {
-        log(`New hash appended to existing item "${name}" (${hash.slice(0, 12)}…)`);
-    }
-}
-
-export function isHashUnlocked(hash: string): boolean {
-    return unlockedHashes.has(hash);
-}
-
-/** True when the hash's lower-half slice matches an already-unlocked item's
- *  lower half. Only meaningful for yellow-detected stackable slots — a hit
- *  means the item is a quantity-variant of something already unlocked. */
-export function isLowerHalfUnlocked(lowerHalf: string): boolean {
-    return stackableLowerHalfIndex.has(lowerHalf);
-}
-
-/** Debug: log every record in the tradable unlock store to the console. */
-export async function dumpTradableUnlocks(): Promise<void> {
-    if (!_db) { log("[diag] Unlock DB not ready"); return; }
-    try {
-        console.table(await dbGetAll(_db, STORE_TRADABLE));
-    } catch (e) {
-        log(`[diag] dump error: ${e}`);
-    }
-}
-
-/** Debug: log every record in the untradable unlock store to the console. */
-export async function dumpUntradableUnlocks(): Promise<void> {
-    if (!_db) { log("[diag] Unlock DB not ready"); return; }
-    try {
-        console.table(await dbGetAll(_db, STORE_UNTRADABLE));
-    } catch (e) {
-        log(`[diag] dump error: ${e}`);
-    }
-}
-
-/** Debug: log the hashes array of one item record. store: "tradable" | "untradable". */
-export async function dumpItemHashes(store: string, name: string): Promise<void> {
-    if (!_db) { log("[diag] Unlock DB not ready"); return; }
-    const storeName = store === "untradable" ? STORE_UNTRADABLE : STORE_TRADABLE;
-    try {
-        const rec = await dbGetByKey(_db, storeName, name);
-        if (!rec) {
-            log(`[diag] no record "${name}" in ${storeName}`);
-            return;
-        }
-        console.log(`[diag] "${rec.name}" hashes (${rec.hashes.length}):`);
-        rec.hashes.forEach((h, i) => console.log(`  [${i}] ${h}`));
-    } catch (e) {
-        log(`[diag] dump error: ${e}`);
-    }
-}
-
-// ============================================================
-// Persistence
-// ============================================================
-
-export function loadState(): void {
-    try {
-        const raw = localStorage.getItem(LS_KEYS.unlockedItems);
-        if (raw) {
-            unlockedItems = new Set(JSON.parse(raw));
-            log(`Loaded ${unlockedItems.size} unlocked items.`);
-        } else {
-            localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
-        }
-        const rawData = localStorage.getItem(LS_KEYS.unlockedItemData);
-        if (rawData) {
-            unlockedItemDataList = JSON.parse(rawData);
-            log(`Loaded ${unlockedItemDataList.length} unlocked item rasters.`);
-        } else {
-            localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify([]));
-        }
-    } catch (e) { log("ERROR loading: " + e); }
-}
-
-function saveState(): void {
-    try {
-        localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify(Array.from(unlockedItems)));
-        localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify(unlockedItemDataList));
-    }
-    catch (e) { log("ERROR saving: " + e); }
-}
-
-// ============================================================
-// Bronzeman logic
-// ============================================================
-
-export function unlockItem(itemName: string, base64: string = ""): boolean {
-    const n = itemName.trim();
-    if (!n || unlockedItems.has(n)) return false;
-    unlockedItems.add(n);
-    if (base64) {
-        unlockedItemDataList.push({ name: n, base64, time: Date.now() });
-    }
-    saveState();
-    log(`UNLOCKED: "${n}"${base64 ? " (with raster)" : ""}`);
-    if (state.inAlt1) showNotification("Unlocked: " + n, 3000, "success");
-    return true;
-}
-
-export function isUnlocked(name: string): boolean { return unlockedItems.has(name.trim()); }
-export function getUnlockedCount(): number { return unlockedItems.size; }
-export function getUnlockedItems(): string[] { return Array.from(unlockedItems).sort(); }
-export function getUnlockedItemData(): UnlockedItemData[] { return unlockedItemDataList; }
-
-// ============================================================
-// Reset
-// ============================================================
-
-export function resetData(): void {
-    if (!confirm("Delete all unlocked items and calibration?")) return;
-    unlockedItems.clear();
-    unlockedItemDataList = [];
-    unlockedHashes.clear();
-    unlockedNames.clear();
-    stackableLowerHalfIndex.clear();
-    localStorage.removeItem(LS_KEYS.unlockedItems);
-    localStorage.removeItem(LS_KEYS.unlockedItemData);
-    localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
-    localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify([]));
-    if (_db) {
-        void dbClear(_db, STORE_TRADABLE).catch(() => {});
-        void dbClear(_db, STORE_UNTRADABLE).catch(() => {});
-    }
-    inventory.clear();
-    log("All reset.");
-}
-
-export function resetUnlocks(): void {
-    unlockedItems.clear();
-    unlockedItemDataList = [];
-    unlockedHashes.clear();
-    unlockedNames.clear();
-    stackableLowerHalfIndex.clear();
-    localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
-    localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify([]));
-    if (_db) {
-        void dbClear(_db, STORE_TRADABLE).catch(() => {});
-        void dbClear(_db, STORE_UNTRADABLE).catch(() => {});
-    }
-    log("Unlocks cleared.");
 }
