@@ -75,6 +75,41 @@ function dbGetAll(db: IDBDatabase, storeName: string): Promise<UnlockedItemRecor
     });
 }
 
+/** Fetch a single record by its name key (keyPath: "name"). */
+function dbGetByKey(db: IDBDatabase, storeName: string, name: string): Promise<UnlockedItemRecord | undefined> {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, "readonly");
+        const req = tx.objectStore(storeName).get(name);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+/** Public access to one unlock record. store: "tradable" | "untradable". */
+export async function getItemRecord(store: string, name: string): Promise<UnlockedItemRecord | undefined> {
+    if (!_db) return undefined;
+    const storeName = store === "untradable" ? STORE_UNTRADABLE : STORE_TRADABLE;
+    return dbGetByKey(_db, storeName, name);
+}
+
+/** Render an 8×8 brightness-grid PNG (one cell per hash char, scaled) as a data URL. */
+export function hashToPngDataUrl(hash: string, scale: number): string {
+    const canvas = document.createElement("canvas");
+    canvas.width = 8 * scale;
+    canvas.height = 8 * scale;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return "";
+    for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+            const v = parseInt(hash[y * 8 + x] ?? "0", 16);
+            const lum = Math.round((v / 15) * 255);
+            ctx.fillStyle = `rgb(${lum},${lum},${lum})`;
+            ctx.fillRect(x * scale, y * scale, scale, scale);
+        }
+    }
+    return canvas.toDataURL("image/png");
+}
+
 function dbPut(db: IDBDatabase, storeName: string, record: UnlockedItemRecord): Promise<void> {
     return new Promise((resolve, reject) => {
         const tx = db.transaction(storeName, "readwrite");
@@ -195,6 +230,23 @@ export async function dumpUntradableUnlocks(): Promise<void> {
     if (!_db) { log("[diag] Unlock DB not ready"); return; }
     try {
         console.table(await dbGetAll(_db, STORE_UNTRADABLE));
+    } catch (e) {
+        log(`[diag] dump error: ${e}`);
+    }
+}
+
+/** Debug: log the hashes array of one item record. store: "tradable" | "untradable". */
+export async function dumpItemHashes(store: string, name: string): Promise<void> {
+    if (!_db) { log("[diag] Unlock DB not ready"); return; }
+    const storeName = store === "untradable" ? STORE_UNTRADABLE : STORE_TRADABLE;
+    try {
+        const rec = await dbGetByKey(_db, storeName, name);
+        if (!rec) {
+            log(`[diag] no record "${name}" in ${storeName}`);
+            return;
+        }
+        console.log(`[diag] "${rec.name}" hashes (${rec.hashes.length}):`);
+        rec.hashes.forEach((h, i) => console.log(`  [${i}] ${h}`));
     } catch (e) {
         log(`[diag] dump error: ${e}`);
     }

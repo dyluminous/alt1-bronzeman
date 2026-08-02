@@ -24,13 +24,3 @@ All commands run in the Alt1 plugin's browser console as `Bronzeman.<fn>(...)`.
 | `Bronzeman.dumpTradableUnlocks()` | Every record in the `unlocks_tradable` store as a `console.table` (columns: name, tradeable, stackable, hashes, unlockedAt) |
 | `Bronzeman.dumpUntradableUnlocks()` | Every record in the `unlocks_untradable` store as a `console.table` (same columns) |
 | `Bronzeman.isHashUnlocked(hash)` | `true`/`false` — whether a given interior hash is in the unlocked set (O(1) in-memory lookup) |
-
-## Notes
-
-- Console spam guard: the only *automatic* console output is real change events (appeared / removed / changed / moved) plus the hover flow (tooltip OCR, wiki queries). Everything above is one-shot — it prints once per call.
-- `dumpSlotHash` and `debugCorners` expect a slot index `0`–`27` (slot 27 = the last slot).
-- To loop all slots from the console:
-  ```js
-  for (let i = 0; i < 28; i++) Bronzeman.dumpSlotHash(i)
-  ```
-- The wiki hover flow also logs useful lines: `Hovered item: "<name>" (slot N) hash=...`, `Wiki: "<name>" tradeable = ... stackable = ...`, disambiguation selections, and `UNLOCKED: "<name>" (tradable/untradable, stackable/non-stackable)`.

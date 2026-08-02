@@ -34,11 +34,6 @@ export function getNonUnlockedSlotIndices(): Set<number> {
     return nonUnlockedSlots;
 }
 
-/** Force a slot out of the dot set — used when its item just got unlocked. */
-export function removeNonUnlockedSlot(index: number): void {
-    nonUnlockedSlots.delete(index);
-}
-
 // ============================================================
 // Low-level reads from a captured image
 // ============================================================
@@ -183,13 +178,21 @@ export function getObscuredSlotIndices(img: ImgRef): Set<number> {
 }
 
 /** Slots with a corner pixel mismatch — a tooltip or context menu is covering
- *  them. Dots should be hidden on these slots but not on cursor‑adjacent ones. */
+ *  them. STRICT set: used to gate interior reads so no tooltip-polluted hash
+ *  is ever stored. */
 function getCoveredSlotIndices(img: ImgRef): Set<number> {
     const covered = new Set<number>();
-    const hovered = inventory.getHoveredSlotIndex();
     for (const slot of inventory.slots) {
         if (isCovered(slot, img)) covered.add(slot.index);
     }
+    return covered;
+}
+
+/** Covered slots for DOT HIDING: the strict set minus the hovered row, which
+ *  keeps dots visible across the row the player is inspecting. */
+function getCoveredForDots(img: ImgRef): Set<number> {
+    const covered = getCoveredSlotIndices(img);
+    const hovered = inventory.getHoveredSlotIndex();
     // The entire row of the hovered slot should keep dots visible — the
     // player's tooltip often extends across the row when inspecting an item.
     if (hovered !== null) {
@@ -283,7 +286,10 @@ function scanTick(): void {
     // Slots under/adjacent to the cursor or with covered corners are obscured —
     // their previousHash is left untouched so no false change is recorded.
     const obscured = getObscuredSlotIndices(img);
+    // Strict covered set gates interior reads (no tooltip-polluted hashes);
+    // the row-excepted set is used only for hiding dots.
     const covered = getCoveredSlotIndices(img);
+    const coveredForDots = getCoveredForDots(img);
 
     const appeared: { index: number; hash: string }[] = [];
     const removed: { index: number; hash: string }[] = [];
@@ -358,6 +364,10 @@ function scanTick(): void {
     for (const r of removed) log(`Slot ${r.index}: item removed`);
     for (const a of appeared) log(`Slot ${a.index}: item appeared`);
     for (const c of changed) log(`Slot ${c.index}: item changed`);
+
+    // Slots covered by a tooltip/context menu shouldn't show dots —
+    // the player may be inspecting or manipulating them.
+    coveredForDots.forEach(idx => nonUnlockedSlots.delete(idx));
 
     prevUseSlots = useSlotsThisTick;
 }

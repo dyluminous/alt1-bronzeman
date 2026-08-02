@@ -3,6 +3,7 @@ import { inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, showNotification, log, captureFullRs } from "./core";
 import { getUnlockedCount, getUnlockedItemData, resetUnlocks as dataResetUnlocks } from "./data";
+import { getItemRecord, hashToPngDataUrl } from "./data";
 import { showModal } from "./modal";
 import { getObscuredSlotIndices, isNotedItem, isInUseState } from "./slot-scan";
 import type { DisambiguationOption } from "./wiki";
@@ -240,4 +241,37 @@ export function closeDisambiguation(): void {
     const pane = document.getElementById("wiki_disambig_pane");
     if (pane) pane.style.display = "none";
     oc?.();
+}
+
+// ============================================================
+// Item hash PNGs pane — debug: show each recorded hash as an image
+// ============================================================
+
+/** Open the pane showing every hash of the (currently hardcoded) item as a
+ *  brightness-grid PNG. */
+export async function openItemPngs(): Promise<void> {
+    const pane = document.getElementById("item_pngs_pane");
+    const body = document.getElementById("item_pngs_body");
+    if (!pane || !body) return;
+    const rec = await getItemRecord("tradable", "Airut bones");
+    if (!rec) {
+        body.innerHTML = '<div class="wiki-disambig-note">No record for "Airut bones" in unlocks_tradable.</div>';
+    } else {
+        body.innerHTML = `<div class="wiki-disambig-msg">"${escHtml(rec.name)}" — ${rec.hashes.length} hash(es). Hover a grid for its hash.</div>` +
+            `<div style="display:flex;flex-wrap:wrap;gap:8px;">` +
+            rec.hashes.map((h, i) => {
+                const url = hashToPngDataUrl(h, 10);
+                return `<div style="text-align:center;">
+                    <img src="${url}" title="${escHtml(h)}" style="image-rendering:pixelated;border:1px solid #888;width:80px;height:80px;display:block;">
+                    <div class="wiki-disambig-note">[${i}]</div>
+                </div>`;
+            }).join("") + `</div>`;
+    }
+    pane.style.display = "flex";
+}
+
+/** Close the item hash PNGs pane. */
+export function closeItemPngs(): void {
+    const pane = document.getElementById("item_pngs_pane");
+    if (pane) pane.style.display = "none";
 }

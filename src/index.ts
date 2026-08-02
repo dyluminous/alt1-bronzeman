@@ -63,7 +63,7 @@ export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug
 export { diagnoseSlotScan, dumpSlotHash, debugCorners } from "./slot-scan";
 
 // Data
-export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks } from "./data";
+export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks, dumpItemHashes } from "./data";
 
 // Modal
 export { modalCancel, modalOk } from "./modal";
@@ -73,6 +73,7 @@ export {
     resetUnlocks,
     openSlotDebug, closeSlotDebug, refreshSlotDebug,
     showDisambiguation, selectDisambiguationOption, closeDisambiguation,
+    openItemPngs, closeItemPngs,
 } from "./ui";
 
 // ============================================================
