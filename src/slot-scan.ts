@@ -177,6 +177,16 @@ export function getObscuredSlotIndices(img: ImgRef): Set<number> {
     return obscured;
 }
 
+/** Slots with a corner pixel mismatch — a tooltip or context menu is covering
+ *  them. Dots should be hidden on these slots but not on cursor‑adjacent ones. */
+function getCoveredSlotIndices(img: ImgRef): Set<number> {
+    const covered = new Set<number>();
+    for (const slot of inventory.slots) {
+        if (isCovered(slot, img)) covered.add(slot.index);
+    }
+    return covered;
+}
+
 // ============================================================
 // Scan loop
 // ============================================================
@@ -257,6 +267,7 @@ function scanTick(): void {
     // Slots under/adjacent to the cursor or with covered corners are obscured —
     // their previousHash is left untouched so no false change is recorded.
     const obscured = getObscuredSlotIndices(img);
+    const covered = getCoveredSlotIndices(img);
 
     const appeared: { index: number; hash: string }[] = [];
     const removed: { index: number; hash: string }[] = [];
@@ -331,6 +342,10 @@ function scanTick(): void {
     for (const r of removed) log(`Slot ${r.index}: item removed`);
     for (const a of appeared) log(`Slot ${a.index}: item appeared`);
     for (const c of changed) log(`Slot ${c.index}: item changed`);
+
+    // Slots covered by a tooltip/context menu shouldn't show dots —
+    // the player may be inspecting or manipulating them.
+    covered.forEach(idx => nonUnlockedSlots.delete(idx));
 
     prevUseSlots = useSlotsThisTick;
 }
