@@ -5,6 +5,7 @@ import { state, escHtml, showNotification, log, captureFullRs } from "./core";
 import { getUnlockedCount, getUnlockedItemData, getIgnoredItems, clearIgnoredItems, removeIgnoredItem, resetUnlocks as dataResetUnlocks } from "./data";
 import { showModal } from "./modal";
 import { getObscuredSlotIndices } from "./slot-scan";
+import type { DisambiguationOption } from "./wiki";
 import { BUILD_NUM } from "./version";
 
 // ============================================================
@@ -263,4 +264,51 @@ export function moveIgnoreTooltip(e: MouseEvent): void {
     top_ = Math.max(4, Math.min(top_, window.innerHeight - r.height - 4));
     el.style.left = left + "px";
     el.style.top = top_ + "px";
+}
+
+// ============================================================
+// Wiki disambiguation pane — "the wiki returns multiple results"
+// ============================================================
+
+let disambigOptions: DisambiguationOption[] = [];
+let disambigOnSelect: ((name: string) => void) | null = null;
+let disambigOnClose: (() => void) | null = null;
+
+/** Open the pane with the wiki's disambiguation options. */
+export function showDisambiguation(options: DisambiguationOption[], onSelect: (name: string) => void, onClose?: () => void): void {
+    disambigOptions = options;
+    disambigOnSelect = onSelect;
+    disambigOnClose = onClose ?? null;
+    const pane = document.getElementById("wiki_disambig_pane");
+    const body = document.getElementById("wiki_disambig_body");
+    if (!pane || !body) return;
+    body.innerHTML =
+        '<div class="wiki-disambig-msg">The wiki returns multiple results for this item. Select the one that matches.</div>' +
+        options.map((o, i) =>
+            `<div class="wiki-disambig-row" onclick="Bronzeman.selectDisambiguationOption(${i})">` +
+            `<span class="wiki-disambig-name">${escHtml(o.name)}</span>` +
+            (o.description ? `<span class="wiki-disambig-desc">${escHtml(o.description)}</span>` : "") +
+            `</div>`
+        ).join("");
+    pane.style.display = "flex";
+}
+
+/** Called from the HTML rows — continue the pipeline with the picked name. */
+export function selectDisambiguationOption(index: number): void {
+    const opt = disambigOptions[index];
+    const cb = disambigOnSelect;
+    disambigOnClose = null; // a selection is not an abandon
+    closeDisambiguation();
+    if (opt && cb) cb(opt.name);
+}
+
+/** Close the pane without picking (✕ or click outside) — fires the abandon hook. */
+export function closeDisambiguation(): void {
+    disambigOptions = [];
+    disambigOnSelect = null;
+    const oc = disambigOnClose;
+    disambigOnClose = null;
+    const pane = document.getElementById("wiki_disambig_pane");
+    if (pane) pane.style.display = "none";
+    oc?.();
 }

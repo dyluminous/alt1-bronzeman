@@ -4,12 +4,21 @@ import { log } from "./core";
 const WIKI_API = "https://runescape.wiki/api.php";
 const MAX_REDIRECTS = 3;
 
+export interface DisambiguationOption {
+    /** The page name from [[ ]], for re-querying. */
+    name: string;
+    /** The text after the link (the description), if any. */
+    description: string;
+}
+
 export interface WikiQueryResult {
     ok: boolean;
     /** The parsed value of |tradeable = ..., when found. */
     tradeable?: string;
     /** HTTP status or MediaWiki error code when the query failed. */
     status?: string | number;
+    /** When the page is a disambiguation page — the selectable options. */
+    disambig?: DisambiguationOption[];
 }
 
 /** Pull the redirect target from "#REDIRECT [[Abyssal Whip]]" (or "[[Page|label]]"). */
@@ -23,6 +32,25 @@ function extractRedirectTarget(wikitext: string): string | null {
 function extractTradeable(wikitext: string): string | null {
     const m = /\|tradeable\s*=\s*([^\n|]*)/.exec(wikitext);
     return m ? m[1].trim() : null;
+}
+
+/** True when the wikitext is a disambiguation page. */
+function isDisambiguation(wikitext: string): boolean {
+    return /\{\{Disambig\}\}/.test(wikitext) || /\bmay refer to:\b/.test(wikitext.slice(0, 400));
+}
+
+/** Parse disambiguation options from lines like "* [[Name]], description".
+ *  Name strips any "|display" pipe; description is everything after "]]". */
+function extractDisambiguation(wikitext: string): DisambiguationOption[] {
+    const options: DisambiguationOption[] = [];
+    for (const line of wikitext.split("\n")) {
+        const m = /^\s*\*\s*\[\[([^\]|]+)(?:\|[^\]]+)?\]\]\s*(?:,\s*)?(.*)$/.exec(line);
+        if (!m) continue;
+        const name = m[1].trim();
+        if (!name) continue;
+        options.push({ name, description: m[2].trim() });
+    }
+    return options;
 }
 
 /** One API parse query for a page; returns the wikitext or the error on failure. */
@@ -97,6 +125,13 @@ export async function fetchItemTradeable(itemName: string): Promise<WikiQueryRes
         }
         const tradeable = extractTradeable(r.wikitext);
         if (tradeable === null) {
+            // Not a normal item page — disambiguation pages have no tradeable
+            // field but list the real item pages, so surface the options.
+            if (isDisambiguation(r.wikitext)) {
+                const disambig = extractDisambiguation(r.wikitext);
+                log(`Wiki API: "${page}" is a disambiguation page (${disambig.length} option(s))`);
+                return { ok: false, disambig };
+            }
             log(`Wiki API: no "tradeable" field found for "${page}"`);
             return { ok: false };
         }

@@ -81,6 +81,15 @@
         <div id="slot_debug_grid" class="slot-debug-grid" onclick="event.stopPropagation()"></div>
     </div>
 
+    <!-- Wiki disambiguation pane — covers the tab area; pick an option or close -->
+    <div id="wiki_disambig_pane" class="slot-debug-pane" style="display:none;" onclick="Bronzeman.closeDisambiguation()">
+        <div class="slot-debug-header">
+            <span>Select the matching item</span>
+            <span class="slot-debug-close" onclick="event.stopPropagation(); Bronzeman.closeDisambiguation()">✕</span>
+        </div>
+        <div id="wiki_disambig_body" class="wiki-disambig-body" onclick="event.stopPropagation()"></div>
+    </div>
+
     <script src="./main.js"></script>
     <script>
         function switchTab(name) {
