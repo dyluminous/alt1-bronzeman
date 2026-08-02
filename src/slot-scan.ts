@@ -181,8 +181,19 @@ export function getObscuredSlotIndices(img: ImgRef): Set<number> {
  *  them. Dots should be hidden on these slots but not on cursor‑adjacent ones. */
 function getCoveredSlotIndices(img: ImgRef): Set<number> {
     const covered = new Set<number>();
+    const hovered = inventory.getHoveredSlotIndex();
     for (const slot of inventory.slots) {
         if (isCovered(slot, img)) covered.add(slot.index);
+    }
+    // The entire row of the hovered slot should keep dots visible — the
+    // player's tooltip often extends across the row when inspecting an item.
+    if (hovered !== null) {
+        const hSlot = inventory.getSlot(hovered);
+        if (hSlot) {
+            for (const s of inventory.slots) {
+                if (s.row === hSlot.row) covered.delete(s.index);
+            }
+        }
     }
     return covered;
 }
@@ -299,7 +310,7 @@ function scanTick(): void {
             nonUnlockedSlots.add(slot.index);
         }
 
-        if (obscured.has(slot.index)) continue;
+        if (covered.has(slot.index)) continue;
 
         // Read the interior once per tick; feed the empty check, the hash and
         // the last-valid pixels from the same buffer.
