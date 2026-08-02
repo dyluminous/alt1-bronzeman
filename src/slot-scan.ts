@@ -26,6 +26,8 @@ let scanHandle: ReturnType<typeof setInterval> | null = null;
 
 /** Slots whose current interior hash is not in the unlocked set. */
 let nonUnlockedSlots: Set<number> = new Set();
+/** Slots that were skipped by the noted/Use gate in the previous tick. */
+let prevExcluded: Set<number> = new Set();
 
 export function getNonUnlockedSlotIndices(): Set<number> {
     return nonUnlockedSlots;
@@ -259,21 +261,34 @@ function scanTick(): void {
     const removed: { index: number; hash: string }[] = [];
     const changed: { index: number }[] = [];
 
-    for (const slot of inventory.slots) {
-        if (obscured.has(slot.index)) continue;
+    // Track which slots are excluded by noted/Use this tick.  When a slot
+    // exits Use state, the dot must reappear instantly — if the slot is still
+    // obscured the normal scan won't touch it, so we re-add it here.
+    const excludedThisTick = new Set<number>();
 
-        // Noted items are ignored entirely — never tracked, never dotted.
+    for (const slot of inventory.slots) {
+        // Noted and "Use"‑state items are ignored regardless of occlusion —
+        // the mouse is often over the slot when Use is clicked, so these
+        // checks must run before the obscured gate.
         if (isNotedItem(slot, img)) {
             nonUnlockedSlots.delete(slot.index);
+            excludedThisTick.add(slot.index);
+            continue;
+        }
+        if (isInUseState(slot, img)) {
+            nonUnlockedSlots.delete(slot.index);
+            excludedThisTick.add(slot.index);
             continue;
         }
 
-        // "Use" state items are ignored — the white outline makes them
-        // visually noisy and the player hasn't confirmed they're in inventory.
-        if (isInUseState(slot, img)) {
-            nonUnlockedSlots.delete(slot.index);
-            continue;
+        // Re‑add slots that were excluded last tick but are scannable now —
+        // this is the instant‑reappear path (e.g. Use state cleared).
+        if (prevExcluded.has(slot.index)) {
+            prevExcluded.delete(slot.index);
+            nonUnlockedSlots.add(slot.index);
         }
+
+        if (obscured.has(slot.index)) continue;
 
         // Read the interior once per tick; feed the empty check, the hash and
         // the last-valid pixels from the same buffer.
@@ -316,6 +331,8 @@ function scanTick(): void {
     for (const r of removed) log(`Slot ${r.index}: item removed`);
     for (const a of appeared) log(`Slot ${a.index}: item appeared`);
     for (const c of changed) log(`Slot ${c.index}: item changed`);
+
+    prevExcluded = excludedThisTick;
 }
 
 export function startSlotScan(): void {
