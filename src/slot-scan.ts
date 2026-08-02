@@ -14,6 +14,14 @@ const SCAN_MS = 500;
 /** Sentinel previousHash for an empty slot. */
 const EMPTY_HASH = "empty";
 
+/** Noted-item marker, relative to the slot TL border corner (0,0): a #95865e
+ *  pixel at (12,1) beside a #000002 shadow pixel at (13,1). Both must match. */
+const NOTED_MARK: [number, number, number] = [0x95, 0x86, 0x5e];
+const NOTED_SHADOW: [number, number, number] = [0x00, 0x00, 0x02];
+const NOTED_MARK_X = 12;
+const NOTED_MARK_Y = 1;
+const NOTED_SHADOW_X = 13;
+
 let scanHandle: ReturnType<typeof setInterval> | null = null;
 
 /** Slots whose current interior hash is not in the unlocked set. */
@@ -69,6 +77,16 @@ export function captureCornerRefs(img: ImgRef): void {
 /** True when the corner pixel exactly matches its calibration ref. */
 function cornerMatches(corner: [number, number, number], ref: [number, number, number]): boolean {
     return corner[0] === ref[0] && corner[1] === ref[1] && corner[2] === ref[2];
+}
+
+/** True when the slot holds a noted item — the #95865e mark + #000002 shadow
+ *  beside it. Noted items are ignored completely (no gold dot, no tracking). */
+export function isNotedItem(slot: InventorySlot, img: ImgRef): boolean {
+    const mark = readPixel(img, slot.x + NOTED_MARK_X, slot.y + NOTED_MARK_Y);
+    const shadow = readPixel(img, slot.x + NOTED_SHADOW_X, slot.y + NOTED_MARK_Y);
+    return !!mark && !!shadow
+        && mark[0] === NOTED_MARK[0] && mark[1] === NOTED_MARK[1] && mark[2] === NOTED_MARK[2]
+        && shadow[0] === NOTED_SHADOW[0] && shadow[1] === NOTED_SHADOW[1] && shadow[2] === NOTED_SHADOW[2];
 }
 
 /** True when any corner no longer matches its calibration ref (slot is covered). */
@@ -215,6 +233,12 @@ function scanTick(): void {
 
     for (const slot of inventory.slots) {
         if (obscured.has(slot.index)) continue;
+
+        // Noted items are ignored entirely — never tracked, never dotted.
+        if (isNotedItem(slot, img)) {
+            nonUnlockedSlots.delete(slot.index);
+            continue;
+        }
 
         // Read the interior once per tick; feed the empty check, the hash and
         // the last-valid pixels from the same buffer.

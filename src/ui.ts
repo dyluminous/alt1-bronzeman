@@ -4,7 +4,7 @@ import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, showNotification, log, captureFullRs } from "./core";
 import { getUnlockedCount, getUnlockedItemData, getIgnoredItems, clearIgnoredItems, removeIgnoredItem, resetUnlocks as dataResetUnlocks } from "./data";
 import { showModal } from "./modal";
-import { getObscuredSlotIndices } from "./slot-scan";
+import { getObscuredSlotIndices, isNotedItem } from "./slot-scan";
 import type { DisambiguationOption } from "./wiki";
 import { BUILD_NUM } from "./version";
 
@@ -172,10 +172,14 @@ function renderSlotDebug(): void {
     grid.style.gridTemplateColumns = `repeat(${inventory.cols}, minmax(64px, auto))`;
     grid.innerHTML = slots.map(slot => {
         const h = slot.previousHash;
-        const empty = h === null || h === "empty";
+        // Noted items are skipped by the scan (previousHash stays null) but are
+        // NOT empty — give them their own border colour.
+        const noted = !!img && isNotedItem(slot, img);
+        const empty = !noted && (h === null || h === "empty");
         const blocked = obscured.has(slot.index) && showOccludedSlots;
         const cls = [
             "slot-debug-cell",
+            noted ? " noted" : "",
             empty ? " empty" : "",
             blocked ? " blocked" : "",
         ].join("");
