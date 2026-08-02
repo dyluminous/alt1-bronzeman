@@ -12,6 +12,16 @@ interface UnlockedItemData {
     time: number;     // Date.now() when unlocked
 }
 
+/** One item record in the unlock IndexedDB stores. */
+export interface UnlockedItemRecord {
+    name: string;
+    tradeable: boolean;
+    stackable: boolean;
+    /** Every known interior hash for this item (stackables can have several). */
+    hashes: string[];
+    unlockedAt: number;
+}
+
 // ============================================================
 // State
 // ============================================================
@@ -19,51 +29,171 @@ interface UnlockedItemData {
 let unlockedItems: Set<string> = new Set();
 let unlockedItemDataList: UnlockedItemData[] = [];
 
-// ============================================================
-// Unlocked item hashes (in-memory Set, persisted to localStorage)
-// ============================================================
-
+/** Flat hash lookup — the O(1) hot path used by the scan tick. */
 let unlockedHashes: Set<string> = new Set();
 
-export function addUnlockedHash(hash: string): void {
-    if (unlockedHashes.has(hash)) return;
-    unlockedHashes.add(hash);
-    localStorage.setItem(LS_KEYS.unlockedHashes, JSON.stringify(Array.from(unlockedHashes)));
-    log(`Hash added to unlocked set.`);
+// ============================================================
+// IndexedDB — unlock storage (tradable + untradable stores)
+// ============================================================
+
+const DB_NAME = "Bronzeman";
+const DB_VERSION = 2;
+const STORE_TRADABLE = "unlocks_tradable";
+const STORE_UNTRADABLE = "unlocks_untradable";
+
+let _db: IDBDatabase | null = null;
+
+function openDB(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            // v1 had an "ignores" store — now unused, drop it.
+            if (db.objectStoreNames.contains("ignores")) {
+                db.deleteObjectStore("ignores");
+            }
+            if (!db.objectStoreNames.contains(STORE_TRADABLE)) {
+                db.createObjectStore(STORE_TRADABLE, { keyPath: "name" });
+            }
+            if (!db.objectStoreNames.contains(STORE_UNTRADABLE)) {
+                db.createObjectStore(STORE_UNTRADABLE, { keyPath: "name" });
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
 }
 
-export function removeUnlockedHash(hash: string): void {
-    if (!unlockedHashes.has(hash)) return;
-    unlockedHashes.delete(hash);
-    localStorage.setItem(LS_KEYS.unlockedHashes, JSON.stringify(Array.from(unlockedHashes)));
-    log(`Hash removed from unlocked set.`);
+function dbGetAll(db: IDBDatabase, storeName: string): Promise<UnlockedItemRecord[]> {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, "readonly");
+        const req = tx.objectStore(storeName).getAll();
+        req.onsuccess = () => resolve(req.result ?? []);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+function dbPut(db: IDBDatabase, storeName: string, record: UnlockedItemRecord): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, "readwrite");
+        tx.objectStore(storeName).put(record);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+function dbClear(db: IDBDatabase, storeName: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, "readwrite");
+        tx.objectStore(storeName).clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+/** Open the DB, load both unlock stores, rebuild the flat hash Set.
+ *  Also migrates any localStorage unlockedHashes from the old scheme. */
+export async function initUnlockDB(): Promise<void> {
+    try {
+        _db = await openDB();
+        const [tradable, untradable] = await Promise.all([
+            dbGetAll(_db, STORE_TRADABLE),
+            dbGetAll(_db, STORE_UNTRADABLE),
+        ]);
+
+        // Migrate the old localStorage hash list into the tradable store once.
+        const rawHashes = localStorage.getItem(LS_KEYS.unlockedHashes);
+        if (rawHashes) {
+            const legacy: string[] = JSON.parse(rawHashes);
+            if (legacy.length > 0) {
+                const existing = new Set<string>();
+                for (const r of [...tradable, ...untradable]) for (const h of r.hashes) existing.add(h);
+                const fresh = legacy.filter(h => !existing.has(h));
+                if (fresh.length > 0) {
+                    const rec: UnlockedItemRecord = {
+                        name: "(unknown)",
+                        tradeable: true,
+                        stackable: false,
+                        hashes: fresh,
+                        unlockedAt: Date.now(),
+                    };
+                    await dbPut(_db, STORE_TRADABLE, rec);
+                    log(`Migrated ${fresh.length} legacy hashes to IndexedDB.`);
+                }
+            }
+            localStorage.removeItem(LS_KEYS.unlockedHashes);
+        }
+
+        for (const r of [...tradable, ...untradable]) {
+            for (const h of r.hashes) unlockedHashes.add(h);
+        }
+        log(`Unlock DB ready: ${tradable.length} tradable, ${untradable.length} untradable, ${unlockedHashes.size} hashes.`);
+    } catch (e) {
+        log(`Unlock DB init error: ${e}`);
+    }
+}
+
+/** Record an unlocked item (called after the wiki query resolves). Routes to
+ *  the tradable/untradable store by tradeable flag; appends the hash so
+ *  stackable quantity variants share one record. */
+export function addUnlockedItem(name: string, tradeable: boolean, stackable: boolean, hash: string): void {
+    const store = tradeable ? STORE_TRADABLE : STORE_UNTRADABLE;
+    if (unlockedHashes.has(hash)) {
+        log(`Hash already unlocked for "${name}" — skipped.`);
+        return;
+    }
+    unlockedHashes.add(hash);
+
+    // Load the record, append the hash, persist. If the DB isn't ready yet,
+    // the hash is in memory and the record is lost on reload — acceptable
+    // while the async init finishes (ms).
+    const persist = async (): Promise<void> => {
+        if (!_db) return;
+        const existing = (await dbGetAll(_db, store)).find(r => r.name === name);
+        if (existing) {
+            if (!existing.hashes.includes(hash)) existing.hashes.push(hash);
+            await dbPut(_db, store, existing);
+        } else {
+            const rec: UnlockedItemRecord = {
+                name, tradeable, stackable, hashes: [hash], unlockedAt: Date.now(),
+            };
+            await dbPut(_db, store, rec);
+        }
+    };
+    void persist();
+    log(`UNLOCKED: "${name}" (${tradeable ? "tradable" : "untradable"}, ${stackable ? "stackable" : "non-stackable"}) hash=${hash.slice(0, 12)}…`);
+    if (state.inAlt1) showNotification("Unlocked: " + name, 3000, "success");
 }
 
 export function isHashUnlocked(hash: string): boolean {
     return unlockedHashes.has(hash);
 }
 
-export function getUnlockedHashes(): string[] {
-    return Array.from(unlockedHashes);
+/** Debug: log every record in the tradable unlock store to the console. */
+export async function dumpTradableUnlocks(): Promise<void> {
+    if (!_db) { log("[diag] Unlock DB not ready"); return; }
+    try {
+        console.table(await dbGetAll(_db, STORE_TRADABLE));
+    } catch (e) {
+        log(`[diag] dump error: ${e}`);
+    }
 }
 
-// Load on startup (called from loadState below)
+/** Debug: log every record in the untradable unlock store to the console. */
+export async function dumpUntradableUnlocks(): Promise<void> {
+    if (!_db) { log("[diag] Unlock DB not ready"); return; }
+    try {
+        console.table(await dbGetAll(_db, STORE_UNTRADABLE));
+    } catch (e) {
+        log(`[diag] dump error: ${e}`);
+    }
+}
 
 // ============================================================
 // Persistence
 // ============================================================
 
 export function loadState(): void {
-    loadIgnoredItems();
-    try {
-        const rawHashes = localStorage.getItem(LS_KEYS.unlockedHashes);
-        if (rawHashes) {
-            unlockedHashes = new Set(JSON.parse(rawHashes));
-            log(`Loaded ${unlockedHashes.size} unlocked hashes.`);
-        } else {
-            localStorage.setItem(LS_KEYS.unlockedHashes, JSON.stringify([]));
-        }
-    } catch (e) { log("ERROR loading hashes: " + e); }
     try {
         const raw = localStorage.getItem(LS_KEYS.unlockedItems);
         if (raw) {
@@ -120,10 +250,15 @@ export function resetData(): void {
     if (!confirm("Delete all unlocked items and calibration?")) return;
     unlockedItems.clear();
     unlockedItemDataList = [];
+    unlockedHashes.clear();
     localStorage.removeItem(LS_KEYS.unlockedItems);
     localStorage.removeItem(LS_KEYS.unlockedItemData);
     localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
     localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify([]));
+    if (_db) {
+        void dbClear(_db, STORE_TRADABLE).catch(() => {});
+        void dbClear(_db, STORE_UNTRADABLE).catch(() => {});
+    }
     inventory.clear();
     log("All reset.");
 }
@@ -131,158 +266,12 @@ export function resetData(): void {
 export function resetUnlocks(): void {
     unlockedItems.clear();
     unlockedItemDataList = [];
+    unlockedHashes.clear();
     localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
     localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify([]));
+    if (_db) {
+        void dbClear(_db, STORE_TRADABLE).catch(() => {});
+        void dbClear(_db, STORE_UNTRADABLE).catch(() => {});
+    }
     log("Unlocks cleared.");
-}
-
-// ============================================================
-// Ignore list
-// ============================================================
-
-interface IgnoredItem {
-    name: string | null;
-    hash: string;
-    base64?: string;
-    ignoredAt: number;
-}
-
-let ignoredItems: IgnoredItem[] = [];
-
-// ── IndexedDB ──────────────────────────────────────────────
-
-const DB_NAME = "Bronzeman";
-const DB_VERSION = 1;
-const STORE_NAME = "ignores";
-
-let idbReady = false;
-
-function openDB(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = () => {
-            if (!req.result.objectStoreNames.contains(STORE_NAME)) {
-                req.result.createObjectStore(STORE_NAME, { keyPath: "hash" });
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
-}
-
-function dbPut(db: IDBDatabase, item: IgnoredItem): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        tx.objectStore(STORE_NAME).put(item);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
-}
-
-function dbDelete(db: IDBDatabase, hash: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        tx.objectStore(STORE_NAME).delete(hash);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
-}
-
-function dbClear(db: IDBDatabase): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        tx.objectStore(STORE_NAME).clear();
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
-}
-
-function dbGetAll(db: IDBDatabase): Promise<IgnoredItem[]> {
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, "readonly");
-        const req = tx.objectStore(STORE_NAME).getAll();
-        req.onsuccess = () => resolve(req.result ?? []);
-        req.onerror = () => reject(req.error);
-    });
-}
-
-// ── Synced persistence (localStorage hot path + IndexedDB async) ──
-
-let _db: IDBDatabase | null = null;
-
-export async function initIgnoreDB(): Promise<void> {
-    try {
-        _db = await openDB();
-        const dbItems = await dbGetAll(_db);
-        if (dbItems.length > 0) {
-            // IndexedDB has data — load it (includes base64 images)
-            ignoredItems = dbItems;
-            // Also sync to localStorage for fast future startups
-            localStorage.setItem(LS_KEYS.ignores, JSON.stringify(dbItems.map(({ base64, ...rest }) => rest)));
-        } else {
-            // Check localStorage for migration
-            const raw = localStorage.getItem(LS_KEYS.ignores);
-            if (raw) {
-                const lsItems: IgnoredItem[] = JSON.parse(raw);
-                if (lsItems.length > 0) {
-                    // Migrate: write each to IndexedDB
-                    for (const item of lsItems) await dbPut(_db, item);
-                    log(`Migrated ${lsItems.length} ignores from localStorage to IndexedDB.`);
-                    // Reload from IndexedDB to get the freshly persisted data
-                    ignoredItems = await dbGetAll(_db);
-                }
-            }
-        }
-        idbReady = true;
-        log(`Ignore DB ready: ${ignoredItems.length} item(s)`);
-    } catch (e) {
-        log(`IndexedDB init error (falling back to localStorage): ${e}`);
-        idbReady = false;
-    }
-}
-
-function loadIgnoredItems(): void {
-    try {
-        const raw = localStorage.getItem(LS_KEYS.ignores);
-        ignoredItems = raw ? JSON.parse(raw) : [];
-    } catch {
-        ignoredItems = [];
-    }
-}
-
-function dbSaveAll(): Promise<void> {
-    return new Promise((resolve, reject) => {
-        if (!idbReady || !_db) { resolve(); return; }
-        const tx = _db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-        store.clear();
-        for (const item of ignoredItems) store.put(item);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
-}
-
-function saveIgnoredItems(): void {
-    // Always save meta to localStorage (sync — ensures hot path works on next startup)
-    localStorage.setItem(LS_KEYS.ignores, JSON.stringify(ignoredItems.map(({ base64, ...rest }) => rest)));
-    // Also save to IndexedDB if ready (async — includes base64 images)
-    dbSaveAll().catch(() => {});
-}
-
-
-
-
-export function getIgnoredItems(): IgnoredItem[] {
-    return ignoredItems.slice();
-}
-
-export function removeIgnoredItem(hash: string): void {
-    ignoredItems = ignoredItems.filter(i => i.hash !== hash);
-    saveIgnoredItems();
-}
-
-export function clearIgnoredItems(): void {
-    ignoredItems = [];
-    localStorage.removeItem(LS_KEYS.ignores);
-    if (idbReady && _db) dbClear(_db).catch(() => {});
 }

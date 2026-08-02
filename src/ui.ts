@@ -2,7 +2,7 @@
 import { inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, showNotification, log, captureFullRs } from "./core";
-import { getUnlockedCount, getUnlockedItemData, getIgnoredItems, clearIgnoredItems, removeIgnoredItem, resetUnlocks as dataResetUnlocks } from "./data";
+import { getUnlockedCount, getUnlockedItemData, resetUnlocks as dataResetUnlocks } from "./data";
 import { showModal } from "./modal";
 import { getObscuredSlotIndices, isNotedItem, isInUseState } from "./slot-scan";
 import type { DisambiguationOption } from "./wiki";
@@ -78,29 +78,6 @@ export function updateUI(): void {
                     <div class="unlocked-label">${escHtml(d.name)}</div>
                 </div>`
             ).join("");
-        }
-    }
-
-    // Render recent ignores (last 3)
-    const riList = document.getElementById("recent_ignores_list");
-    if (riList) {
-        const items = getIgnoredItems();
-        if (items.length === 0) {
-            riList.innerHTML = '<div style="color:#555;text-align:center;padding:4px;">No items ignored yet.</div>';
-        } else {
-            const last3 = items.slice(-3).reverse();
-            riList.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:4px;">` +
-                last3.map(i =>
-                    `<div class="pickup-card ignore-card" style="cursor:pointer;"
-                        onclick="Bronzeman.removeIgnore('${i.hash}')"
-                        onmouseenter="Bronzeman.showIgnoreTooltip('${escHtml(i.name ?? "")}')"
-                        onmouseleave="Bronzeman.hideIgnoreTooltip()"
-                        onmousemove="Bronzeman.moveIgnoreTooltip(event)">
-                        <div class="pickup-img-wrap">
-                            ${i.base64 ? `<img src="${i.base64}" alt="${escHtml(i.name ?? "")}">` : `<div style="width:36px;height:32px;"></div>`}
-                        </div>
-                    </div>`
-                ).join("") + `</div>`;
         }
     }
 
@@ -211,65 +188,11 @@ function renderSlotDebug(): void {
     });
 }
 
-// ============================================================
-// Ignore list action handlers (called from HTML onclick)
-// ============================================================
-
 export function resetUnlocks(): void {
     showModal("Delete all unlocked items?", "DANGER", () => {
         dataResetUnlocks();
         updateUI();
     });
-}
-
-export function resetIgnores(): void {
-    showModal("Delete all ignored items?", "DANGER", () => {
-        clearIgnoredItems();
-        showNotification("All ignored items cleared", 2000, "success");
-        updateUI();
-    });
-}
-
-export function removeIgnore(hash: string): void {
-    hideIgnoreTooltip();
-    removeIgnoredItem(hash);
-    updateUI();
-}
-
-// ============================================================
-// Ignore list tooltip
-// ============================================================
-
-export function showIgnoreTooltip(name: string): void {
-    const el = document.getElementById("ignore_tooltip");
-    if (el) { el.textContent = name; el.style.display = "block"; }
-}
-
-export function hideIgnoreTooltip(): void {
-    const el = document.getElementById("ignore_tooltip");
-    if (el) el.style.display = "none";
-}
-
-export function moveIgnoreTooltip(e: MouseEvent): void {
-    const el = document.getElementById("ignore_tooltip");
-    if (!el) return;
-    const gap = 12;
-    const yOffset = 10;
-    let left = e.clientX + gap;
-    let top_ = e.clientY + gap + yOffset;
-    el.style.left = left + "px";
-    el.style.top = top_ + "px";
-    const r = el.getBoundingClientRect();
-    if (r.left + r.width > window.innerWidth) {
-        left = e.clientX - gap - r.width;
-    }
-    if (r.top + r.height > window.innerHeight) {
-        top_ = e.clientY - gap + yOffset - r.height;
-    }
-    left = Math.max(4, Math.min(left, window.innerWidth - r.width - 4));
-    top_ = Math.max(4, Math.min(top_, window.innerHeight - r.height - 4));
-    el.style.left = left + "px";
-    el.style.top = top_ + "px";
 }
 
 // ============================================================
