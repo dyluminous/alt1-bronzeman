@@ -3,7 +3,7 @@ import { inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, showNotification, log, captureFullRs } from "./core";
 import { getUnlockedCount, getUnlockedItemData, resetUnlocks as dataResetUnlocks } from "./data";
-import { getItemRecord, hashToPngDataUrl } from "./data";
+import { hashToPngDataUrl } from "./data";
 import { showModal } from "./modal";
 import { getObscuredSlotIndices, isNotedItem, isInUseState } from "./slot-scan";
 import type { DisambiguationOption } from "./wiki";
@@ -247,24 +247,45 @@ export function closeDisambiguation(): void {
 // Item hash PNGs pane — debug: show each recorded hash as an image
 // ============================================================
 
-/** Open the pane showing every hash of the (currently hardcoded) item as a
- *  brightness-grid PNG. */
-export async function openItemPngs(): Promise<void> {
+/** Open the pane showing EVERY slot's current interior hash as a brightness-grid
+ *  PNG (empty/unscanned slots render as a blank tile). Slots whose hash is
+ *  shared by another slot get a green border, so visually-identical items are
+ *  easy to spot. */
+export function openItemPngs(): void {
     const pane = document.getElementById("item_pngs_pane");
     const body = document.getElementById("item_pngs_body");
     if (!pane || !body) return;
-    const rec = await getItemRecord("tradable", "Airut bones");
-    if (!rec) {
-        body.innerHTML = '<div class="wiki-disambig-note">No record for "Airut bones" in unlocks_tradable.</div>';
+    if (inventory.slots.length === 0) {
+        body.innerHTML = '<div class="wiki-disambig-note">Inventory not calibrated.</div>';
     } else {
-        body.innerHTML = `<div class="wiki-disambig-msg">"${escHtml(rec.name)}" — ${rec.hashes.length} hash(es). Hover a grid for its hash.</div>` +
+        // Count hash occurrences — a hash seen on 2+ slots gets flagged.
+        const counts = new Map<string, number>();
+        for (const s of inventory.slots) {
+            if (s.previousHash && s.previousHash !== "empty") {
+                counts.set(s.previousHash, (counts.get(s.previousHash) ?? 0) + 1);
+            }
+        }
+        const GREEN = "#1CE401";
+        body.innerHTML =
+            `<div class="wiki-disambig-msg">${inventory.slots.length} slot(s). Green border = identical hash on multiple slots.</div>` +
             `<div style="display:flex;flex-wrap:wrap;gap:8px;">` +
-            rec.hashes.map((h, i) => {
+            inventory.slots.map(s => {
+                const h = s.previousHash;
+                const hasHash = !!h && h !== "empty";
+                if (!hasHash) {
+                    // Empty / not-yet-scanned / noted slot — blank placeholder.
+                    return `<div style="text-align:center;border:1px solid #444;padding:2px;background:#1a1a1a;">` +
+                        `<div style="width:80px;height:80px;display:block;"></div>` +
+                        `<div class="wiki-disambig-note">#${s.index} —</div>` +
+                        `</div>`;
+                }
+                const dup = (counts.get(h) ?? 0) > 1;
                 const url = hashToPngDataUrl(h, 10);
-                return `<div style="text-align:center;">
-                    <img src="${url}" title="${escHtml(h)}" style="image-rendering:pixelated;border:1px solid #888;width:80px;height:80px;display:block;">
-                    <div class="wiki-disambig-note">[${i}]</div>
-                </div>`;
+                const border = dup ? `2px solid ${GREEN}` : "1px solid #888";
+                return `<div style="text-align:center;border:${border};padding:2px;">` +
+                    `<img src="${url}" title="${escHtml(h)}" style="image-rendering:pixelated;width:80px;height:80px;display:block;">` +
+                    `<div class="wiki-disambig-note">#${s.index}${dup ? " ⚠ dup" : ""}</div>` +
+                    `</div>`;
             }).join("") + `</div>`;
     }
     pane.style.display = "flex";
