@@ -4,12 +4,15 @@
 // not be under or adjacent to the cursor. Clean slots are hashed and compared
 // against the slot's previousHash to detect appeared / removed / changed / moved.
 import * as a1lib from "alt1";
+import * as OCR from "alt1/ocr";
 import { inventory } from "./inventory";
 import { captureFullRs, log, lightness } from "./core";
 import type { ImgRef } from "alt1/base";
 import { InventorySlot } from "./inventory-slot";
 import { isHashUnlocked, isLowerHalfUnlocked } from "./data";
 import { hashInterior, LOWER_HALF_OFFSET } from "./hash";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const stackableFont = require("alt1/fonts/pixel_8px_digits");
 
 const SCAN_MS = 500;
 /** Sentinel previousHash for an empty slot. */
@@ -319,3 +322,41 @@ export const dumpSlotHash = (index: number): void => slotScanner.dumpSlotHash(in
 export const debugCorners = (index: number): void => slotScanner.debugCorners(index);
 export const startSlotScan = (): void => slotScanner.start();
 export const stopSlotScan = (): void => slotScanner.stop();
+
+// ============================================================
+// Stackable quantity OCR test — debug
+// ============================================================
+// Interior-relative bounds of the yellow quantity digits: (3,1)–(35,8)
+
+const STACK_DIGIT_X = 0;
+const STACK_DIGIT_Y = 0;
+const STACK_DIGIT_W = InventorySlot.INTERIOR_W; // 36
+const STACK_DIGIT_H = 9;
+
+export function ocrStackableDebug(): void {
+    const img = captureFullRs();
+    if (!img) { log("ocrStackableDebug: no capture"); return; }
+    const slot = inventory.slots[27];
+    if (!slot) { log("ocrStackableDebug: slot 27 not available"); return; }
+
+    const sx = slot.interiorX + STACK_DIGIT_X;
+    const sy = slot.interiorY + STACK_DIGIT_Y;
+    log(`ocrStackableDebug: digit region screen=(${sx},${sy}) ${STACK_DIGIT_W}×${STACK_DIGIT_H}`);
+
+    // Full RS buffer + absolute coords — the pattern that worked on first attempt.
+    const fullBuf = img.toData();
+    const result = OCR.findReadLine(
+        fullBuf, stackableFont, [[255, 255, 0]],
+        sx, sy, STACK_DIGIT_W, STACK_DIGIT_H,
+    );
+    log(`ocrStackableDebug slot 27: text="${result?.text ?? ""}"`);
+
+    // Debug canvas: show the raw pixels at that region
+    const d = img.toData(sx, sy, STACK_DIGIT_W, STACK_DIGIT_H);
+    const canvas = document.getElementById("ocr_debug_canvas") as HTMLCanvasElement | null;
+    if (canvas && d) {
+        canvas.style.display = "block";
+        const ctx = canvas.getContext("2d");
+        if (ctx) ctx.putImageData(d, 0, 0);
+    }
+}
