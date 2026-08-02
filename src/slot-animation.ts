@@ -51,7 +51,7 @@ export interface SlotAnimationOptions {
 }
 
 /** A comet-ring animation around one inventory slot's border. */
-export class SlotBorderAnimation {
+export class SlotLoadingAnimation {
     private static readonly GROUP = "bronzeman_slotanim";
     private static readonly GOLD = a1lib.mixColor(212, 168, 75); // --rs-gold (#D4A84B)
 
@@ -80,7 +80,7 @@ export class SlotBorderAnimation {
     /** Start the animation. */
     start(): void {
         if (this.timer) return;
-        alt1.overLaySetGroup(SlotBorderAnimation.GROUP);
+        alt1.overLaySetGroup(SlotLoadingAnimation.GROUP);
         this.startTime = Date.now();
         this.lastPos = 0;
         this.tick();
@@ -97,7 +97,7 @@ export class SlotBorderAnimation {
      *  Tiling [prev, cur) keeps each trail contiguous — rounding the endpoints can't
      *  leave 1px gaps the way rounding a fixed 3px step per frame can. */
     private tick(): void {
-        alt1.overLaySetGroup(SlotBorderAnimation.GROUP); // immune to other code switching the active group
+        alt1.overLaySetGroup(SlotLoadingAnimation.GROUP); // immune to other code switching the active group
         const pos = (Date.now() - this.startTime) / this.cycleMs * PERIMETER;
         this.drawComet(this.lastPos, pos);
         if (this.secondCometOffset != null) {
@@ -113,6 +113,6 @@ export class SlotBorderAnimation {
         const start = norm(from);
         const end = norm(to);
         const len = (end - start + PERIMETER) % PERIMETER;
-        if (len > 0) drawBorderSegment(this.slot, start, len, this.tailMs, SlotBorderAnimation.GOLD);
+        if (len > 0) drawBorderSegment(this.slot, start, len, this.tailMs, SlotLoadingAnimation.GOLD);
     }
 }

@@ -6,9 +6,10 @@ import { Inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
 import { state, captureFullRs, log, showNotification } from "./core";
 import { getAnchorWatchPoints } from "./anchor-watch";
-import { SlotBorderAnimation } from "./slot-animation";
+import { SlotLoadingAnimation } from "./slot-animation";
 import goldDot from "./assets/images/gold_dot.png";
-import { TooltipScanner } from "./tooltip-read";
+import { TooltipScanner, readTooltipItemName } from "./tooltip-read";
+import { fetchItemTradeable } from "./wiki";
 import { getNonUnlockedSlotIndices } from "./slot-scan";
 
 // ============================================================
@@ -252,7 +253,7 @@ function stopSlotDot(): void {
     } catch { /* group already gone — nothing to clear */ }
 }
 
-let slotAnimation: SlotBorderAnimation | null = null;
+let slotAnimation: SlotLoadingAnimation | null = null;
 
 /** Start/stop the loading-ring animation on slot 27's border, driven by the
  *  "Show slot animation" debug checkbox. */
@@ -272,7 +273,7 @@ export function toggleSlotAnimation(): void {
             return;
         }
         startSlotDot(slot);
-        slotAnimation ??= new SlotBorderAnimation(slot);
+        slotAnimation ??= new SlotLoadingAnimation(slot);
         slotAnimation.start();
         log(`Show slot animation: gold loading ring on slot 27 border from TL (${slot.tl.x},${slot.tl.y})`);
     } else {
@@ -290,6 +291,13 @@ const NON_UNLOCKED_DOT_GROUP = "bronzeman_nonunlock";
 let nonUnlockedDotTimer: ReturnType<typeof setInterval> | null = null;
 let nonUnlockedDotEncoded: string | null = null;
 
+/** Hover‑to‑animation: which slot's gold dot is being hovered, since when. */
+let hoveredDotSlot: number | null = null;
+let hoverAnimation: SlotLoadingAnimation | null = null;
+/** True once the hover's item-name + wiki query have resolved — prevents the
+ *  flow restarting while the mouse stays on the dot. Reset when the mouse leaves. */
+let hoverResolved = false;
+
 function drawNonUnlockedDots(): void {
     if (!state.inAlt1 || !inventory.isCalibrated || !nonUnlockedDotEncoded) return;
     const indices = getNonUnlockedSlotIndices();
@@ -300,6 +308,56 @@ function drawNonUnlockedDots(): void {
         if (!slot) return;
         alt1.overLayImage(slot.x + SLOT_DOT_X, slot.y + SLOT_DOT_Y, nonUnlockedDotEncoded, SLOT_DOT_W, SLOT_DOT_DURATION_MS);
     });
+
+    // Hover detection: if the mouse is over a gold dot for ≥300ms, start the
+    // slot loading animation on that slot. Stop when the mouse leaves.
+    const mouse = a1lib.getMousePosition();
+    let overIdx: number | null = null;
+    if (mouse) {
+        indices.forEach(idx => {
+            if (overIdx !== null) return; // already found
+            const s = inventory.getSlot(idx);
+            if (!s) return;
+            const dx = s.x + SLOT_DOT_X, dy = s.y + SLOT_DOT_Y;
+            if (mouse.x >= dx && mouse.x < dx + SLOT_DOT_W && mouse.y >= dy && mouse.y < dy + SLOT_DOT_W) {
+                overIdx = idx;
+            }
+        });
+    }
+    if (overIdx !== hoveredDotSlot) {
+        hoveredDotSlot = overIdx;
+        hoverResolved = false;
+        if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
+    }
+    if (hoveredDotSlot !== null && hoverAnimation === null && !hoverResolved) {
+        // Read the item name from the tooltip before starting the animation.
+        const itemName = readTooltipItemName();
+        if (itemName) {
+            log(`Hovered item: "${itemName}" (slot ${hoveredDotSlot})`);
+            const slot = inventory.getSlot(hoveredDotSlot);
+            if (slot) {
+                hoverAnimation = new SlotLoadingAnimation(slot);
+                hoverAnimation.start();
+                // Query the wiki for |tradeable = ... — the animation runs while
+                // the query is in flight, then stops on success or failure.
+                void fetchItemTradeable(itemName).then(result => {
+                    if (result.ok) {
+                        log(`Wiki: "${itemName}" tradeable = ${result.tradeable}`);
+                    } else if (result.status !== undefined) {
+                        showNotification(`Failed to query item via Wiki API (${result.status})`, 3000, "danger");
+                    } else {
+                        showNotification("Failed to query item via Wiki API (no tradeable data)", 3000, "danger");
+                    }
+                    if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
+                    hoverResolved = true;
+                });
+            }
+        } else {
+            showNotification("Failed to read item name", 3000, "danger");
+            hoveredDotSlot = null;
+            hoverResolved = false;
+        }
+    }
 }
 
 export function startNonUnlockedDotRefresh(): void {
@@ -314,6 +372,9 @@ export function startNonUnlockedDotRefresh(): void {
 export function stopNonUnlockedDotRefresh(): void {
     if (nonUnlockedDotTimer) { clearInterval(nonUnlockedDotTimer); nonUnlockedDotTimer = null; }
     nonUnlockedDotEncoded = null;
+    hoveredDotSlot = null;
+    hoverResolved = false;
+    if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
     try {
         alt1.overLaySetGroup(NON_UNLOCKED_DOT_GROUP);
         alt1.overLayClearGroup(NON_UNLOCKED_DOT_GROUP);
