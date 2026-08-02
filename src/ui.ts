@@ -3,7 +3,7 @@ import { inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, showNotification, captureFullRs } from "./core";
 import { resetUnlocks as dataResetUnlocks } from "./data";
-import { getItemRecord, hashToPngDataUrl } from "./data";
+import { hashToPngDataUrl } from "./data";
 import { showModal } from "./modal";
 import { getObscuredSlotIndices } from "./slot-scan";
 import type { DisambiguationOption } from "./wiki";
@@ -234,39 +234,15 @@ export function closeDisambiguation(): void {
 // Item hash PNGs pane — debug: show each recorded hash as an image
 // ============================================================
 
-/** Open the item-hash PNG pane. With a name: shows every recorded hash of that
- *  item from the unlock DB. Without: shows every slot's current interior hash
+/** Open the item-hash PNG pane showing every slot's current interior hash
  *  (empty/unscanned slots render as a blank tile; identical hashes get a green
  *  border). */
-export function openItemPngs(name?: string): void {
+export function openItemPngs(): void {
     const pane = document.getElementById("item_pngs_pane");
     const body = document.getElementById("item_pngs_body");
     if (!pane || !body) return;
-    if (name) {
-        void renderRecordPngs(body, name);
-    } else {
-        renderInventoryPngs(body);
-    }
+    renderInventoryPngs(body);
     pane.style.display = "flex";
-}
-
-/** Fill the pane with a single DB record's hashes as colour-grid PNGs. */
-async function renderRecordPngs(body: HTMLElement, name: string): Promise<void> {
-    const rec = await getItemRecord("tradable", name);
-    if (!rec) {
-        body.innerHTML = `<div class="wiki-disambig-note">No record for "${escHtml(name)}" in unlocks_tradable.</div>`;
-        return;
-    }
-    body.innerHTML =
-        `<div class="wiki-disambig-msg">"${escHtml(rec.name)}" — ${rec.hashes.length} hash(es). Hover a grid for its hash.</div>` +
-        `<div style="display:flex;flex-wrap:wrap;gap:8px;">` +
-        rec.hashes.map((h, i) => {
-            const url = hashToPngDataUrl(h, 10);
-            return `<div style="text-align:center;border:1px solid #888;padding:2px;">` +
-                `<img src="${url}" title="${escHtml(h)}" style="image-rendering:pixelated;width:80px;height:80px;display:block;">` +
-                `<div class="wiki-disambig-note">[${i}]</div>` +
-                `</div>`;
-        }).join("") + `</div>`;
 }
 
 /** Fill the pane with every slot's current interior hash. */
