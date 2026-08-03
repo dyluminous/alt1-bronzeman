@@ -341,29 +341,36 @@ export function ocrStackableDebug(): void {
 
     const sx = slot.interiorX + STACK_DIGIT_X;
     const sy = slot.interiorY + STACK_DIGIT_Y;
-    log(`ocrStackableDebug: digit region screen=(${sx},${sy}) ${STACK_DIGIT_W}×${STACK_DIGIT_H}`);
+    const color = slot.stackDigitColor(img);
+    if (!color) { log(`ocrStackableDebug: no digit color at slot 27`); return; }
+    log(`ocrStackableDebug: digit region screen=(${sx},${sy}) ${STACK_DIGIT_W}×${STACK_DIGIT_H} color=#${[color[0], color[1], color[2]].map(c => c.toString(16).padStart(2, "0")).join("")}`);
 
     // Full RS buffer + absolute coords — the pattern that worked on first attempt.
     const fullBuf = img.toData();
     const result = OCR.findReadLine(
-        fullBuf, stackableFont, [[255, 255, 0]],
+        fullBuf, stackableFont, [[color[0], color[1], color[2]]],
         sx, sy, STACK_DIGIT_W, STACK_DIGIT_H,
     );
     log(`ocrStackableDebug slot 27: text="${result?.text ?? ""}"`);
 }
 
-/** OCR the stackable quantity from a slot's digit region. Returns the number
- *  string (e.g. "99999") or empty string on failure. */
-export function readStackableQuantity(slotIndex: number): string {
+/** OCR the stackable quantity from a slot's digit region. Returns the scaled
+ *  number (e.g. 105000 for a white "105K" display) or null on failure. Uses
+ *  the tier color detected at the slot's digit pixels as the OCR filter. */
+export function readStackableQuantity(slotIndex: number): number | null {
     const img = captureFullRs();
-    if (!img) return "";
+    if (!img) return null;
     const slot = inventory.slots[slotIndex];
-    if (!slot) return "";
+    if (!slot) return null;
+    const color = slot.stackDigitColor(img);
+    if (!color) return null;
     const sx = slot.interiorX + STACK_DIGIT_X;
     const sy = slot.interiorY + STACK_DIGIT_Y;
     const result = OCR.findReadLine(
-        img.toData(), stackableFont, [[255, 255, 0]],
+        img.toData(), stackableFont, [[color[0], color[1], color[2]]],
         sx, sy, STACK_DIGIT_W, STACK_DIGIT_H,
     );
-    return result?.text ?? "";
+    const digits = parseInt(result?.text ?? "", 10);
+    if (isNaN(digits)) return null;
+    return digits * InventorySlot.stackDigitMultiplier(color);
 }

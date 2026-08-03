@@ -143,11 +143,8 @@ class UnlockHoverFlow {
         const slotHash = slot && slot.previousHash && slot.previousHash !== "empty" ? slot.previousHash : null;
         let stackQty: number | null = null;
         if (slot?.isStackable) {
-            const qty = readStackableQuantity(slotIndex);
-            if (qty) {
-                const n = parseInt(qty, 10);
-                if (!isNaN(n)) { stackQty = n; log(`Stackable quantity slot ${slotIndex}: ${n}`); }
-            }
+            const n = readStackableQuantity(slotIndex);
+            if (n !== null) { stackQty = n; log(`Stackable quantity slot ${slotIndex}: ${n}`); }
         }
         const itemName = readTooltipItemName();
         if (!itemName) {

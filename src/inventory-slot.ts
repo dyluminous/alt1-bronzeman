@@ -33,10 +33,31 @@ export class InventorySlot {
     private static readonly NOTED_MARK_Y = 1;
     private static readonly NOTED_SHADOW_X = 13;
 
-    /** The two guaranteed-yellow quantity-digit pixels, INTERIOR-relative (the
+    /** The two guaranteed quantity-digit pixels, INTERIOR-relative (the
      *  stellar captures are interior-only, 36×32). Every stack-count digit 1–9
-     *  renders #ffff00 at (4,1) or (3,3). */
+     *  renders at (4,1) or (3,3). */
     private static readonly STACKABLE_PIXELS: readonly (readonly [number, number])[] = [[4, 1], [3, 3]];
+
+    /** Stack-quantity digit colors, by magnitude:
+     *  ≤99999 → yellow #ffff00; ≥100k → white #ffffff (xxxK);
+     *  ≥1M → green #00ff00 (xxxM); ≥1B → blue #6698ff (xxxB). */
+    static readonly STACK_DIGIT_COLORS: readonly (readonly [number, number, number])[] = [
+        [0xff, 0xff, 0x00],
+        [0xff, 0xff, 0xff],
+        [0x00, 0xff, 0x00],
+        [0x66, 0x98, 0xff],
+    ];
+
+    /** Magnitude multiplier per STACK_DIGIT_COLORS entry. The screen shows
+     *  truncated text ("105K" for 105000); OCR only reads the digits, so the
+     *  color tier tells us how much to scale them. */
+    static readonly STACK_DIGIT_MULTIPLIERS: readonly number[] = [1, 1000, 1e6, 1e9];
+
+    /** Returns the magnitude multiplier for a detected digit color. */
+    static stackDigitMultiplier(color: readonly [number, number, number]): number {
+        const i = InventorySlot.STACK_DIGIT_COLORS.findIndex(c => c[0] === color[0] && c[1] === color[1] && c[2] === color[2]);
+        return i >= 0 ? InventorySlot.STACK_DIGIT_MULTIPLIERS[i] : 1;
+    }
 
     readonly index: number;
     readonly col: number;
@@ -110,13 +131,23 @@ export class InventorySlot {
 
     /** True when this slot shows a stack-quantity digit — the item is
      *  stackable. Any stack-count digit (1–9 verified) hits at least one of
-     *  the two guaranteed-yellow pixels. */
+     *  the two guaranteed pixels, in any of the tier colors. */
     isStackableItem(img: ImgRef): boolean {
+        return this.stackDigitColor(img) !== null;
+    }
+
+    /** Returns the digit color at the guaranteed stack-quantity pixels
+     *  (interior-relative), or null when the slot shows no quantity digits.
+     *  Callers use the returned color to drive the OCR filter. */
+    stackDigitColor(img: ImgRef): readonly [number, number, number] | null {
         for (const [dx, dy] of InventorySlot.STACKABLE_PIXELS) {
             const c = readPixel(img, this.interiorX + dx, this.interiorY + dy);
-            if (c && c[0] === 0xff && c[1] === 0xff && c[2] === 0x00) return true;
+            if (!c) continue;
+            for (const col of InventorySlot.STACK_DIGIT_COLORS) {
+                if (c[0] === col[0] && c[1] === col[1] && c[2] === col[2]) return col;
+            }
         }
-        return false;
+        return null;
     }
 
     /** True when the item is in "Use" state — the white outline replaces the
