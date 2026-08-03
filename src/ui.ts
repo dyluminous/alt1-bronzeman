@@ -316,13 +316,46 @@ function renderRecentUnlocks(): void {
         grid.innerHTML = "";
         return;
     }
-    grid.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;">` +
+    grid.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:flex-start;">` +
         recent.map(entry => {
             const img = entry.imageUrl
                 ? `<img src="${escHtml(entry.imageUrl)}" style="max-width:36px;max-height:32px;image-rendering:pixelated;display:block;" alt="">`
                 : ``;
-            return `<div class="recent-unlock-cell">
+            return `<div class="recent-unlock-cell" data-name="${escHtml(entry.displayLabel)}">
                 ${img}
             </div>`;
         }).join("") + `</div>`;
+
+    // Hover: gold glow + mouse-following name tooltip.
+    const cells = Array.from(grid.querySelectorAll<HTMLElement>(".recent-unlock-cell"));
+    for (const cell of cells) {
+        cell.addEventListener("mouseenter", () => showRecentUnlockTooltip(cell.dataset.name ?? ""));
+        cell.addEventListener("mouseleave", hideRecentUnlockTooltip);
+    }
+}
+
+let tooltipEl: HTMLElement | null = null;
+let tooltipText = "";
+
+function showRecentUnlockTooltip(name: string): void {
+    if (!tooltipEl) tooltipEl = document.getElementById("recent_unlock_tooltip");
+    if (!tooltipEl) return;
+    tooltipText = name;
+    tooltipEl.textContent = name;
+    tooltipEl.classList.add("recent-unlock-tooltip");
+    tooltipEl.style.display = "block";
+    document.addEventListener("mousemove", moveRecentUnlockTooltip);
+    moveRecentUnlockTooltip({ clientX: 0, clientY: 0 } as MouseEvent); // position at cursor on next move
+}
+
+function hideRecentUnlockTooltip(): void {
+    if (tooltipEl) tooltipEl.style.display = "none";
+    document.removeEventListener("mousemove", moveRecentUnlockTooltip);
+}
+
+function moveRecentUnlockTooltip(e: MouseEvent): void {
+    if (!tooltipEl || tooltipEl.style.display === "none") return;
+    const pad = 10;
+    tooltipEl.style.left = `${e.clientX + pad}px`;
+    tooltipEl.style.top = `${e.clientY + pad}px`;
 }
