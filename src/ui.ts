@@ -1,14 +1,17 @@
 // ui.ts — DOM rendering and UI action handlers for Bronzeman Mode
 import { inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
-import { state, escHtml, captureFullRs, LS_KEYS } from "./core";
-import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount, getSearchIndex } from "./data";
+import { state, escHtml, captureFullRs, LS_KEYS, log, showNotification } from "./core";
+import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount, getSearchIndex, addUnlockedItem, isHashUnlocked } from "./data";
 import { hashToPngDataUrl } from "./data";
-import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks } from "./recent-unlocks";
+import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks, recordUnlock, resolveImageUrl } from "./recent-unlocks";
 import { showModal } from "./modal";
-import { getObscuredSlotIndices } from "./slot-scan";
-import type { DisambiguationOption } from "./wiki";
+import { getObscuredSlotIndices, readStackableQuantity } from "./slot-scan";
+import type { DisambiguationOption, WikiQueryResult } from "./wiki";
+import { fetchItemTradeable, pickImageForQuantity } from "./wiki";
 import type { SearchEntry } from "./data";
+import { SlotLoadingAnimation } from "./slot-animation";
+import { readTooltipItemName } from "./tooltip-read";
 import { BUILD_NUM } from "./version";
 
 // ============================================================
@@ -246,6 +249,167 @@ export function updateUI(): void {
     if (autoCaptureCb) autoCaptureCb.checked = state.autocapture;
 
     updateAnchorDot();
+}
+
+// ============================================================
+// Manual item unlock — user picks a slot, hovers to OCR the
+// tooltip, wiki query, and add to unlock DB.
+// ============================================================
+
+/** Active manual-unlock state; null when idle. */
+let manualUnlockState: {
+    targetIndex: number;
+    animation: SlotLoadingAnimation;
+    timer: ReturnType<typeof setInterval>;
+    abort: () => void;
+} | null = null;
+
+export function manualUnlock(): void {
+    // If already running, cancel and return.
+    if (manualUnlockState) {
+        manualUnlockState.abort();
+        return;
+    }
+
+    if (!inventory.isCalibrated) {
+        showNotification("Inventory not calibrated — capture it first", 3000, "danger");
+        return;
+    }
+
+    const input = document.getElementById("manual_unlock_slot") as HTMLInputElement | null;
+    const userSlot = parseInt(input?.value ?? "1", 10);
+    const targetIndex = Math.min(27, Math.max(0, userSlot - 1));
+    const slot = inventory.getSlot(targetIndex);
+    if (!slot) {
+        showNotification(`Slot ${userSlot} is out of range for the current grid`, 3000, "danger");
+        return;
+    }
+
+    const anim = new SlotLoadingAnimation(slot);
+    anim.start();
+
+    // Update button to show "Cancel"
+    const btn = document.getElementById("manual_unlock_btn");
+    if (btn) btn.textContent = "Cancel";
+
+    const POLL_MS = 200;
+    const TIMEOUT_MS = 30_000;
+    let elapsed = 0;
+    let resolved = false;
+
+    const cleanup = (): void => {
+        // Restore button label
+        const btn = document.getElementById("manual_unlock_btn");
+        if (btn) btn.textContent = "Unlock";
+        if (!manualUnlockState) return;
+        clearInterval(manualUnlockState.timer);
+        manualUnlockState.animation.stop();
+        manualUnlockState = null;
+        closeDisambiguation();
+    };
+
+    const abort = (): void => { resolved = true; cleanup(); };
+
+    const tick = (): void => {
+        elapsed += POLL_MS;
+        if (elapsed > TIMEOUT_MS) {
+            cleanup();
+            showNotification("Timed out waiting for tooltip", 3000, "danger");
+            return;
+        }
+
+        // Check if mouse is over the target slot.
+        const hoveredIndex = inventory.getHoveredSlotIndex();
+        if (hoveredIndex !== targetIndex) return;
+
+        // Mouse is over the slot — stop the animation to avoid frame-skip
+        // during the synchronous full-RS capture inside readTooltipItemName().
+        anim.stop();
+        const itemName = readTooltipItemName();
+        if (!itemName) {
+            anim.start();
+            return;
+        }
+
+        // Got a name — lock in so we don't fire twice.
+        if (resolved) return;
+        resolved = true;
+
+        log(`Manual unlock: "${itemName}" (slot ${targetIndex})`);
+
+        // Stackable quantity
+        let stackQty: number | null = null;
+        if (slot.isStackable) {
+            const n = readStackableQuantity(targetIndex);
+            if (n !== null) stackQty = n;
+        }
+
+        // Internal hash for storage
+        const slotHash = slot.previousHash && slot.previousHash !== "empty" ? slot.previousHash : null;
+
+        void fetchItemTradeable(itemName).then(result => {
+            handleManualWikiResult(result, itemName, slotHash, targetIndex, stackQty, anim, abort);
+        });
+    };
+
+    manualUnlockState = { targetIndex, animation: anim, timer: setInterval(tick, POLL_MS), abort };
+    log(`Manual unlock: waiting for hover on slot ${userSlot} (index ${targetIndex})...`);
+}
+
+/** Handle wiki response for manual unlock, mirroring dot-hover flow. */
+function handleManualWikiResult(
+    result: WikiQueryResult,
+    itemName: string,
+    slotHash: string | null,
+    slotIndex: number,
+    stackQty: number | null,
+    anim: SlotLoadingAnimation,
+    abort: () => void,
+): void {
+    if (result.ok && result.tradeable) {
+        let qtyToStore: number | null = null;
+        if (slotIndex >= 0 && stackQty) {
+            const slot = inventory.getSlot(slotIndex);
+            if (slot?.isStackable && result.images && result.images.length > 0) {
+                const picked = pickImageForQuantity(result.images, stackQty);
+                qtyToStore = picked?.count ?? null;
+            }
+        }
+        const queriedName = itemName;
+        log(`Manual unlock Wiki: "${queriedName}" tradeable = ${result.tradeable}`);
+        if (slotHash) {
+            addUnlockedItem(queriedName, result.tradeable.toLowerCase() === "yes", slotHash, qtyToStore, true);
+        }
+        void resolveImageUrl(queriedName, qtyToStore).then(({ url, displayLabel }) => {
+            recordUnlock(queriedName, url, displayLabel).catch(() => {});
+        });
+        // Notification is sent by addUnlockedItem internally — don't double-fire.
+        abort();
+    } else if (result.disambig && result.disambig.length > 0) {
+        if (result.disambig.length === 1) {
+            const name = result.disambig[0].name;
+            log(`Manual unlock disambig: only one "${name}", continuing`);
+            void fetchItemTradeable(name).then(r =>
+                handleManualWikiResult(r, name, slotHash, slotIndex, stackQty, anim, abort));
+            return;
+        }
+        showDisambiguation(result.disambig,
+            (name: string) => {
+                log(`Manual unlock disambig: selected "${name}"`);
+                void fetchItemTradeable(name).then(r =>
+                    handleManualWikiResult(r, name, slotHash, slotIndex, stackQty, anim, abort));
+            },
+            () => {
+                log("Manual unlock disambig: abandoned");
+                abort();
+            });
+    } else if (result.status !== undefined) {
+        showNotification(`Failed to query Wiki API (${result.status})`, 3000, "danger");
+        abort();
+    } else {
+        showNotification("Failed to query Wiki API (no tradeable data)", 3000, "danger");
+        abort();
+    }
 }
 
 // ============================================================

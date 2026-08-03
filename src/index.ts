@@ -75,6 +75,7 @@ export {
     openItemPngs, closeItemPngs,
     toggleDeveloperMode,
     toggleSearchHideUntradable, toggleSearchGroupSimilar,
+    manualUnlock,
 } from "./ui";
 
 // Recent unlocks setting
