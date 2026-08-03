@@ -232,10 +232,17 @@ class SlotScanner {
             // Stackable check runs for every slot (cheap, 2 px) — the digit is
             // visible regardless of the noted/use-state gates below.
             slot.isStackable = slot.isStackableItem(img);
-            // Noted and "Use"‑state items are ignored regardless of occlusion —
-            // the mouse is often over the slot when Use is clicked, so these
-            // checks must run before the obscured gate.
+            // Noted, dragged and "Use"‑state items are ignored regardless of
+            // occlusion — the mouse is often over the slot when Use is clicked
+            // or an item is dragged, so these checks must run before the
+            // obscured gate.
             if (slot.isNoted(img)) {
+                this.nonUnlockedSlots.delete(slot.index);
+                continue;
+            }
+            // Dragged items are also ignored — the mouse is over the slot
+            // while dragging, so this must run before the obscured gate.
+            if (slot.isDraggingItem(img)) {
                 this.nonUnlockedSlots.delete(slot.index);
                 continue;
             }

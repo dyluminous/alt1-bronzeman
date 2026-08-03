@@ -33,6 +33,14 @@ export class InventorySlot {
     private static readonly NOTED_MARK_Y = 1;
     private static readonly NOTED_SHADOW_X = 13;
 
+    /** Drag-indicator pixels (interior-relative, 36×32 interior): while the
+     *  player is dragging an item, #f0be79 renders at (33,0) and (33,31) — the
+     *  top and bottom of the right-edge indicator line. Both must match. */
+    private static readonly DRAG_MARK: [number, number, number] = [0xf0, 0xbe, 0x79];
+    private static readonly DRAG_MARK_X = 33;
+    private static readonly DRAG_MARK_TOP_Y = 0;
+    private static readonly DRAG_MARK_BOTTOM_Y = 31;
+
     /** The two guaranteed quantity-digit pixels, INTERIOR-relative (the
      *  stellar captures are interior-only, 36×32). Every stack-count digit 1–9
      *  renders at (4,1) or (3,3). */
@@ -127,6 +135,17 @@ export class InventorySlot {
         return !!mark && !!shadow
             && mark[0] === InventorySlot.NOTED_MARK[0] && mark[1] === InventorySlot.NOTED_MARK[1] && mark[2] === InventorySlot.NOTED_MARK[2]
             && shadow[0] === 0 && shadow[1] === 0 && shadow[2] === 2;
+    }
+
+    /** True when the player is dragging this slot's item — the #f0be79 drag
+     *  indicator pixels at (33,0) and (33,31), interior-relative, both match.
+     *  Ignored the same way noted items are. */
+    isDraggingItem(img: ImgRef): boolean {
+        const top = readPixel(img, this.interiorX + InventorySlot.DRAG_MARK_X, this.interiorY + InventorySlot.DRAG_MARK_TOP_Y);
+        const bottom = readPixel(img, this.interiorX + InventorySlot.DRAG_MARK_X, this.interiorY + InventorySlot.DRAG_MARK_BOTTOM_Y);
+        return !!top && !!bottom
+            && top[0] === InventorySlot.DRAG_MARK[0] && top[1] === InventorySlot.DRAG_MARK[1] && top[2] === InventorySlot.DRAG_MARK[2]
+            && bottom[0] === InventorySlot.DRAG_MARK[0] && bottom[1] === InventorySlot.DRAG_MARK[1] && bottom[2] === InventorySlot.DRAG_MARK[2];
     }
 
     /** True when this slot shows a stack-quantity digit — the item is
