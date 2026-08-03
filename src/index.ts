@@ -2,7 +2,7 @@
 // Bootstrap + Bronzeman namespace for HTML onclick handlers. All feature code
 // lives in domain modules: capture, overlay, ui, modal, data, inventory, core.
 import { state, log } from "./core";
-import { updateAlt1Status, updateUI, applyDeveloperMode } from "./ui";
+import { updateAlt1Status, updateUI, applyDeveloperMode, applySearchSettings } from "./ui";
 import { initUnlockDB } from "./data";
 import { initRecentUnlocks, setRecentUnlocksLimit, getRecentUnlocksLimit } from "./recent-unlocks";
 import { calibrateGrid } from "./capture";
@@ -11,7 +11,6 @@ import "./index.html";
 import "./appconfig.json";
 import "./icon.png";
 import "./style.css";
-import searchTabIcon from "./assets/images/search_tab_icon.png";
 
 // ============================================================
 // Init
@@ -23,11 +22,9 @@ function initOnLoad() {
     state.inAlt1 = typeof window.alt1 !== "undefined";
     log(`inAlt1=${state.inAlt1}`);
 
-    const searchIcon = document.getElementById("search-tab-icon");
-    if (searchIcon) searchIcon.setAttribute("src", searchTabIcon);
-
     updateAlt1Status();
     applyDeveloperMode();
+    applySearchSettings();
     initUnlockDB().then(() => { updateUI(); initRecentUnlocks().catch(() => {}); });
     syncRecentUnlocksSpinner();
 
@@ -76,6 +73,7 @@ export {
     showDisambiguation, selectDisambiguationOption, closeDisambiguation,
     openItemPngs, closeItemPngs,
     toggleDeveloperMode,
+    toggleSearchHideUntradable, toggleSearchGroupSimilar,
 } from "./ui";
 
 // Recent unlocks setting

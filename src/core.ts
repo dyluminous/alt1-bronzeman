@@ -44,6 +44,8 @@ function ensureAlt1(): boolean {
 export const LS_KEYS = {
     recentUnlocksCount: "Bronzeman/recentUnlocksCount", // user setting: how many recent unlocks to show
     developerMode: "Bronzeman/developerMode", // user setting: show the Developer tab + console logs (default off)
+    searchHideUntradable: "Bronzeman/searchHideUntradable", // search: hide untradable items (default off)
+    searchGroupSimilar: "Bronzeman/searchGroupSimilar", // search: group similar items (default off)
 } as const;
 
 // ============================================================

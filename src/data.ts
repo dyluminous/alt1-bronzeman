@@ -77,6 +77,28 @@ class UnlockStore {
         });
     }
 
+    /** Total number of unlock records across both stores. */
+    countAll(): Promise<number> {
+        return Promise.all([
+            this.count(STORE_TRADABLE),
+            this.count(STORE_UNTRADABLE),
+        ]).then(([a, b]) => a + b);
+    }
+
+    /** Number of tradable unlock records. */
+    countTradable(): Promise<number> {
+        return this.count(STORE_TRADABLE);
+    }
+
+    private count(storeName: string): Promise<number> {
+        return new Promise((resolve, reject) => {
+            const tx = this._db!.transaction(storeName, "readonly");
+            const req = tx.objectStore(storeName).count();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    }
+
     private getByKey(storeName: string, name: string): Promise<UnlockedItemRecord | undefined> {
         return new Promise((resolve, reject) => {
             const tx = this._db!.transaction(storeName, "readonly");
@@ -326,6 +348,8 @@ const unlockStore = new UnlockStore();
 export const initUnlockDB = (): Promise<void> => unlockStore.init();
 export const getRecentRecords = (limit = 8): Promise<UnlockedItemRecord[]> => unlockStore.getRecentRecords(limit);
 export const getItemRecord = (store: string, name: string): Promise<UnlockedItemRecord | undefined> => unlockStore.getRecord(store, name);
+export const getUnlockCount = (): Promise<number> => unlockStore.countAll();
+export const getTradableUnlockCount = (): Promise<number> => unlockStore.countTradable();
 export const addUnlockedItem = (name: string, tradeable: boolean, hash: string, stackableQuantity: number | null = null): void => unlockStore.add(name, tradeable, hash, stackableQuantity);
 export const isHashUnlocked = (hash: string): boolean => unlockStore.isHashUnlocked(hash);
 export const isLowerHalfUnlocked = (lowerHalf: string): boolean => unlockStore.isLowerHalfUnlocked(lowerHalf);
