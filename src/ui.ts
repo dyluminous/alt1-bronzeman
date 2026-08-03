@@ -364,7 +364,7 @@ function moveRecentUnlockTooltip(e: MouseEvent): void {
     // Prefer right/below the cursor; flip left or above when it would overflow.
     let left = e.clientX + pad;
     let top = e.clientY + pad;
-    if (left + w > vw - pad) left = e.clientX - w - pad;
+    if (left + w > vw - pad) left = e.clientX - w - pad + 9;
     if (top + h > vh - pad) top = e.clientY - h - pad;
     tooltipEl.style.left = `${Math.max(pad, left)}px`;
     tooltipEl.style.top = `${Math.max(pad, top)}px`;
