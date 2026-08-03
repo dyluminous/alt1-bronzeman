@@ -10,31 +10,36 @@ import { startAnchorWatch, stopAnchorWatch } from "./anchor-watch";
 import { startSlotScan, stopSlotScan, captureCornerRefs } from "./slot-scan";
 
 // ============================================================
-// Toggle auto-capture on/off — wired to the debug-menu checkbox.
-// Auto-capture defaults ON at boot; this is the only off switch.
+// Auto-capture on/off — wired to the debug-menu checkbox.
+// Auto-capture defaults ON at boot. stopAutoCapture/startAutoCapture
+// are also used by the restore flow (pause capture while the DB
+// is being rewritten, resume silently afterwards).
 // ============================================================
+
+export function stopAutoCapture(): void {
+    if (!state.autocapture) return;
+    state.autocapture = false;
+    stopGridSearch();
+    stopSlotHover();
+    stopAnchorWatch();
+    stopSlotScan();
+    stopNonUnlockedDotRefresh();
+    inventory.clear();
+    updateUI();
+}
+
+export function startAutoCapture(opts?: { silent?: boolean }): void {
+    if (state.autocapture) return;
+    state.autocapture = true;
+    updateUI();
+    calibrateGrid(opts);
+}
 
 export function toggleAutoCapture(): void {
     if (!state.inAlt1) { log("Not in Alt1."); return; }
     if (!alt1.permissionPixel) { log("No pixel permission."); return; }
-
-    if (state.autocapture) {
-        // Turn OFF
-        state.autocapture = false;
-        stopGridSearch();
-        stopSlotHover();
-        stopAnchorWatch();
-        stopSlotScan();
-        stopNonUnlockedDotRefresh();
-        inventory.clear();
-        updateUI();
-        return;
-    }
-
-    // Turn ON — run fingerprint detection immediately
-    state.autocapture = true;
-    updateUI();
-    calibrateGrid();
+    if (state.autocapture) stopAutoCapture();
+    else startAutoCapture();
 }
 
 // ============================================================
