@@ -11,6 +11,7 @@ import "./index.html";
 import "./appconfig.json";
 import "./icon.png";
 import "./style.css";
+import searchTabIcon from "./assets/images/search_tab_icon.png";
 
 // ============================================================
 // Init
@@ -21,6 +22,9 @@ function initOnLoad() {
 
     state.inAlt1 = typeof window.alt1 !== "undefined";
     log(`inAlt1=${state.inAlt1}`);
+
+    const searchIcon = document.getElementById("search-tab-icon");
+    if (searchIcon) searchIcon.setAttribute("src", searchTabIcon);
 
     updateAlt1Status();
     applyDeveloperMode();
