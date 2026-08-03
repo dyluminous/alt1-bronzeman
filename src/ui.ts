@@ -2,12 +2,13 @@
 import { inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, captureFullRs, LS_KEYS } from "./core";
-import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount } from "./data";
+import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount, getSearchIndex } from "./data";
 import { hashToPngDataUrl } from "./data";
 import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks } from "./recent-unlocks";
 import { showModal } from "./modal";
 import { getObscuredSlotIndices } from "./slot-scan";
 import type { DisambiguationOption } from "./wiki";
+import type { SearchEntry } from "./data";
 import { BUILD_NUM } from "./version";
 
 // ============================================================
@@ -56,6 +57,7 @@ export function toggleSearchHideUntradable(): void {
     localStorage.setItem(LS_KEYS.searchHideUntradable, on ? "1" : "0");
     applySearchSettings();
     updateSearchUnlockCount(true); // count scope changed — force a refresh
+    rerenderSearchIfActive();
 }
 
 /** Whether "Group similar items" is enabled (persisted; default off). */
@@ -68,6 +70,7 @@ export function toggleSearchGroupSimilar(): void {
     const on = !isSearchGroupSimilar();
     localStorage.setItem(LS_KEYS.searchGroupSimilar, on ? "1" : "0");
     applySearchSettings();
+    rerenderSearchIfActive();
 }
 
 /** Sync the search checkboxes to their persisted values (boot + toggles). */
@@ -99,8 +102,103 @@ function updateSearchUnlockCount(force = false): void {
 }
 
 // ============================================================
-// Status bar
+// Search — fuzzy name lookup against the in-memory index
 // ============================================================
+
+/** Strip trailing "(number)" tokens so "Brew (6)" and "Brew (5)" group
+ *  together. Repeats until no more parenthised digits remain — handles
+ *  names like "Tasset (worn) (6)" → "Tasset (worn)". */
+function stripGroupName(name: string): string {
+    while (true) {
+        const m = name.match(/^(.*?) \(\d+\)$/);
+        if (!m) return name;
+        name = m[1];
+    }
+}
+
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+function renderSearchResults(query: string): void {
+    const el = document.getElementById("search_results");
+    if (!el) return;
+
+    if (query.length < 2) {
+        el.innerHTML = "";
+        return;
+    }
+
+    const lower = query.toLowerCase();
+    const hideUntradable = isSearchHideUntradable();
+    const groupSimilar = isSearchGroupSimilar();
+    const index = getSearchIndex();
+
+    const MAX_RESULTS = 100;
+
+    let matches: SearchEntry[] = index.filter(r =>
+        (hideUntradable ? r.tradeable : true) && r.name.toLowerCase().includes(lower),
+    );
+
+    if (matches.length === 0) {
+        el.innerHTML = `<div class="search-results-empty">No results</div>`;
+        return;
+    }
+
+    const total = matches.length;
+    const hasMore = total > MAX_RESULTS;
+    if (hasMore) matches = matches.slice(0, MAX_RESULTS);
+
+    if (groupSimilar) {
+        // Strip quantity suffixes, then deduplicate by the stripped name
+        // while preserving the first canonical name encountered.
+        const seen = new Set<string>();
+        const grouped: string[] = [];
+        for (const m of matches) {
+            const stripped = stripGroupName(m.name);
+            if (!seen.has(stripped)) {
+                seen.add(stripped);
+                grouped.push(stripped);
+            }
+        }
+        let html = grouped.map(name =>
+            `<div class="search-result-row" data-name="${escHtml(name)}">${escHtml(name)}</div>`,
+        ).join("");
+        if (hasMore) html += `<div class="search-results-empty">…and ${total - MAX_RESULTS} more — refine your search</div>`;
+        el.innerHTML = html;
+    } else {
+        let html = matches.map(m =>
+            `<div class="search-result-row" data-name="${escHtml(m.name)}">${escHtml(m.name)}</div>`,
+        ).join("");
+        if (hasMore) html += `<div class="search-results-empty">…and ${total - MAX_RESULTS} more — refine your search</div>`;
+        el.innerHTML = html;
+    }
+}
+
+/** Re-render search results if there's an active query, so toggling
+ *  "Hide untradable" or "Group similar" updates the list immediately. */
+function rerenderSearchIfActive(): void {
+    const input = document.getElementById("search_input") as HTMLInputElement | null;
+    if (input && input.value.trim().length > 0) {
+        renderSearchResults(input.value.trim());
+    }
+}
+
+/** Attach the debounced input handler to the search text box. Safe to call
+ *  multiple times — the old listener is discarded. */
+export function setupSearchHandler(): void {
+    const input = document.getElementById("search_input") as HTMLInputElement | null;
+    if (!input) return;
+    const handler = (): void => {
+        if (searchTimer) clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => renderSearchResults(input.value.trim()), 150);
+    };
+    // Remove previous listener and re-add (idempotent).
+    input.removeEventListener("input", handler);
+    input.addEventListener("input", handler);
+    // Also clear results when the input is fully cleared.
+    input.addEventListener("blur", () => {
+        if (input.value.trim().length === 0) renderSearchResults("");
+    });
+}
 
 export function updateAlt1Status(): void {
     const dot = document.getElementById("alt1_status_dot");
@@ -246,6 +344,7 @@ export function resetUnlocks(): void {
         dataResetUnlocks();
         clearRecentUnlocks();
         updateUI();
+        rerenderSearchIfActive();
     });
 }
 
