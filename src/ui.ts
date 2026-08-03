@@ -4,7 +4,7 @@ import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, showNotification, captureFullRs } from "./core";
 import { resetUnlocks as dataResetUnlocks } from "./data";
 import { hashToPngDataUrl } from "./data";
-import { getRecentUnlocks, getRecentUnlocksLimit } from "./recent-unlocks";
+import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks } from "./recent-unlocks";
 import { showModal } from "./modal";
 import { getObscuredSlotIndices } from "./slot-scan";
 import type { DisambiguationOption } from "./wiki";
@@ -184,6 +184,7 @@ function renderSlotDebug(): void {
 export function resetUnlocks(): void {
     showModal("Delete all unlocked items?", "DANGER", () => {
         dataResetUnlocks();
+        clearRecentUnlocks();
         updateUI();
     });
 }
