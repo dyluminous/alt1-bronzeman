@@ -119,7 +119,7 @@ function stripGroupName(name: string): string {
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
 function renderSearchResults(query: string): void {
-    const el = document.getElementById("search_results");
+    const el = document.getElementById("search_results_inner");
     if (!el) return;
 
     if (query.length < 2) {
@@ -162,13 +162,13 @@ function renderSearchResults(query: string): void {
         let html = grouped.map(name =>
             `<div class="search-result-row" data-name="${escHtml(name)}">${escHtml(name)}</div>`,
         ).join("");
-        if (hasMore) html += `<div class="search-results-empty">…and ${total - MAX_RESULTS} more — refine your search</div>`;
+        if (hasMore) html += `<div class="search-results-empty">…and ${total - MAX_RESULTS} more - refine your search</div>`;
         el.innerHTML = html;
     } else {
         let html = matches.map(m =>
             `<div class="search-result-row" data-name="${escHtml(m.name)}">${escHtml(m.name)}</div>`,
         ).join("");
-        if (hasMore) html += `<div class="search-results-empty">…and ${total - MAX_RESULTS} more — refine your search</div>`;
+        if (hasMore) html += `<div class="search-results-empty">…and ${total - MAX_RESULTS} more - refine your search</div>`;
         el.innerHTML = html;
     }
 }
