@@ -36,6 +36,7 @@
 
     <!-- Tab: Setup -->
     <div class="tab-panel" id="panel_setup">
+        <div id="settings_content">
         <div class="section-title">General</div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;">
             <label for="recent_unlocks_count" style="font-size:12px;color:#ccc;">Recent unlocks shown</label>
@@ -67,19 +68,36 @@
                 <div class="btn btn-primary" onclick="Bronzeman.backupUnlocks()" style="flex:1;min-width:0;padding-top:6px;padding-bottom:6px;">Backup</div>
                 <div class="btn btn-primary" id="restore_btn" onclick="Bronzeman.restoreUnlocks()" style="flex:1;min-width:0;padding-top:6px;padding-bottom:6px;">Restore</div>
             </div>
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;">
-                <label for="manual_unlock_slot" style="font-size:12px;color:#ccc;">Manual item unlock</label>
-                <div style="display:flex;gap:6px;align-items:center;">
-                    <input type="number" id="manual_unlock_slot" class="spinner-input" min="1" max="28" step="1" value="1" style="width:52px;">
-                    <div class="btn btn-primary" id="manual_unlock_btn" onclick="Bronzeman.manualUnlock()" style="padding:4px 10px;font-size:12px;">Unlock</div>
+            <div class="btn btn-primary" id="manual_unlock_btn" onclick="Bronzeman.openManualUnlock()" style="width:100%;padding-top:6px;padding-bottom:6px;">Manual item unlock</div>
+        </div>
+        </div>
+        <div id="manual_unlock_inline" style="display:none;flex:1;flex-direction:column;">
+            <div class="slot-debug-header">
+                <span>Manual item unlock</span>
+                <span class="slot-debug-close" style="font-size:16px;" onclick="Bronzeman.closeManualUnlock()">✕</span>
+            </div>
+            <div class="manual-unlock-body">
+            <div class="manual-unlock-msg" id="manual_unlock_msg">Select the inventory slot containing the item you want to unlock.</div>
+            <div style="display:flex;align-items:center;gap:8px;margin:12px 0;">
+                <label for="manual_unlock_slot_input" style="font-size:12px;color:#ccc;">Slot</label>
+                <div class="spinner-container">
+                    <input type="number" id="manual_unlock_slot_input" class="spinner-input" min="1" max="28" step="1" value="1">
+                    <div class="spinner-controls">
+                        <button class="spinner-btn" title="Increase" onclick="Bronzeman.stepManualUnlockSlot(1)">▲</button>
+                        <button class="spinner-btn" title="Decrease" onclick="Bronzeman.stepManualUnlockSlot(-1)">▼</button>
+                    </div>
                 </div>
             </div>
-            <div class="btn btn-primary" onclick="Bronzeman.resetUnlocks()" style="width:100%;padding-top:6px;padding-bottom:6px;">Reset unlocks</div>
+            <div style="display:flex;gap:6px;">
+                <div class="btn btn-primary" id="manual_unlock_start_btn" onclick="Bronzeman.manualUnlock()" style="padding:6px 16px;font-size:12px;">Unlock</div>
+            </div>
+            </div>
         </div>
     </div>
 
     <!-- Tab: Developer -->
     <div class="tab-panel" id="panel_developer">
+        <div id="developer_content">
         <div class="status-bar" style="margin-top:6px;">
             <span><span id="alt1_status_dot" class="status-dot red"></span><span id="alt1_status_text" style="font-size:10px;"></span></span>
             <span id="anchor_dot" class="anchor-dot hidden"></span>
@@ -102,6 +120,10 @@
             <label for="show_tooltip_debug" style="font-size:12px;color:#ccc;">Show tooltip debug</label>
             <input type="checkbox" class="pixel-checkbox" id="show_tooltip_debug" onchange="Bronzeman.toggleTooltipDebug()">
         </div>
+        <div class="section-title">Progress</div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;">
+            <div class="btn btn-primary" onclick="Bronzeman.resetUnlocks()" style="width:100%;padding-top:6px;padding-bottom:6px;">Reset unlocks</div>
+        </div>
         <div class="section-title">Misc</div>
         <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;">
             <div class="btn btn-primary" onclick="Bronzeman.debugFindSlot()" style="width:100%;padding-top:6px;padding-bottom:6px;">Fingerprint Slot</div>
@@ -109,30 +131,27 @@
             <div class="btn btn-primary" onclick="Bronzeman.openItemPngs()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Item PNGs</div>
             <div class="btn btn-primary" onclick="Bronzeman.ocrStackableDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">OCR Stackable (Slot 27)</div>
         </div>
-
+        </div>
+        <div id="slot_debug_inline" style="display:none;flex:1;flex-direction:column;">
+            <div class="slot-debug-header">
+                <label class="slot-debug-toggle" for="slot_debug_show_occluded" onclick="event.stopPropagation()">
+                    <span>Show occluded slots</span>
+                    <input type="checkbox" class="pixel-checkbox" id="slot_debug_show_occluded" checked onchange="event.stopPropagation(); Bronzeman.refreshSlotDebug()">
+                </label>
+                <span class="slot-debug-close" style="font-size:16px;" onclick="Bronzeman.closeSlotDebug()">✕</span>
+            </div>
+            <div id="slot_debug_grid" class="slot-debug-grid"></div>
+        </div>
+        <div id="item_pngs_inline" style="display:none;flex:1;flex-direction:column;">
+            <div class="slot-debug-header">
+                <span>Item hash PNGs</span>
+                <span class="slot-debug-close" style="font-size:16px;" onclick="Bronzeman.closeItemPngs()">✕</span>
+            </div>
+            <div id="item_pngs_body" class="wiki-disambig-body"></div>
+        </div>
     </div>
 
     <!-- Slot hash debug pane — covers the tab area; click outside the grid to close -->
-    <div id="slot_debug_pane" class="slot-debug-pane" style="display:none;" onclick="Bronzeman.closeSlotDebug()">
-        <div class="slot-debug-header">
-            <label class="slot-debug-toggle" for="slot_debug_show_occluded" onclick="event.stopPropagation()">
-                <span>Show occluded slots</span>
-                <input type="checkbox" class="pixel-checkbox" id="slot_debug_show_occluded" checked onchange="event.stopPropagation(); Bronzeman.refreshSlotDebug()">
-            </label>
-            <span class="slot-debug-close" onclick="event.stopPropagation(); Bronzeman.closeSlotDebug()">✕</span>
-        </div>
-        <div id="slot_debug_grid" class="slot-debug-grid" onclick="event.stopPropagation()"></div>
-    </div>
-
-    <!-- Item hash PNGs pane — covers the tab area; click outside to close -->
-    <div id="item_pngs_pane" class="slot-debug-pane" style="display:none;" onclick="Bronzeman.closeItemPngs()">
-        <div class="slot-debug-header">
-            <span>Item hash PNGs</span>
-            <span class="slot-debug-close" onclick="event.stopPropagation(); Bronzeman.closeItemPngs()">✕</span>
-        </div>
-        <div id="item_pngs_body" class="wiki-disambig-body" onclick="event.stopPropagation()"></div>
-    </div>
-
     <!-- Wiki disambiguation pane — covers the tab area; pick an option or close -->
     <div id="wiki_disambig_pane" class="slot-debug-pane" style="display:none;" onclick="Bronzeman.closeDisambiguation()">
         <div class="slot-debug-header">
@@ -162,6 +181,7 @@
         <div class="spinner"></div>
     </div>
 
+    <!-- Manual unlock pane — covers the tab area -->
     <!-- Confirm dialog modal -->
     <div id="modal" class="modal" style="display:none;">
         <div class="modal-content" id="modal_content">

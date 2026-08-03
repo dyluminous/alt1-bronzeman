@@ -75,7 +75,7 @@ export {
     openItemPngs, closeItemPngs,
     toggleDeveloperMode,
     toggleSearchHideUntradable, toggleSearchGroupSimilar,
-    manualUnlock,
+    manualUnlock, openManualUnlock, closeManualUnlock,
 } from "./ui";
 
 // Recent unlocks setting
@@ -95,6 +95,16 @@ function stepRecentUnlocksCount(delta: number): void {
 }
 
 export { setRecentUnlocksCount, stepRecentUnlocksCount };
+
+/** Step the manual-unlock slot spinner by ±1 from its current value. */
+// @ts-ignore — called from HTML onclick
+function stepManualUnlockSlot(delta: number): void {
+    const input = document.getElementById("manual_unlock_slot_input") as HTMLInputElement | null;
+    const current = Number(input?.value ?? 1);
+    const next = Math.min(28, Math.max(1, current + delta));
+    if (input) input.value = String(next);
+}
+export { stepManualUnlockSlot };
 
 // ============================================================
 // Bootstrap
