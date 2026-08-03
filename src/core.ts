@@ -43,7 +43,7 @@ function ensureAlt1(): boolean {
 
 export const LS_KEYS = {
     recentUnlocksCount: "Bronzeman/recentUnlocksCount", // user setting: how many recent unlocks to show
-    debugTabVisible: "Bronzeman/debugTabVisible", // user setting: show the Debug tab (default off)
+    developerMode: "Bronzeman/developerMode", // user setting: show the Developer tab + console logs (default off)
 } as const;
 
 // ============================================================
@@ -54,7 +54,7 @@ export const state = {
     inAlt1: false,
     calibrating: false,
     // Always-on: auto-capture starts enabled at boot (in-memory only, not
-    // persisted). The debug-menu checkbox is the only off switch.
+    // persisted). The Developer mode checkbox is the only off switch.
     autocapture: true,
 };
 
@@ -127,12 +127,8 @@ export function escHtml(s: string): string {
 }
 
 export function log(msg: string): void {
+    // Console logging is a developer feature — only emit when Developer mode
+    // is enabled (persisted alongside the tab visibility).
+    if (localStorage.getItem(LS_KEYS.developerMode) !== "1") return;
     console.log("[Bronzeman]", msg);
-    const el = document.getElementById("log");
-    if (el) {
-        const line = document.createElement("div");
-        line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        el.prepend(line);
-        while (el.children.length > 50) el.lastChild?.remove();
-    }
 }

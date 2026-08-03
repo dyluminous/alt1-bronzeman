@@ -11,30 +11,30 @@ import type { DisambiguationOption } from "./wiki";
 import { BUILD_NUM } from "./version";
 
 // ============================================================
-// Debug tab visibility
+// Developer tab visibility
 // ============================================================
 
-/** Whether the Debug tab is shown (persisted; default off). */
-export function isDebugTabVisible(): boolean {
-    return localStorage.getItem(LS_KEYS.debugTabVisible) === "1";
+/** Whether the Developer tab + console logging are enabled (persisted; default off). */
+export function isDeveloperMode(): boolean {
+    return localStorage.getItem(LS_KEYS.developerMode) === "1";
 }
 
-/** Show/hide the Debug tab button and panel, persisting the choice. */
-export function toggleDebugTab(): void {
-    const visible = !isDebugTabVisible();
-    localStorage.setItem(LS_KEYS.debugTabVisible, visible ? "1" : "0");
-    applyDebugTabVisibility();
+/** Toggle Developer mode (tab visibility + console logging), persisting the choice. */
+export function toggleDeveloperMode(): void {
+    const visible = !isDeveloperMode();
+    localStorage.setItem(LS_KEYS.developerMode, visible ? "1" : "0");
+    applyDeveloperMode();
 }
 
-/** Sync the DOM + checkbox to the persisted Debug-tab visibility. */
-export function applyDebugTabVisibility(): void {
-    const visible = isDebugTabVisible();
-    const btn = document.getElementById("debug-tab-btn");
+/** Sync the DOM + checkbox to the persisted Developer-mode state. */
+export function applyDeveloperMode(): void {
+    const visible = isDeveloperMode();
+    const btn = document.getElementById("developer-tab-btn");
     if (btn) btn.style.display = visible ? "" : "none";
-    const cb = document.getElementById("show_debug_tab") as HTMLInputElement | null;
+    const cb = document.getElementById("show_developer_tab") as HTMLInputElement | null;
     if (cb) cb.checked = visible;
-    // If the Debug tab is the active one and it's being hidden, switch away.
-    const panel = document.getElementById("panel_debug");
+    // If the Developer tab is the active one and it's being hidden, switch away.
+    const panel = document.getElementById("panel_developer");
     if (!visible && panel && panel.classList.contains("active")) {
         const itemsBtn = document.querySelector('.tab-btn[onclick*="items"]');
         if (itemsBtn) (itemsBtn as HTMLElement).click();
@@ -85,7 +85,7 @@ export function updateUI(): void {
     if (gridEl) gridEl.style.display = n === 0 ? "none" : "";
     if (titleEl) titleEl.textContent = n === 1 ? "Last 1 item unlocked" : `Last ${n} items unlocked`;
 
-    // Reflect the auto-capture toggle in the debug-menu checkbox.
+    // Reflect the auto-capture toggle in the Developer-mode checkbox.
     const autoCaptureCb = document.getElementById("auto_capture") as HTMLInputElement | null;
     if (autoCaptureCb) autoCaptureCb.checked = state.autocapture;
 
