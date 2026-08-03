@@ -1,7 +1,7 @@
 // ui.ts — DOM rendering and UI action handlers for Bronzeman Mode
 import { inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
-import { state, escHtml, showNotification, captureFullRs } from "./core";
+import { state, escHtml, captureFullRs, LS_KEYS } from "./core";
 import { resetUnlocks as dataResetUnlocks } from "./data";
 import { hashToPngDataUrl } from "./data";
 import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks } from "./recent-unlocks";
@@ -9,6 +9,37 @@ import { showModal } from "./modal";
 import { getObscuredSlotIndices } from "./slot-scan";
 import type { DisambiguationOption } from "./wiki";
 import { BUILD_NUM } from "./version";
+
+// ============================================================
+// Debug tab visibility
+// ============================================================
+
+/** Whether the Debug tab is shown (persisted; default off). */
+export function isDebugTabVisible(): boolean {
+    return localStorage.getItem(LS_KEYS.debugTabVisible) === "1";
+}
+
+/** Show/hide the Debug tab button and panel, persisting the choice. */
+export function toggleDebugTab(): void {
+    const visible = !isDebugTabVisible();
+    localStorage.setItem(LS_KEYS.debugTabVisible, visible ? "1" : "0");
+    applyDebugTabVisibility();
+}
+
+/** Sync the DOM + checkbox to the persisted Debug-tab visibility. */
+export function applyDebugTabVisibility(): void {
+    const visible = isDebugTabVisible();
+    const btn = document.getElementById("debug-tab-btn");
+    if (btn) btn.style.display = visible ? "" : "none";
+    const cb = document.getElementById("show_debug_tab") as HTMLInputElement | null;
+    if (cb) cb.checked = visible;
+    // If the Debug tab is the active one and it's being hidden, switch away.
+    const panel = document.getElementById("panel_debug");
+    if (!visible && panel && panel.classList.contains("active")) {
+        const itemsBtn = document.querySelector('.tab-btn[onclick*="items"]');
+        if (itemsBtn) (itemsBtn as HTMLElement).click();
+    }
+}
 
 // ============================================================
 // Status bar
@@ -38,25 +69,6 @@ function updateAnchorDot(): void {
     el.className = anc ? "anchor-dot" : "anchor-dot hidden";
 }
 
-let anchorWarningHandle: import("./core").NotificationHandle | null = null;
-
-function updateAnchorWarning(): void {
-    try {
-        if (inventory.anchor) {
-            if (anchorWarningHandle) { anchorWarningHandle.remove(); anchorWarningHandle = null; }
-        } else {
-            if (!anchorWarningHandle) {
-                // Don't show during retry — capture.ts handles its own notifications
-                anchorWarningHandle = showNotification("Inventory not captured", 0, "danger");
-            }
-        }
-    } catch {
-        if (!anchorWarningHandle) {
-            anchorWarningHandle = showNotification("Inventory not captured", 0, "danger");
-        }
-    }
-}
-
 // ============================================================
 // Main UI render
 // ============================================================
@@ -73,21 +85,11 @@ export function updateUI(): void {
     if (gridEl) gridEl.style.display = n === 0 ? "none" : "";
     if (titleEl) titleEl.textContent = n === 1 ? "Last 1 item unlocked" : `Last ${n} items unlocked`;
 
-    const calBtn = document.getElementById("calibrate_btn");
-    if (calBtn) {
-        if (state.calibrating) {
-            calBtn.textContent = "Scanning...";
-            calBtn.style.pointerEvents = "none";
-            calBtn.style.opacity = "0.5";
-        } else {
-            calBtn.textContent = state.autocapture ? "Stop auto-capture" : "Start auto-capture";
-            calBtn.style.pointerEvents = "";
-            calBtn.style.opacity = "";
-        }
-    }
+    // Reflect the auto-capture toggle in the debug-menu checkbox.
+    const autoCaptureCb = document.getElementById("auto_capture") as HTMLInputElement | null;
+    if (autoCaptureCb) autoCaptureCb.checked = state.autocapture;
 
     updateAnchorDot();
-    updateAnchorWarning();
 }
 
 // ============================================================

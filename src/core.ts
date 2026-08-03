@@ -43,6 +43,7 @@ function ensureAlt1(): boolean {
 
 export const LS_KEYS = {
     recentUnlocksCount: "Bronzeman/recentUnlocksCount", // user setting: how many recent unlocks to show
+    debugTabVisible: "Bronzeman/debugTabVisible", // user setting: show the Debug tab (default off)
 } as const;
 
 // ============================================================
@@ -52,7 +53,9 @@ export const LS_KEYS = {
 export const state = {
     inAlt1: false,
     calibrating: false,
-    autocapture: false,
+    // Always-on: auto-capture starts enabled at boot (in-memory only, not
+    // persisted). The debug-menu checkbox is the only off switch.
+    autocapture: true,
 };
 
 // ============================================================
