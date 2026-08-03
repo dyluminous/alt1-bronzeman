@@ -76,7 +76,7 @@ export function calibrateGrid(opts?: { silent?: boolean }): void {
             captureCornerRefs(img);
             state.calibrating = false;
             state.autocapture = true;
-            if (!opts?.silent) showNotification("Inventory found", 3000, "success");
+            if (!opts?.silent) showNotification("Inventory found", 1000, "success");
             drawDetectDebug(false);
             updateGridDebug();
             drawAnchorWatchDot();

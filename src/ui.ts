@@ -184,7 +184,7 @@ function renderSlotDebug(): void {
 }
 
 export function resetUnlocks(): void {
-    showModal("Delete all unlocked items?", "DANGER", () => {
+    showModal("You're about to permanently delete ALL your unlocked items. Are you sure?", "DANGER", () => {
         dataResetUnlocks();
         clearRecentUnlocks();
         updateUI();
