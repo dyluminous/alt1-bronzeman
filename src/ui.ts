@@ -356,6 +356,16 @@ function hideRecentUnlockTooltip(): void {
 function moveRecentUnlockTooltip(e: MouseEvent): void {
     if (!tooltipEl || tooltipEl.style.display === "none") return;
     const pad = 10;
-    tooltipEl.style.left = `${e.clientX + pad}px`;
-    tooltipEl.style.top = `${e.clientY + pad}px`;
+    const w = tooltipEl.offsetWidth;
+    const h = tooltipEl.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    // Prefer right/below the cursor; flip left or above when it would overflow.
+    let left = e.clientX + pad;
+    let top = e.clientY + pad;
+    if (left + w > vw - pad) left = e.clientX - w - pad;
+    if (top + h > vh - pad) top = e.clientY - h - pad;
+    tooltipEl.style.left = `${Math.max(pad, left)}px`;
+    tooltipEl.style.top = `${Math.max(pad, top)}px`;
 }
