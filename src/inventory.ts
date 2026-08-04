@@ -56,6 +56,22 @@ export class Inventory {
         this._slots = [];
     }
 
+    /** Bounding box that covers every slot cell (border included), computed
+     *  from the actual slot positions — not gridCols×gridRows — so resized
+     *  grids with a short last row are fully covered. Returns null when
+     *  uncalibrated. Cell spans x..x+37 (38 wide) and y..y+33 (34 tall). */
+    getInventoryBounds(): { x: number; y: number; w: number; h: number } | null {
+        if (this._slots.length === 0) return null;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const s of this._slots) {
+            if (s.x < minX) minX = s.x;
+            if (s.y < minY) minY = s.y;
+            if (s.x + InventorySlot.CELL_W > maxX) maxX = s.x + InventorySlot.CELL_W;
+            if (s.y + InventorySlot.CELL_H > maxY) maxY = s.y + InventorySlot.CELL_H;
+        }
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
+
     /** The slot at the given 0-based index, or null. */
     getSlot(index: number): InventorySlot | null {
         return this._slots[index] ?? null;
