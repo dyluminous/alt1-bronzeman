@@ -6,7 +6,7 @@ import type { ImgRef } from "alt1/base";
 import * as OCR from "alt1/ocr";
 const tooltipFont = require("alt1/fonts/chatbox/14pt");
 const geSearchFont = require("alt1/fonts/chatbox/12pt");
-import { log, captureFullRs } from "./core";
+import { log, captureFullRs, geSuppressGroup } from "./core";
 import { isNameUnlocked } from "./data";
 import geItemUnlockedUrl from "./assets/images/ge_item_unlocked_button.png";
 import geItemNotUnlockedUrl from "./assets/images/ge_item_not_unlocked_button.png";
@@ -197,6 +197,7 @@ async function geDebugTick(): Promise<void> {
         if (!cp || cp.data[0] !== GE_SCALES_GEM_IDENTIFIER[0] || cp.data[1] !== GE_SCALES_GEM_IDENTIFIER[1] || cp.data[2] !== GE_SCALES_GEM_IDENTIFIER[2]) {
             _geLocated = false;
             _geStateHook?.();
+            geSuppressGroup.value = false;
             _lastBuying = _lastStar = _lastDropdownSmall = false;
             _lastItemName = "";
             _lastCursorX = -1;
@@ -353,6 +354,11 @@ function processSearchBox(img: ImgRef, ox: number, oy: number, dur: number): voi
                             }
                             const searchTab = document.querySelector(".tab-btn[onclick*='search']") as HTMLElement | null;
                             if (searchTab) searchTab.click();
+                            // GE search results should never be grouped — suppress
+                            // until the GE closes (restored in the GE-lost path).
+                            geSuppressGroup.value = true;
+                            const si = document.getElementById("search_input") as HTMLInputElement | null;
+                            if (si) si.dispatchEvent(new Event("input", { bubbles: true }));
                         }
                     }
                 } catch (_) {}
@@ -363,6 +369,7 @@ function processSearchBox(img: ImgRef, ox: number, oy: number, dur: number): voi
         _lastOcrW = -1;
         if (_geSearchText) {
             _geSearchText = "";
+            geSuppressGroup.value = false;
             const input = document.getElementById("search_input") as HTMLInputElement | null;
             if (input) {
                 input.value = "";

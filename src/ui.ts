@@ -1,7 +1,7 @@
 // ui.ts — DOM rendering and UI action handlers for Bronzeman Mode
 import { inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
-import { state, escHtml, captureFullRs, LS_KEYS, log, showNotification } from "./core";
+import { state, escHtml, captureFullRs, LS_KEYS, log, showNotification, geSuppressGroup } from "./core";
 import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount, getSearchIndex } from "./data";
 import { hashToPngDataUrl, getItemRecord } from "./data";
 import type { UnlockedItemRecord } from "./data";
@@ -64,7 +64,9 @@ export function toggleSearchHideUntradable(): void {
 
 /** Whether "Group similar items" is enabled (persisted; default off). */
 export function isSearchGroupSimilar(): boolean {
-    return localStorage.getItem(LS_KEYS.searchGroupSimilar) === "1";
+    // GE search overrides grouping temporarily — items typed in the GE
+    // search box are never grouped regardless of the user's setting.
+    return !geSuppressGroup.value && localStorage.getItem(LS_KEYS.searchGroupSimilar) === "1";
 }
 
 /** Toggle "Group similar items", persisting the choice. */
