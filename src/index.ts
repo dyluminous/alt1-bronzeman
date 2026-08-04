@@ -13,7 +13,7 @@ import { initOnLoad } from "./bootstrap";
 // ============================================================
 
 export { toggleAutoCapture, clearReference, stopAutoCapture, startAutoCapture } from "./capture";
-export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug } from "./overlay";
+export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug, debugFindSubImg } from "./overlay";
 export { diagnoseSlotScan, dumpSlotHash, debugCorners, ocrStackableDebug, readStackableQuantity } from "./slot-scan";
 export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks, dumpItemHashes, getRecentRecords } from "./data";
 export { backupUnlocks, restoreUnlocks } from "./backup";
