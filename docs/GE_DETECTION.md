@@ -84,7 +84,7 @@ The icon is drawn synchronously using:
 
 `UnlockStore` maintains `unlockedTradableNames: Set<string>` — populated at DB init from tradable records, updated on add/reset. Exported as `isNameUnlocked(name)`. Synchronous, O(1).
 
-## Search box text (stub)
+## Search box text
 
 **Only active when the dropdown is large** (`dropdownSmall=false`).  
 
@@ -100,9 +100,9 @@ Once text is detected, scan for the cursor:
 | `x > 49` | Text present — OCR region is `(49, 217)` to `(x - 1, 217 + 16)` |
 | Not found | Do nothing |
 
-**Text color**: `#f5f5f5` (off-white, anti-aliased)  
-**Font**: chatbox 14pt  
-**OCR gating**: only fires when `cursorX` changes (tracked via `_lastCursorX`); yellow box redraws every tick but OCR is suppressed on repeat positions  
+**Text color**: `#ffffff` (white, anti-aliased)  
+**Font**: chatbox 12pt  
+**OCR gating**: only fires when `cursorX` or `ocrW` changes (tracked via `_lastCursorX`/`_lastOcrW`); survives cursor blink (reset only on `hasText` false)  
 
 ## State diffing
 

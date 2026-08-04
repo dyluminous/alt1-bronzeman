@@ -114,6 +114,7 @@ let _lastItemName = "";
 
 let _lastCursorX = -1;   // for OCR gating — only OCR when cursor moves
 let _lastOcrW = -1;      // skip OCR when box width hasn't changed
+let _geSearchText = "";   // last OCR'd search text, cleared when text disappears
 
 async function geDebugTick(): Promise<void> {
     if (!geDebugActive) return;
@@ -279,32 +280,17 @@ async function geDebugTick(): Promise<void> {
                             const fullBuf = img.toData();
                             const result = OCR.findReadLine(fullBuf, geSearchFont, [[0xff, 0xff, 0xff]], ox + 49, oy + 217, ocrW, 16);
                             if (result && result.text.length > 0) {
-                                log(`GE search text: "${result.text}"`);
+                                _geSearchText = result.text;
+                                log(`GE search text: "${_geSearchText}"`);
+                                // Sync to the plugin's search input
+                                const input = document.getElementById("search_input") as HTMLInputElement | null;
+                                if (input && input.value !== _geSearchText) {
+                                    input.value = _geSearchText;
+                                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                                    const clear = document.getElementById("search_clear_btn");
+                                    if (clear) clear.style.display = _geSearchText.length > 0 ? "block" : "none";
+                                }
                             }
-                            // Show the OCR region on the debug pane at 1:1
-                            try {
-                                const region = new ImageData(ocrW, 16);
-                                const srcBuf = img.toData();
-                                for (let py = 0; py < 16; py++) {
-                                    for (let px = 0; px < ocrW; px++) {
-                                        const si = ((oy + 217 + py) * srcBuf.width + (ox + 49 + px)) * 4;
-                                        const di = (py * ocrW + px) * 4;
-                                        region.data[di] = srcBuf.data[si];
-                                        region.data[di + 1] = srcBuf.data[si + 1];
-                                        region.data[di + 2] = srcBuf.data[si + 2];
-                                        region.data[di + 3] = 255;
-                                    }
-                                }
-                                const canvas = document.createElement("canvas");
-                                canvas.width = ocrW;
-                                canvas.height = 16;
-                                canvas.getContext("2d")!.putImageData(region, 0, 0);
-                                const el = document.getElementById("ge_ocr_preview");
-                                if (el) {
-                                    el.innerHTML = "";
-                                    el.appendChild(canvas);
-                                }
-                            } catch (_) {}
                         } catch (_) {}
                     }
                 }
@@ -315,6 +301,16 @@ async function geDebugTick(): Promise<void> {
             } else {
                 _lastCursorX = -1;
                 _lastOcrW = -1;
+                if (_geSearchText) {
+                    _geSearchText = "";
+                    const input = document.getElementById("search_input") as HTMLInputElement | null;
+                    if (input) {
+                        input.value = "";
+                        input.dispatchEvent(new Event("input", { bubbles: true }));
+                    }
+                    const clear = document.getElementById("search_clear_btn");
+                    if (clear) clear.style.display = "none";
+                }
             }
         }
     } catch (_) {}
