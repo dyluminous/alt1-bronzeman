@@ -42,6 +42,9 @@ class UnlockStore {
     private hashes: Set<string> = new Set();
     /** Names already in the unlock DB — a name hit means "append hash, no notify". */
     private names: Set<string> = new Set();
+    /** Names of unlocked tradable items — synchronous O(1) lookup for the GE
+     *  debug overlay so the icon draw path never touches IndexedDB. */
+    private unlockedTradableNames: Set<string> = new Set();
     /** Quantity-invariant lower-half slice (cell rows 3–7) → record name. The
      *  scan tick consults this ONLY for slots proven stackable by the
      *  digit-color check (slot.isStackable), so a lower-half hit means
@@ -175,6 +178,7 @@ class UnlockStore {
                 this.lowerHalfIndex.set(lowerHalfOf(h.hash), r.name);
             }
             this.names.add(r.name);
+            if (r.tradeable) this.unlockedTradableNames.add(r.name);
             this.searchIndex.push({ name: r.name, tradeable: r.tradeable });
         }
     }
@@ -209,6 +213,7 @@ class UnlockStore {
         const isNewName = !this.names.has(name);
         if (isNewName) {
             this.names.add(name);
+            if (tradeable) this.unlockedTradableNames.add(name);
             this.searchIndex.push({ name, tradeable });
         }
 
@@ -240,6 +245,13 @@ class UnlockStore {
 
     isHashUnlocked(hash: string): boolean {
         return this.hashes.has(hash);
+    }
+
+    /** Synchronous O(1) check — returns true when `name` is in the unlocked
+     *  tradable names set. Used by the GE debug overlay to avoid IndexedDB
+     *  calls on every tick. */
+    isNameUnlocked(name: string): boolean {
+        return this.unlockedTradableNames.has(name);
     }
 
     /** Return a read-only snapshot of the in-memory search index. The array
@@ -297,6 +309,7 @@ class UnlockStore {
     resetUnlocks(): void {
         this.hashes.clear();
         this.names.clear();
+        this.unlockedTradableNames.clear();
         this.lowerHalfIndex.clear();
         this.searchIndex.length = 0;
         if (this.ready) {
@@ -380,6 +393,7 @@ export const getSearchIndex = (): ReadonlyArray<SearchEntry> => unlockStore.getS
 export const addUnlockedItem = (name: string, tradeable: boolean, hash: string, stackableQuantity: number | null = null, force = false): void => unlockStore.add(name, tradeable, hash, stackableQuantity, force);
 export const isHashUnlocked = (hash: string): boolean => unlockStore.isHashUnlocked(hash);
 export const isLowerHalfUnlocked = (lowerHalf: string): boolean => unlockStore.isLowerHalfUnlocked(lowerHalf);
+export const isNameUnlocked = (name: string): boolean => unlockStore.isNameUnlocked(name);
 export const dumpTradableUnlocks = (): Promise<void> => unlockStore.dumpTradable();
 export const dumpUntradableUnlocks = (): Promise<void> => unlockStore.dumpUntradable();
 export const dumpItemHashes = (store: string, name: string): Promise<void> => unlockStore.dumpItemHashes(store, name);
