@@ -22,7 +22,7 @@ export function toggleGeDebug(): void {
     geDebugActive = !geDebugActive;
     log(`GE debug ${geDebugActive ? "ON" : "OFF"}`);
     if (geDebugActive) {
-        _handle = setInterval(geDebugTick, 1000);
+        _handle = setInterval(geDebugTick, 100);
     } else {
         if (_handle) { clearInterval(_handle); _handle = null; }
         try {
@@ -85,14 +85,13 @@ function captureGeRegion(bx: number, by: number): ImgRef | null {
 // ----------------------------------------------------------------
 // Tick — independent interval. Two modes:
 //   Hunt: full capture → findSubimage → cache GE position
-//   Locked: region-only capture (fast) → pixel checks + icon
-// Never calls bindRegion twice in one tick — the tick that locates
-// the GE falls through with the full capture already in hand.
-// ----------------------------------------------------------------
+//   Locked: region capture → pixel checks + icon
+// GE-lost is detected via pixel (35,31) which is always this color
+// while the GE interface is open, regardless of buy state.
+const GE_SCALES_GEM_IDENTIFIER = [0x85, 0x57, 0xc4] as const;
 
 let _bx = 0, _by = 0;
 let _geLocated = false;
-let _missTicks = 0;
 
 async function geDebugTick(): Promise<void> {
     if (!geDebugActive) return;
@@ -113,21 +112,25 @@ async function geDebugTick(): Promise<void> {
             _bx = matches[0].x - 48;
             _by = matches[0].y - 22;
             _geLocated = true;
-            _missTicks = 0;
         } else {
             // Locked: region-only capture
             img = captureGeRegion(_bx, _by);
-            if (!img) { _missTicks++; checkLost(); return; }
+            if (!img) return;
         }
 
-        const dur = 1500;
+        const dur = 200;
 
-        // Pixel reads are relative to the captured region. When using a full
-        // capture, the reads use screen-absolute offsets (_bx, _by). When using
-        // a region capture, the region starts at (_bx, _by) on screen, so pixel
-        // reads use (0, 0)-based offsets.
         const ox = _geLocated && img.width === 768 ? 0 : _bx;
         const oy = _geLocated && img.height === 572 ? 0 : _by;
+
+        // GE still open?
+        const cp = img.read(ox + 35, oy + 31, 1, 1);
+        if (!cp || cp.data[0] !== GE_SCALES_GEM_IDENTIFIER[0] || cp.data[1] !== GE_SCALES_GEM_IDENTIFIER[1] || cp.data[2] !== GE_SCALES_GEM_IDENTIFIER[2]) {
+            _geLocated = false;
+            alt1.overLayClearGroup("bronzeman_ge");
+            alt1.overLayClearGroup("bronzeman_subimg");
+            return;
+        }
 
         // All overlay draws use absolute screen coordinates
         alt1.overLaySetGroup("bronzeman_subimg");
@@ -136,10 +139,9 @@ async function geDebugTick(): Promise<void> {
 
         // Buy offer open?
         const px = img.read(ox + 36, oy + 128, 1, 1);
-        if (!px) { _missTicks++; checkLost(); return; }
-        if (!(px.data[0] === 0xb3 && px.data[1] === 0xc6 && px.data[2] === 0x03)) { _missTicks++; checkLost(); return; }
+        if (!px) return;
+        if (!(px.data[0] === 0xb3 && px.data[1] === 0xc6 && px.data[2] === 0x03)) return;
 
-        _missTicks = 0;
         let geItemName = "";
 
         // Star pixel → item selected
@@ -177,12 +179,4 @@ async function geDebugTick(): Promise<void> {
             alt1.overLayClearGroup("bronzeman_ge");
         }
     } catch (_) {}
-}
-
-function checkLost(): void {
-    if (_missTicks >= 3 && _geLocated) {
-        _geLocated = false;
-        alt1.overLayClearGroup("bronzeman_ge");
-        alt1.overLayClearGroup("bronzeman_subimg");
-    }
 }
