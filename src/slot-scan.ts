@@ -9,7 +9,7 @@ import { inventory } from "./inventory";
 import { captureFullRs, log, lightness } from "./core";
 import type { ImgRef } from "alt1/base";
 import { InventorySlot } from "./inventory-slot";
-import { isHashUnlocked, isLowerHalfUnlocked } from "./data";
+import { isHashUnlocked, isLowerHalfUnlocked, isHashNibbleUnlocked } from "./data";
 import { hashInterior, LOWER_HALF_OFFSET } from "./hash";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const stackableFont = require("alt1/fonts/pixel_8px_digits");
@@ -279,7 +279,8 @@ class SlotScanner {
             // A stackable slot whose lower-half slice matches an unlocked item is
             // a quantity-variant of it → treated as unlocked (no dot, no wiki).
             if (cur === EMPTY_HASH || isHashUnlocked(cur)
-                || (slot.isStackable && isLowerHalfUnlocked(cur.slice(LOWER_HALF_OFFSET)))) {
+                || (slot.isStackable && isLowerHalfUnlocked(cur.slice(LOWER_HALF_OFFSET)))
+                || isHashNibbleUnlocked(cur)) {
                 this.nonUnlockedSlots.delete(slot.index);
             } else {
                 this.nonUnlockedSlots.add(slot.index);

@@ -48,6 +48,27 @@ export function lowerHalfOf(hash: string): string {
     return hash.slice(LOWER_HALF_OFFSET);
 }
 
+/** True when all 192 hex nibbles in `live` are within ±1 of the corresponding
+ *  nibble in `stored` — the same item can render with ±1 cell-channel shifts
+ *  across login sessions (e.g. a wood-grain pixel landing one shade darker). */
+export function nibbleTolerantMatch(live: string, stored: string): boolean {
+    for (let i = 0; i < 192; i++) {
+        const delta = Math.abs(parseInt(live[i], 16) - parseInt(stored[i], 16));
+        if (delta > 1) return false;
+    }
+    return true;
+}
+
+/** Sum of all 192 hex nibbles — used as a cheap pre-filter for tolerant
+ *  lookups. Two hashes that differ by at most 1 nibble per position can
+ *  have checksum differences up to 192, but in practice the variance is
+ *  ≤ 5 nibble positions (≥ 180-d checksum guard still prunes vast majority). */
+function hashChecksum(hash: string): number {
+    let s = 0;
+    for (let i = 0; i < 192; i++) s += parseInt(hash[i], 16);
+    return s;
+}
+
 /** 8×8 cells → 3 hex nibbles per cell (R, G, B channel averages, each 4-bit)
  *  → 192-char hash. Hashing the channels separately preserves hue, so items
  *  that differ only in colour (e.g. red vs green ticket: lightness 89.5 vs
