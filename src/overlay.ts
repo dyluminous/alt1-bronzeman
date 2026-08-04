@@ -1,8 +1,5 @@
 // overlay.ts — RS overlay drawing for Bronzeman Mode
 import * as a1lib from "alt1";
-import { findSubimage, imageDataFromUrl } from "alt1/base";
-import * as OCR from "alt1/ocr";
-const tooltipFont = require("alt1/fonts/chatbox/14pt");
 import { inventory } from "./inventory";
 import * as Detect from "./inventory-detect";
 import { Inventory } from "./inventory";
@@ -12,29 +9,6 @@ import { getAnchorWatchPoints } from "./anchor-watch";
 import { SlotLoadingAnimation } from "./slot-animation";
 import { SLOT_DOT_X, SLOT_DOT_Y, SLOT_DOT_W, loadGoldDotEncoded } from "./gold-dot";
 import { TooltipScanner } from "./tooltip-read";
-import { getItemRecord } from "./data";
-import geItemUnlockedUrl from "./assets/images/ge_item_unlocked_button.png";
-import geItemNotUnlockedUrl from "./assets/images/ge_item_not_unlocked_button.png";
-
-// Lazy-loaded encoded GE button images
-let _encUnlocked: { data: string; width: number } | null = null;
-let _encNotUnlocked: { data: string; width: number } | null = null;
-async function loadGeButtonEncoded(url: string): Promise<{ data: string; width: number }> {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement("canvas");
-            canvas.width = img.width; canvas.height = img.height;
-            const ctx = canvas.getContext("2d")!;
-            ctx.drawImage(img, 0, 0);
-            resolve({
-                data: a1lib.encodeImageString(ctx.getImageData(0, 0, img.width, img.height)),
-                width: img.width,
-            });
-        };
-        img.src = url;
-    });
-}
 
 // ============================================================
 // Detection debug — corner brackets on all slots
@@ -302,110 +276,9 @@ export function toggleTooltipDebug(): void {
     }
 }
 
+
 // ============================================================
-// Sub-image debug — find grand.png on the RS screen
+// GE debug re-export (implemented in ge-debug.ts)
 // ============================================================
 
-import grandPngUrl from "./assets/images/sub/grand.png";
-
-export async function debugFindSubImg(): Promise<void> {
-    if (!state.inAlt1) { log("Not in Alt1."); return; }
-    if (!alt1.permissionPixel) { log("No pixel permission."); return; }
-    try {
-        const needle = await imageDataFromUrl(grandPngUrl);
-        log(`Needle loaded: ${needle.width}×${needle.height}`);
-        const img = captureFullRs();
-        if (!img) { log("Capture failed."); return; }
-        const matches = img.findSubimage(needle);
-        log(`findSubimage: ${matches.length} match(es)`);
-        if (matches.length === 0) { showNotification("No match found", 3000, "warning"); return; }
-        alt1.overLaySetGroup("bronzeman_subimg");
-        alt1.overLayClearGroup("bronzeman_subimg");
-        const dur = 3000;
-        for (const m of matches) {
-            log(`  match @ (${m.x}, ${m.y})`);
-            const bx = m.x - 48;
-            const by = m.y - 22;
-            alt1.overLayRect(a1lib.mixColor(255, 0, 255), bx, by, 768, 572, dur, 1);
-            // Check if the buy offer interface is open: pixel (36,128)
-            // relative to the GE frame turns #b3c603 when buying.
-            const px = img.read(bx + 36, by + 128, 1, 1);
-            if (px) {
-                const r = px.data[0], g = px.data[1], b = px.data[2];
-                if (r === 0xb3 && g === 0xc6 && b === 0x03) {
-                    log(`  Buy offer open at (${bx + 36}, ${by + 128}) → #b3c603`);
-                    let geItemName = "";
-                    // (531,130) #7b7b7b or #d4ae6d = favorite star visible → item selected
-                    const fav = img.read(bx + 531, by + 130, 1, 1);
-                    if (fav) {
-                        const fr = fav.data[0], fg = fav.data[1], fb = fav.data[2];
-                        const isItemSelected = (fr === 0x7b && fg === 0x7b && fb === 0x7b) ||
-                                       (fr === 0xd4 && fg === 0xae && fb === 0x6d);
-                        log(`  Item selected: ${isItemSelected ? "yes (star visible)" : "no"}`);
-                        if (isItemSelected) {
-                            // Draw magenta box around the item name area
-                            alt1.overLayRect(a1lib.mixColor(255, 0, 255), bx + 182, by + 120, 340, 17, dur, 1);
-                            // OCR the item name: color #edbc78, same font as tooltip
-                            try {
-                                const fullBuf = img.toData();
-                                const colors: OCR.ColortTriplet[] = [[0xf0, 0xbe, 0x79]];
-                                const result = OCR.findReadLine(fullBuf, tooltipFont, colors, bx + 182, by + 120, 340, 17);
-                                if (result && result.text.length > 1) {
-                                    log(`  GE item name: "${result.text}"`);
-                                    geItemName = result.text;
-                                }
-                            } catch (e) {
-                                log(`  GE item name OCR error: ${e}`);
-                            }
-                        }
-                    }
-                    // Check search dropdown size: pixel (42,327) #e3bc7d = small
-                    const sp = img.read(bx + 42, by + 327, 1, 1);
-                    if (sp) {
-                        const sr = sp.data[0], sg = sp.data[1], sb = sp.data[2];
-                        const isSmall = sr === 0xe3 && sg === 0xbc && sb === 0x7d;
-                        log(`  Search dropdown: ${isSmall ? "small" : "large"}`);
-                        if (isSmall && geItemName) {
-                            getItemRecord("unlocks_tradable", geItemName).then(async rec => {
-                                let enc = rec ? _encUnlocked : _encNotUnlocked;
-                                if (!enc) {
-                                    const url = rec ? geItemUnlockedUrl : geItemNotUnlockedUrl;
-                                    enc = await loadGeButtonEncoded(url);
-                                    if (rec) _encUnlocked = enc; else _encNotUnlocked = enc;
-                                }
-                                alt1.overLaySetGroup("bronzeman_ge");
-                                alt1.overLayImage(bx + 184, by + 330, enc.data, enc.width, dur);
-                            }).catch(() => {});
-                        }
-                        // Only check if querying when dropdown is large
-                        if (!isSmall) {
-                            const rs = img.read(bx + 49, by + 261, 1, 1);
-                            if (rs) {
-                                const rr = rs.data[0], rg = rs.data[1], rb = rs.data[2];
-                                const recentSearches = rr === 0x66 && rg === 0x5a && rb === 0x3a;
-                                log(`  Querying item: ${recentSearches ? "no (recent searches visible)" : "yes"}`);
-                                if (!recentSearches) {
-                                    // (188,398) #e3d7cf = too many results message visible
-                                    const tm = img.read(bx + 188, by + 398, 1, 1);
-                                    if (tm) {
-                                        const tr = tm.data[0], tg = tm.data[1], tb = tm.data[2];
-                                        const tooMany = tr === 0xe3 && tg === 0xd7 && tb === 0xcf;
-                                        log(`  Results: ${tooMany ? "too many" : "items showing"}`);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    } catch (e) {
-        log(`Sub-img error: ${e}`);
-        showNotification("Sub-img error", 3000, "danger");
-    }
-}
-
-
-
-
-
+export { toggleGeDebug } from "./ge-debug";
