@@ -115,6 +115,7 @@ let _lastItemName = "";
 let _lastCursorX = -1;   // for OCR gating — only OCR when cursor moves
 let _lastOcrW = -1;      // skip OCR when box width hasn't changed
 let _geSearchText = "";   // last OCR'd search text, cleared when text disappears
+let _tabBeforeSearch = ""; // tab to restore when GE closes
 
 async function geDebugTick(): Promise<void> {
     if (!geDebugActive) return;
@@ -154,9 +155,16 @@ async function geDebugTick(): Promise<void> {
             _lastBuying = _lastStar = _lastDropdownSmall = false;
             _lastItemName = "";
             _lastCursorX = -1;
+            _lastOcrW = -1;
             alt1.overLayClearGroup("bronzeman_ge");
             alt1.overLayClearGroup("bronzeman_subimg");
             alt1.overLayClearGroup("bronzeman_searchbox");
+            // Restore the tab we were on before auto-switching to Search
+            if (_tabBeforeSearch) {
+                const tab = document.querySelector(`.tab-btn[onclick="${_tabBeforeSearch}"]`) as HTMLElement | null;
+                if (tab) tab.click();
+                _tabBeforeSearch = "";
+            }
             return;
         }
 
@@ -280,6 +288,7 @@ async function geDebugTick(): Promise<void> {
                             const fullBuf = img.toData();
                             const result = OCR.findReadLine(fullBuf, geSearchFont, [[0xff, 0xff, 0xff]], ox + 49, oy + 217, ocrW, 16);
                             if (result && result.text.length > 0) {
+                                const wasEmpty = !_geSearchText;
                                 _geSearchText = result.text;
                                 log(`GE search text: "${_geSearchText}"`);
                                 // Sync to the plugin's search input
@@ -289,6 +298,16 @@ async function geDebugTick(): Promise<void> {
                                     input.dispatchEvent(new Event("input", { bubbles: true }));
                                     const clear = document.getElementById("search_clear_btn");
                                     if (clear) clear.style.display = _geSearchText.length > 0 ? "block" : "none";
+                                }
+                                // Auto-switch to the Search tab on first character
+                                if (wasEmpty) {
+                                    // Remember which tab is active
+                                    const activeTab = document.querySelector(".tab-btn.active") as HTMLElement | null;
+                                    if (activeTab && !activeTab.getAttribute("onclick")?.includes("search")) {
+                                        _tabBeforeSearch = activeTab.getAttribute("onclick") ?? "";
+                                    }
+                                    const searchTab = document.querySelector(".tab-btn[onclick*='search']") as HTMLElement | null;
+                                    if (searchTab) searchTab.click();
                                 }
                             }
                         } catch (_) {}
