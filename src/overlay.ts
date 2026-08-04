@@ -12,6 +12,29 @@ import { getAnchorWatchPoints } from "./anchor-watch";
 import { SlotLoadingAnimation } from "./slot-animation";
 import { SLOT_DOT_X, SLOT_DOT_Y, SLOT_DOT_W, loadGoldDotEncoded } from "./gold-dot";
 import { TooltipScanner } from "./tooltip-read";
+import { getItemRecord } from "./data";
+import geItemUnlockedUrl from "./assets/images/ge_item_unlocked_button.png";
+import geItemNotUnlockedUrl from "./assets/images/ge_item_not_unlocked_button.png";
+
+// Lazy-loaded encoded GE button images
+let _encUnlocked: { data: string; width: number } | null = null;
+let _encNotUnlocked: { data: string; width: number } | null = null;
+async function loadGeButtonEncoded(url: string): Promise<{ data: string; width: number }> {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width; canvas.height = img.height;
+            const ctx = canvas.getContext("2d")!;
+            ctx.drawImage(img, 0, 0);
+            resolve({
+                data: a1lib.encodeImageString(ctx.getImageData(0, 0, img.width, img.height)),
+                width: img.width,
+            });
+        };
+        img.src = url;
+    });
+}
 
 // ============================================================
 // Detection debug — corner brackets on all slots
@@ -298,7 +321,7 @@ export async function debugFindSubImg(): Promise<void> {
         if (matches.length === 0) { showNotification("No match found", 3000, "warning"); return; }
         alt1.overLaySetGroup("bronzeman_subimg");
         alt1.overLayClearGroup("bronzeman_subimg");
-        const dur = 8000;
+        const dur = 3000;
         for (const m of matches) {
             log(`  match @ (${m.x}, ${m.y})`);
             const bx = m.x - 48;
@@ -311,6 +334,7 @@ export async function debugFindSubImg(): Promise<void> {
                 const r = px.data[0], g = px.data[1], b = px.data[2];
                 if (r === 0xb3 && g === 0xc6 && b === 0x03) {
                     log(`  Buy offer open at (${bx + 36}, ${by + 128}) → #b3c603`);
+                    let geItemName = "";
                     // (531,130) #7b7b7b or #d4ae6d = favorite star visible → item selected
                     const fav = img.read(bx + 531, by + 130, 1, 1);
                     if (fav) {
@@ -328,6 +352,7 @@ export async function debugFindSubImg(): Promise<void> {
                                 const result = OCR.findReadLine(fullBuf, tooltipFont, colors, bx + 182, by + 120, 340, 17);
                                 if (result && result.text.length > 1) {
                                     log(`  GE item name: "${result.text}"`);
+                                    geItemName = result.text;
                                 }
                             } catch (e) {
                                 log(`  GE item name OCR error: ${e}`);
@@ -340,6 +365,18 @@ export async function debugFindSubImg(): Promise<void> {
                         const sr = sp.data[0], sg = sp.data[1], sb = sp.data[2];
                         const isSmall = sr === 0xe3 && sg === 0xbc && sb === 0x7d;
                         log(`  Search dropdown: ${isSmall ? "small" : "large"}`);
+                        if (isSmall && geItemName) {
+                            getItemRecord("unlocks_tradable", geItemName).then(async rec => {
+                                let enc = rec ? _encUnlocked : _encNotUnlocked;
+                                if (!enc) {
+                                    const url = rec ? geItemUnlockedUrl : geItemNotUnlockedUrl;
+                                    enc = await loadGeButtonEncoded(url);
+                                    if (rec) _encUnlocked = enc; else _encNotUnlocked = enc;
+                                }
+                                alt1.overLaySetGroup("bronzeman_ge");
+                                alt1.overLayImage(bx + 184, by + 330, enc.data, enc.width, dur);
+                            }).catch(() => {});
+                        }
                         // Only check if querying when dropdown is large
                         if (!isSmall) {
                             const rs = img.read(bx + 49, by + 261, 1, 1);
