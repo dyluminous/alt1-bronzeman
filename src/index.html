@@ -138,6 +138,7 @@
             <div class="btn btn-primary" onclick="Bronzeman.openSlotDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Slots interface</div>
             <div class="btn btn-primary" onclick="Bronzeman.openItemPngs()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Item PNGs</div>
             <div class="btn btn-primary" onclick="Bronzeman.ocrStackableDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">OCR Stackable (Slot 27)</div>
+            <div class="btn btn-primary" onclick="Bronzeman.openDbItemPngs()" style="width:100%;padding-top:6px;padding-bottom:6px;">DB Item Hash</div>
         </div>
         </div>
         <div id="slot_debug_inline" style="display:none;flex:1;flex-direction:column;">
@@ -156,6 +157,17 @@
                 <span class="slot-debug-close" style="font-size:16px;" onclick="Bronzeman.closeItemPngs()">✕</span>
             </div>
             <div id="item_pngs_body" class="wiki-disambig-body"></div>
+        </div>
+        <div id="db_item_pngs_inline" style="display:none;flex:1;flex-direction:column;">
+            <div class="slot-debug-header">
+                <span>DB Item Hash</span>
+                <span class="slot-debug-close" style="font-size:16px;" onclick="Bronzeman.closeDbItemPngs()">✕</span>
+            </div>
+            <div style="display:flex;gap:6px;padding:8px 10px;">
+                <input type="text" id="db_item_hash_input" class="text-input" placeholder="Item name" style="flex:1;">
+                <div class="btn btn-primary" onclick="Bronzeman.searchDbItemHash()" style="padding:2px 10px;">Search</div>
+            </div>
+            <div id="db_item_pngs_body" class="wiki-disambig-body"></div>
         </div>
     </div>
 
