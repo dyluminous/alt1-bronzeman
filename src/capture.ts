@@ -3,7 +3,7 @@ import * as Detect from "./inventory-detect";
 import { inventory } from "./inventory";
 import { state, captureFullRs, showNotification, NotificationHandle, log } from "./core";
 import { updateUI } from "./ui";
-import { drawDetectDebug, updateGridDebug, drawAnchorWatchDot, clearAnchorWatchDot, stopGeDetection, initGeDetection } from "./overlay";
+import { drawDetectDebug, updateGridDebug, drawAnchorWatchDot, clearAnchorWatchDot, stopGeDetection, initGeDetection, geIsOpen } from "./overlay";
 import { startNonUnlockedDotRefresh, stopNonUnlockedDotRefresh } from "./dot-hover";
 import { startSlotHover, stopSlotHover } from "./slot-hover";
 import { startAnchorWatch, stopAnchorWatch } from "./anchor-watch";
@@ -135,6 +135,7 @@ export function clearReference(): void {
 let gridSearchHandle: ReturnType<typeof setInterval> | null = null;
 let gridSearchStarted = 0;
 let gridSearchNotify: NotificationHandle | null = null;
+let gridSearchNotifyTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Format ms as mm:ss (e.g. 00:05), or hh:mm:ss once an hour elapses. */
 function formatElapsed(ms: number): string {
@@ -164,7 +165,15 @@ function startGridSearch(): void {
     }
     gridSearchStarted = Date.now();
     log("Scanning for inventory...");
-    gridSearchNotify = showNotification(`Scanning for inventory...\n(${formatElapsed(0)})`, 0, "info");
+    // Delay the notification ~1s. If the GE is open (the usual reason the
+    // inventory is hidden), GE detection finds it within that window and we
+    // never show "Scanning" — avoids a flash-on-then-off.
+    gridSearchNotifyTimer = setTimeout(() => {
+        gridSearchNotifyTimer = null;
+        if (!inventory.isCalibrated && !geIsOpen()) {
+            gridSearchNotify = showNotification(`Scanning for inventory...\n(${formatElapsed(Date.now() - gridSearchStarted)})`, 0, "info");
+        }
+    }, 1000);
     gridSearchHandle = setInterval(() => {
         if (inventory.isCalibrated) {
             stopGridSearch();
@@ -178,6 +187,7 @@ function startGridSearch(): void {
 function stopGridSearch(): void {
     const wasActive = gridSearchHandle !== null;
     if (gridSearchHandle) { clearInterval(gridSearchHandle); gridSearchHandle = null; }
+    if (gridSearchNotifyTimer) { clearTimeout(gridSearchNotifyTimer); gridSearchNotifyTimer = null; }
     if (gridSearchNotify) { gridSearchNotify.remove(); gridSearchNotify = null; }
     // Only claim success when a search was actually running — the success path
     // of every normal calibrate calls stopGridSearch() too.
