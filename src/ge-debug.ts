@@ -112,6 +112,7 @@ let _lastDropdownSmall = false;
 let _lastItemName = "";
 
 let _lastCursorX = -1;   // for OCR gating — only OCR when cursor moves
+let _lastOcrW = -1;      // skip OCR when box width hasn't changed
 
 async function geDebugTick(): Promise<void> {
     if (!geDebugActive) return;
@@ -270,13 +271,19 @@ async function geDebugTick(): Promise<void> {
                     const ocrW = cursorX - 49;
                     alt1.overLaySetGroup("bronzeman_searchbox");
                     alt1.overLayRect(a1lib.mixColor(255, 255, 0), _bx + 49, _by + 217, ocrW, 16, dur, 1);
-                    if (cursorX !== _lastCursorX) {
+                    if (cursorX !== _lastCursorX || ocrW !== _lastOcrW) {
                         _lastCursorX = cursorX;
-                        // TODO: OCR the item name from the search box
+                        _lastOcrW = ocrW;
+                        log(`OCR test — cursor at ${cursorX}, box width ${ocrW}`);
                     }
-                } else {
-                    _lastCursorX = -1;
                 }
+                // Cursor not found or at position 49 (empty): just don't draw.
+                // Don't reset _lastCursorX/_lastOcrW — the cursor may be blinking.
+                // They'll be reset when the user deletes all text and hasText
+                // becomes false, triggering the outer else.
+            } else {
+                _lastCursorX = -1;
+                _lastOcrW = -1;
             }
         }
     } catch (_) {}
