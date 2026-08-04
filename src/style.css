@@ -201,6 +201,7 @@
         transition: opacity 0.3s;
     }
     .anchor-dot.hidden { opacity: 0; }
+    .anchor-dot.magenta { background: #ff00ff; }
 
     .pickup-card {
         display: flex; flex-direction: column; align-items: center;

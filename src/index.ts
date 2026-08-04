@@ -12,7 +12,6 @@ if (searchIcon) searchIcon.src = searchIconUrl;
 import "./style.css";
 
 import { initOnLoad } from "./bootstrap";
-import { initGeDetection } from "./ge-debug";
 
 // ============================================================
 // Bronzeman namespace — re-exports for HTML onclick handlers
@@ -40,13 +39,7 @@ export { manualUnlock, openManualUnlock, closeManualUnlock } from "./manual-unlo
 // ============================================================
 
 if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => {
-        initOnLoad();
-        // GE detection runs always — unlock icon is a production feature.
-        // The 100ms tick loop also handles search text sync.
-        initGeDetection();
-    });
+    document.addEventListener("DOMContentLoaded", initOnLoad);
 } else {
     initOnLoad();
-    initGeDetection();
 }

@@ -3,7 +3,7 @@ import * as Detect from "./inventory-detect";
 import { inventory } from "./inventory";
 import { state, captureFullRs, showNotification, NotificationHandle, log } from "./core";
 import { updateUI } from "./ui";
-import { drawDetectDebug, updateGridDebug, drawAnchorWatchDot, clearAnchorWatchDot } from "./overlay";
+import { drawDetectDebug, updateGridDebug, drawAnchorWatchDot, clearAnchorWatchDot, stopGeDetection, initGeDetection } from "./overlay";
 import { startNonUnlockedDotRefresh, stopNonUnlockedDotRefresh } from "./dot-hover";
 import { startSlotHover, stopSlotHover } from "./slot-hover";
 import { startAnchorWatch, stopAnchorWatch } from "./anchor-watch";
@@ -24,6 +24,7 @@ export function stopAutoCapture(): void {
     stopAnchorWatch();
     stopSlotScan();
     stopNonUnlockedDotRefresh();
+    stopGeDetection();
     inventory.clear();
     updateUI();
 }
@@ -81,6 +82,7 @@ export function calibrateGrid(opts?: { silent?: boolean }): void {
             drawAnchorWatchDot();
             updateUI();
             stopGridSearch();
+            stopGeDetection(); // inventory found → GE is not open
             startSlotHover();
             startSlotScan();
             startNonUnlockedDotRefresh();
@@ -118,6 +120,7 @@ export function clearReference(): void {
     stopAnchorWatch();
     stopSlotScan();
     stopNonUnlockedDotRefresh();
+    stopGeDetection();
     inventory.clear();
     log("Anchor cleared. Capture again to set.");
     updateUI();
@@ -151,6 +154,7 @@ function startGridSearch(): void {
     stopAnchorWatch(); // a fresh scan replaces the resize watch
     stopSlotScan();
     stopNonUnlockedDotRefresh();
+    initGeDetection(); // inventory lost → GE might be open
     // A stale anchor means we were calibrated but can't see the inventory now.
     // Drop it so the interval below actually scans instead of instantly
     // stopping on the isCalibrated check.
