@@ -1,4 +1,5 @@
-// ge-debug.ts — GE interface identification overlay (Developer-mode)
+// ge-debug.ts — GE interface detection (always-on production for unlock icon;
+// magenta/yellow debug boxes gated behind "GE debugging" checkbox)
 import * as a1lib from "alt1";
 import { findSubimage, imageDataFromUrl, ImgRefBind } from "alt1/base";
 import type { ImgRef } from "alt1/base";
@@ -12,32 +13,30 @@ import geItemNotUnlockedUrl from "./assets/images/ge_item_not_unlocked_button.pn
 import needleUrl from "./assets/images/ge_identifier.png";
 
 // ----------------------------------------------------------------
-// Toggle
+// Toggle — always-on detection; debug overlays gated separately
 // ----------------------------------------------------------------
 
-export let geDebugActive = false;
 let _handle: ReturnType<typeof setInterval> | null = null;
 let _needle: ImageData | null = null;
 
-export function toggleGeDebug(): void {
-    geDebugActive = !geDebugActive;
-    log(`GE debug ${geDebugActive ? "ON" : "OFF"}`);
-    if (geDebugActive) {
-        void preloadGeIcons().then(() => {
-            if (geDebugActive) _handle = setInterval(geDebugTick, 100);
-        });
-    } else {
-        _geLocated = false;
-        _lastCursorX = -1;
-        if (_handle) { clearInterval(_handle); _handle = null; }
+/** Whether magenta GE box + yellow search box are drawn. */
+let geDebugOverlays = false;
+
+export function initGeDetection(): void {
+    if (_handle) return;
+    void preloadGeIcons().then(() => {
+        _handle = setInterval(geDebugTick, 100);
+    });
+}
+
+export function toggleGeDebugOverlays(): void {
+    geDebugOverlays = !geDebugOverlays;
+    if (!geDebugOverlays) {
         try {
-            alt1.overLayClearGroup("bronzeman_ge");
             alt1.overLayClearGroup("bronzeman_subimg");
             alt1.overLayClearGroup("bronzeman_searchbox");
         } catch (_) {}
     }
-    const btn = document.getElementById("ge_debug_btn");
-    if (btn) btn.textContent = geDebugActive ? "Disable GE overlay" : "Enable GE overlay";
 }
 
 // ----------------------------------------------------------------
@@ -103,7 +102,23 @@ function captureGeRegion(bx: number, by: number): ImgRef | null {
 // when the relevant state changes — not on every tick.
 // ----------------------------------------------------------------
 
-const GE_SCALES_GEM_IDENTIFIER = [0x85, 0x57, 0xc4] as const;
+// ----------------------------------------------------------------
+// Named constants — GE pixel references relative to (_bx, _by)
+// ----------------------------------------------------------------
+
+const GE_SCALES_GEM_IDENTIFIER = [0x85, 0x57, 0xc4] as const; // (35,31) — always present while GE open
+const BUY_OFFER_COLOR  = [0xb3, 0xc6, 0x03] as const;          // (36,128) — #b3c603 buy-offer tab active
+const STAR_GREY        = [0x7b, 0x7b, 0x7b] as const;          // (531,130) — unfavorited star
+const STAR_GOLD        = [0xd4, 0xae, 0x6d] as const;          // (531,130) — favorited star
+const LOADING_DOT      = [0xb3, 0xa9, 0xa3] as const;          // (229,147) — first dot of "Loading…"
+const ITEM_NAME_OCR: OCR.ColortTriplet[] = [[0xf0, 0xbe, 0x79]]; // #f0be79 — item name text
+const DROPDOWN_SMALL   = [0xe3, 0xbc, 0x7d] as const;          // (42,327) — small dropdown indicator
+const SEARCH_BG        = [0x1b, 0x1d, 0x1d] as const;          // (52/53,225) — search box background
+const SEARCH_TEXT_OCR: OCR.ColortTriplet[] = [[0xff, 0xff, 0xff]]; // #ffffff — search box text
+const CURSOR_WHITE     = [0xff, 0xff, 0xff] as const;          // typing cursor
+const CURSOR_RED       = [0xff, 0x00, 0x00] as const;          // typing cursor (character limit)
+const DEBUG_MAGENTA    = [255, 0, 255] as const;               // debug overlay box
+const DEBUG_YELLOW     = [255, 255, 0] as const;               // debug search box
 
 let _bx = 0, _by = 0;
 let _geLocated = false;
@@ -118,7 +133,6 @@ let _geSearchText = "";   // last OCR'd search text, cleared when text disappear
 let _tabBeforeSearch = ""; // tab to restore when GE closes
 
 async function geDebugTick(): Promise<void> {
-    if (!geDebugActive) return;
     try {
         let img: ImgRef | null;
 
@@ -168,14 +182,16 @@ async function geDebugTick(): Promise<void> {
             return;
         }
 
-        // —————— magenta box (always redrawn while GE open) ——————
-        alt1.overLaySetGroup("bronzeman_subimg");
-        alt1.overLayClearGroup("bronzeman_subimg");
-        alt1.overLayRect(a1lib.mixColor(255, 0, 255), _bx, _by, 768, 572, dur, 1);
+        // —————— magenta box (debug overlay) ——————
+        if (geDebugOverlays) {
+            alt1.overLaySetGroup("bronzeman_subimg");
+            alt1.overLayClearGroup("bronzeman_subimg");
+            alt1.overLayRect(a1lib.mixColor(DEBUG_MAGENTA[0], DEBUG_MAGENTA[1], DEBUG_MAGENTA[2]), _bx, _by, 768, 572, dur, 1);
+        }
 
         // —————— buy-offer pixel ——————
         const px = img.read(ox + 36, oy + 128, 1, 1);
-        const buying = !!(px && px.data[0] === 0xb3 && px.data[1] === 0xc6 && px.data[2] === 0x03);
+        const buying = !!(px && px.data[0] === BUY_OFFER_COLOR[0] && px.data[1] === BUY_OFFER_COLOR[1] && px.data[2] === BUY_OFFER_COLOR[2]);
         if (buying !== _lastBuying) {
             _lastBuying = buying;
             if (!buying) {
@@ -194,7 +210,7 @@ async function geDebugTick(): Promise<void> {
         let star = false;
         if (fav) {
             const fr = fav.data[0], fg = fav.data[1], fb = fav.data[2];
-            star = (fr === 0x7b && fg === 0x7b && fb === 0x7b) || (fr === 0xd4 && fg === 0xae && fb === 0x6d);
+            star = (fr === STAR_GREY[0] && fg === STAR_GREY[1] && fb === STAR_GREY[2]) || (fr === STAR_GOLD[0] && fg === STAR_GOLD[1] && fb === STAR_GOLD[2]);
         }
         if (star !== _lastStar) {
             _lastStar = star;
@@ -209,14 +225,16 @@ async function geDebugTick(): Promise<void> {
         // ellipsis. OCR while this pixel is present. If the star appears
         // without the loading pixel, OCR once immediately.
         if (star) {
-            alt1.overLayRect(a1lib.mixColor(255, 0, 255), _bx + 182, _by + 120, 340, 17, dur, 1);
+            if (geDebugOverlays) {
+                alt1.overLaySetGroup("bronzeman_subimg");
+                alt1.overLayRect(a1lib.mixColor(DEBUG_MAGENTA[0], DEBUG_MAGENTA[1], DEBUG_MAGENTA[2]), _bx + 182, _by + 120, 340, 17, dur, 1);
+            }
             const lp = img.read(ox + 229, oy + 147, 1, 1);
-            const loading = !!(lp && lp.data[0] === 0xb3 && lp.data[1] === 0xa9 && lp.data[2] === 0xa3);
+            const loading = !!(lp && lp.data[0] === LOADING_DOT[0] && lp.data[1] === LOADING_DOT[1] && lp.data[2] === LOADING_DOT[2]);
             if (loading || !_lastItemName) {
                 try {
                     const fullBuf = img.toData();
-                    const colors: OCR.ColortTriplet[] = [[0xf0, 0xbe, 0x79]];
-                    const result = OCR.findReadLine(fullBuf, tooltipFont, colors, ox + 182, oy + 120, 340, 17);
+                    const result = OCR.findReadLine(fullBuf, tooltipFont, ITEM_NAME_OCR, ox + 182, oy + 120, 340, 17);
                     if (result && result.text.length > 1) {
                         const name = result.text;
                         if (name !== _lastItemName) {
@@ -230,7 +248,7 @@ async function geDebugTick(): Promise<void> {
 
         // —————— dropdown size ——————
         const sp = img.read(ox + 42, oy + 327, 1, 1);
-        const dropdownSmall = !!(sp && sp.data[0] === 0xe3 && sp.data[1] === 0xbc && sp.data[2] === 0x7d);
+        const dropdownSmall = !!(sp && sp.data[0] === DROPDOWN_SMALL[0] && sp.data[1] === DROPDOWN_SMALL[1] && sp.data[2] === DROPDOWN_SMALL[2]);
         if (dropdownSmall !== _lastDropdownSmall) {
             _lastDropdownSmall = dropdownSmall;
             if (dropdownSmall && _lastItemName) {
@@ -245,94 +263,84 @@ async function geDebugTick(): Promise<void> {
             drawGeIcon(_lastItemName);
         }
 
-        // —————— search box text ——————
-        // Only active when the GE search dropdown is LARGE (dropdownSmall=false).
-        //
-        // The GE search box background is #1b1d1d. When the user types,
-        // this background changes. Pixels (52,225) and (53,225) are sampled
-        // as probes — if either differs from #1b1d1d, text is present.
-        //
-        // To find the typed text we locate the typing cursor, which is either
-        // white (#ffffff, normal) or red (#ff0000, character limit reached).
-        // The cursor sits on a 1px-tall scan-line at y=217 between x=49 and
-        // x=217. We walk left → right; the first bright pixel marks the cursor.
-        //
-        //   • cursor at (49,217)  →  box focused but empty — skip
-        //   • cursor found at x>49 →  OCR box = (49,217) × (x−49, 16)
-        //   • no cursor found      →  do nothing
-        //
-        // OCR text colour is #f5f5f5 (off-white), chatbox 14pt font.
-        if (!dropdownSmall) {
-            const sb1 = img.read(ox + 52, oy + 225, 1, 1);
-            const sb2 = img.read(ox + 53, oy + 225, 1, 1);
-            const isBg = (d: Uint8ClampedArray) => d[0] === 0x1b && d[1] === 0x1d && d[2] === 0x1d;
-            const hasText = (sb1 && !isBg(sb1.data)) || (sb2 && !isBg(sb2.data));
-            if (hasText) {
-                let cursorX = -1;
-                for (let sx = 49; sx <= 217; sx++) {
-                    const cp = img.read(ox + sx, oy + 217, 1, 1);
-                    if (cp && ((cp.data[0] === 0xff && cp.data[1] === 0xff && cp.data[2] === 0xff) ||
-                               (cp.data[0] === 0xff && cp.data[1] === 0x00 && cp.data[2] === 0x00))) {
-                        cursorX = sx;
-                        break;
-                    }
-                }
-                if (cursorX >= 0 && cursorX > 49) {
-                    const ocrW = cursorX - 49;
-                    alt1.overLaySetGroup("bronzeman_searchbox");
-                    alt1.overLayRect(a1lib.mixColor(255, 255, 0), _bx + 49, _by + 217, ocrW, 16, dur, 1);
-                    if (cursorX !== _lastCursorX || ocrW !== _lastOcrW) {
-                        _lastCursorX = cursorX;
-                        _lastOcrW = ocrW;
-                        try {
-                            const fullBuf = img.toData();
-                            const result = OCR.findReadLine(fullBuf, geSearchFont, [[0xff, 0xff, 0xff]], ox + 49, oy + 217, ocrW, 16);
-                            if (result && result.text.length > 0) {
-                                const wasEmpty = !_geSearchText;
-                                _geSearchText = result.text;
-                                log(`GE search text: "${_geSearchText}"`);
-                                // Sync to the plugin's search input
-                                const input = document.getElementById("search_input") as HTMLInputElement | null;
-                                if (input && input.value !== _geSearchText) {
-                                    input.value = _geSearchText;
-                                    input.dispatchEvent(new Event("input", { bubbles: true }));
-                                    const clear = document.getElementById("search_clear_btn");
-                                    if (clear) clear.style.display = _geSearchText.length > 0 ? "block" : "none";
-                                }
-                                // Auto-switch to the Search tab on first character
-                                if (wasEmpty) {
-                                    // Remember which tab is active
-                                    const activeTab = document.querySelector(".tab-btn.active") as HTMLElement | null;
-                                    if (activeTab && !activeTab.getAttribute("onclick")?.includes("search")) {
-                                        _tabBeforeSearch = activeTab.getAttribute("onclick") ?? "";
-                                    }
-                                    const searchTab = document.querySelector(".tab-btn[onclick*='search']") as HTMLElement | null;
-                                    if (searchTab) searchTab.click();
-                                }
-                            }
-                        } catch (_) {}
-                    }
-                }
-                // Cursor not found or at position 49 (empty): just don't draw.
-                // Don't reset _lastCursorX/_lastOcrW — the cursor may be blinking.
-                // They'll be reset when the user deletes all text and hasText
-                // becomes false, triggering the outer else.
-            } else {
-                _lastCursorX = -1;
-                _lastOcrW = -1;
-                if (_geSearchText) {
-                    _geSearchText = "";
-                    const input = document.getElementById("search_input") as HTMLInputElement | null;
-                    if (input) {
-                        input.value = "";
-                        input.dispatchEvent(new Event("input", { bubbles: true }));
-                    }
-                    const clear = document.getElementById("search_clear_btn");
-                    if (clear) clear.style.display = "none";
-                }
+        if (!dropdownSmall) processSearchBox(img, ox, oy, dur);
+    } catch (_) {}
+}
+
+// ----------------------------------------------------------------
+// Search box text detection — OCR + sync to plugin search input
+//
+// Only runs when the GE search dropdown is LARGE. Two probe pixels
+// at (52,225) & (53,225) detect text entry by deviating from the
+// search box background (#1b1d1d). When text is found, the typing
+// cursor is located on scan-line y=217 between x=49,217. The first
+// white or red pixel marks the cursor end → OCR box (49,217, w, 16).
+// ----------------------------------------------------------------
+
+function processSearchBox(img: ImgRef, ox: number, oy: number, dur: number): void {
+    const sb1 = img.read(ox + 52, oy + 225, 1, 1);
+    const sb2 = img.read(ox + 53, oy + 225, 1, 1);
+    const isBg = (d: Uint8ClampedArray): boolean => d[0] === SEARCH_BG[0] && d[1] === SEARCH_BG[1] && d[2] === SEARCH_BG[2];
+    const hasText = (sb1 && !isBg(sb1.data)) || (sb2 && !isBg(sb2.data));
+    if (hasText) {
+        let cursorX = -1;
+        for (let sx = 49; sx <= 217; sx++) {
+            const cp = img.read(ox + sx, oy + 217, 1, 1);
+            if (cp && ((cp.data[0] === CURSOR_WHITE[0] && cp.data[1] === CURSOR_WHITE[1] && cp.data[2] === CURSOR_WHITE[2]) ||
+                       (cp.data[0] === CURSOR_RED[0] && cp.data[1] === CURSOR_RED[1] && cp.data[2] === CURSOR_RED[2]))) {
+                cursorX = sx;
+                break;
             }
         }
-    } catch (_) {}
+        if (cursorX >= 0 && cursorX > 49) {
+            const ocrW = cursorX - 49;
+            if (geDebugOverlays) {
+                alt1.overLaySetGroup("bronzeman_searchbox");
+                alt1.overLayRect(a1lib.mixColor(DEBUG_YELLOW[0], DEBUG_YELLOW[1], DEBUG_YELLOW[2]), _bx + 49, _by + 217, ocrW, 16, dur, 1);
+            }
+            if (cursorX !== _lastCursorX || ocrW !== _lastOcrW) {
+                _lastCursorX = cursorX;
+                _lastOcrW = ocrW;
+                try {
+                    const fullBuf = img.toData();
+                    const result = OCR.findReadLine(fullBuf, geSearchFont, SEARCH_TEXT_OCR, ox + 49, oy + 217, ocrW, 16);
+                    if (result && result.text.length > 0) {
+                        const wasEmpty = !_geSearchText;
+                        _geSearchText = result.text;
+                        log(`GE search text: "${_geSearchText}"`);
+                        const input = document.getElementById("search_input") as HTMLInputElement | null;
+                        if (input && input.value !== _geSearchText) {
+                            input.value = _geSearchText;
+                            input.dispatchEvent(new Event("input", { bubbles: true }));
+                            const clear = document.getElementById("search_clear_btn");
+                            if (clear) clear.style.display = _geSearchText.length > 0 ? "block" : "none";
+                        }
+                        if (wasEmpty) {
+                            const activeTab = document.querySelector(".tab-btn.active") as HTMLElement | null;
+                            if (activeTab && !activeTab.getAttribute("onclick")?.includes("search")) {
+                                _tabBeforeSearch = activeTab.getAttribute("onclick") ?? "";
+                            }
+                            const searchTab = document.querySelector(".tab-btn[onclick*='search']") as HTMLElement | null;
+                            if (searchTab) searchTab.click();
+                        }
+                    }
+                } catch (_) {}
+            }
+        }
+    } else {
+        _lastCursorX = -1;
+        _lastOcrW = -1;
+        if (_geSearchText) {
+            _geSearchText = "";
+            const input = document.getElementById("search_input") as HTMLInputElement | null;
+            if (input) {
+                input.value = "";
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+            const clear = document.getElementById("search_clear_btn");
+            if (clear) clear.style.display = "none";
+        }
+    }
 }
 
 // ----------------------------------------------------------------

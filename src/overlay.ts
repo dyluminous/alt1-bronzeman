@@ -281,4 +281,4 @@ export function toggleTooltipDebug(): void {
 // GE debug re-export (implemented in ge-debug.ts)
 // ============================================================
 
-export { toggleGeDebug } from "./ge-debug";
+export { initGeDetection, toggleGeDebugOverlays } from "./ge-debug";

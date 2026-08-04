@@ -216,8 +216,14 @@ class SlotScanner {
         // Strict covered set gates interior reads (no tooltip-polluted hashes);
         // the row-excepted set is used only for hiding dots. (Cursor-adjacent
         // slots are intentionally NOT excluded from reads — see getCoveredForDots.)
-        const covered = this.getCoveredSlotIndices(img);
-        const coveredForDots = this.getCoveredForDots(img);
+        let covered: Set<number>;
+        let coveredForDots: Set<number>;
+        try {
+            covered = this.getCoveredSlotIndices(img);
+            coveredForDots = this.getCoveredForDots(img);
+        } catch (_) {
+            return;
+        }
 
         const appeared: { index: number; hash: string }[] = [];
         const removed: { index: number; hash: string }[] = [];
