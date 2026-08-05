@@ -1,5 +1,5 @@
 // data.ts — UnlockStore: IndexedDB persistence + in-memory unlock lookup
-import { state, LS_KEYS, log, showNotification } from "./core";
+import { state, log, showNotification } from "./core";
 import { lowerHalfOf } from "./hash";
 
 /** Per-hash metadata stored alongside each variant. */
@@ -56,10 +56,6 @@ class UnlockStore {
             const req = indexedDB.open(DB_NAME, DB_VERSION);
             req.onupgradeneeded = () => {
                 const db = req.result;
-                // v1 had an "ignores" store — now unused, drop it.
-                if (db.objectStoreNames.contains("ignores")) {
-                    db.deleteObjectStore("ignores");
-                }
                 if (!db.objectStoreNames.contains(STORE_TRADABLE)) {
                     db.createObjectStore(STORE_TRADABLE, { keyPath: "name" });
                 }
@@ -112,8 +108,7 @@ class UnlockStore {
     // Public API
     // ----------------------------------------------------------
 
-    /** Open the DB, load both unlock stores, rebuild the flat hash Set.
-     *  Also migrates any localStorage unlockedHashes from the old scheme. */
+    /** Open the DB, load both unlock stores, rebuild the flat hash Set. */
     async init(): Promise<void> {
         try {
             this._db = await this.openDB();
@@ -121,42 +116,6 @@ class UnlockStore {
                 this.getAll(STORE_TRADABLE),
                 this.getAll(STORE_UNTRADABLE),
             ]);
-
-            // Migrate the old localStorage hash list into the tradable store once.
-            // Isolated in its own try/catch — corrupt legacy data must not
-            // block the rest of init.
-            try {
-                const rawHashes = localStorage.getItem(LS_KEYS.unlockedHashes);
-                if (rawHashes) {
-                    const legacy: string[] = JSON.parse(rawHashes);
-                    if (legacy.length > 0) {
-                        const existing = new Set<string>();
-                        for (const r of [...tradable, ...untradable]) for (const h of r.hashes) existing.add(h.hash);
-                        const fresh = legacy.filter(h => !existing.has(h));
-                        if (fresh.length > 0) {
-                            const rec: UnlockedItemRecord = {
-                                name: "(unknown)",
-                                tradeable: true,
-                                hashes: fresh.map(hash => ({ hash, stackableQuantity: null, addedOn: Date.now() })),
-                                lastUpdatedOn: Date.now(),
-                            };
-                            await this.put(STORE_TRADABLE, rec);
-                            // Feed the migrated hashes into the in-memory Sets
-                            // too, so they're live on this very boot (the
-                            // records array below was read before the put).
-                            for (const h of rec.hashes) {
-                                this.hashes.add(h.hash);
-                                this.lowerHalfIndex.set(lowerHalfOf(h.hash), rec.name);
-                            }
-                            this.names.add(rec.name);
-                            log(`Migrated ${fresh.length} legacy hashes to IndexedDB.`);
-                        }
-                    }
-                    localStorage.removeItem(LS_KEYS.unlockedHashes);
-                }
-            } catch (e) {
-                log(`Legacy hash migration skipped: ${e}`);
-            }
 
             for (const r of [...tradable, ...untradable]) {
                 for (const h of r.hashes) this.hashes.add(h.hash);

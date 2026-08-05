@@ -42,7 +42,6 @@ function ensureAlt1(): boolean {
 // ============================================================
 
 export const LS_KEYS = {
-    unlockedHashes: "Bronzeman/unlockedHashes", // legacy — migrated to IndexedDB on first boot
     recentUnlocksCount: "Bronzeman/recentUnlocksCount", // user setting: how many recent unlocks to show
 } as const;
 
