@@ -202,11 +202,13 @@
 
     <!-- Tab: Debug -->
     <div class="tab-panel" id="panel_debug">
-        <div class="section-title">Inventory Grid (4×7)</div>
-        <div id="slot_grid"><div style="color:#555;text-align:center;padding:12px;">Waiting for scan...</div></div>
-        <div id="anchor_info"></div>
-        <div class="section-title">Event Log</div>
-        <div id="log"></div>
+        <div class="section-title">Grid Overlays</div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;">
+            <input type="checkbox" id="show_grid_boundary" onclick="Bronzeman.updateGridBoundary()">
+            <span>Show grid boundary box</span>
+        </label>
+        <div id="anchor_info" style="font-size:8px;color:#666;font-family:monospace;"></div>
+        <div id="log" style="display:none;"></div>
     </div>
 
     <script src="./main.js"></script>

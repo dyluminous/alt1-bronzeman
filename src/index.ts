@@ -9,7 +9,7 @@ import {
 } from "./core";
 import {
     updateAlt1Status, updateScanStatus, updateUI, updateDebugGrid,
-    appendChangeEntry, drawDetectDebug, drawSlotOverlays, drawSlotOverlaysFor,
+    appendChangeEntry, drawDetectDebug, drawSlotOverlaysFor,
     isCursorInInventory,
 } from "./ui";
 import { loadState, unlockItem } from "./data";
@@ -49,13 +49,9 @@ export function initOnLoad() {
                     log(`[init] validateAnchor returned: ${ok}`);
                     if (ok) {
                         log("Anchor valid — grid online.");
-                        Inventory.captureCornerBaseline(img, saved, (msg) => log("  [corner] " + msg));
-                        if (!Inventory.loadEmptyHash()) {
-                            const sr = Inventory.scan(img);
-                            if (sr.slots.length >= 28) Inventory.captureEmptyHash(sr.slots[27].hash);
-                        }
                         showOverlay("Grid anchoring successful", a1lib.mixColor(255, 255, 0), 2000);
                         drawDetectDebug(saved, false);
+                        updateGridBoundary();
                         startPolling();
                     } else {
                         log("Anchor INVALID — cleared. Recapture.");
@@ -155,24 +151,21 @@ function doCaptureRef(): void {
                 showOverlay("Anchor not saved - Bad grid rejected", a1lib.mixColor(255, 60, 60), 6000);
                 log("Grid rejected — center pixel mismatch. Recapture.");
                 Inventory.clearAnchor();
-                Inventory.clearCornerBaseline();
+                Inventory.clearOuterPerm();
+                Inventory.clearEmptySlotData();
+                Inventory.resetHashes();
                 drawDetectDebug(anc, true);
                 return;
             } else {
-                // Capture corner baseline for overlay detection
-                Inventory.captureCornerBaseline(img, anc, (msg) => log("  [corner] " + msg));
-                // Capture perimeter baseline for border verification
-                Inventory.captureCornerBrackets(img, anc, (msg) => log("  [bracket] " + msg));
-                // Capture empty hash from slot 28 (assumed empty)
-                const scanResult = Inventory.scan(img, (msg) => log("  [inv] " + msg));
-                if (scanResult.slots.length >= 28) {
-                    Inventory.captureEmptyHash(scanResult.slots[27].hash);
-                    log(`  Empty hash saved: ${scanResult.slots[27].hash}`);
-                }
+                // Capture outer perimeter for border verification
+                Inventory.captureOuterPerm(img, anc, (msg) => log("  [outer] " + msg));
+                // Capture empty slot data from slot 28 (assumed empty)
+                Inventory.captureEmptySlotData(img, anc, (msg) => log("  [empty] " + msg));
                 showOverlay("Grid anchoring successful", a1lib.mixColor(255, 255, 0), 3000);
                 drawDetectDebug(anc, false);
+                updateGridBoundary();
                 updateUI();
-                doScan();
+                startPolling();
             }
         } else {
             log("Detection failed. Is your mouse inside slot 1?");
@@ -186,11 +179,11 @@ function doCaptureRef(): void {
 
 export function clearReference(): void {
     Inventory.clearAnchor();
-    Inventory.clearCornerBaseline();
-    Inventory.clearEmptyHash();
-    Inventory.clearCornerBrackets();
+    Inventory.clearOuterPerm();
+    Inventory.clearEmptySlotData();
     Inventory.resetHashes();
     state.scanCount = 0;
+    if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
     log("Anchor cleared. Capture again to set.");
     updateScanStatus("No anchor");
     updateUI();
@@ -209,6 +202,8 @@ function doScan(): void {
     try {
         if (!Inventory.hasAnchor()) {
             updateScanStatus("No anchor set");
+            // Still draw boundary if checkbox is on
+            drawBoundaryOverlay();
             return;
         }
 
@@ -219,6 +214,9 @@ function doScan(): void {
         state.scanCount++;
         state.lastScanResult = result;
 
+        // Draw boundary overlay each scan (if checkbox checked)
+        drawBoundaryOverlay();
+
         updateDebugGrid(result);
 
         if (state.scanCount === 1) {
@@ -227,129 +225,92 @@ function doScan(): void {
         }
 
         if (result.changes > 0) {
-            // Aftermath: if previous scan was interface, suppress all pickups/removals
-            if (state.afterInterface) {
-                state.afterInterface = false;
-                drawSlotOverlays(result, { r: 255, g: 80, b: 80 });
-                updateDebugGrid(result, true);
-                log(`  ⏭ Interface aftermath — suppressing ${result.changes} transitions`);
-                return;
-            }
-            // Classify each slot as empty or occupied via hash comparison against saved empty hash
-            const emptyHash = Inventory.loadEmptyHash();
-            const nowOccupied = emptyHash
-                ? Array.from(Inventory.classifyOccupied(result.slots.map(s => s.hash), emptyHash))
-                : Array.from({length: result.slots.length}, (_, i) => i);
-            const baseline = Inventory.loadCornerBaseline();
+            const outerPerm = Inventory.loadOuterPerm();
+            const emptyRef = Inventory.loadEmptySlotData();
+            const nowOccupied: number[] = [];
+            const obstructed: number[] = [];
 
-            // Detect massive overlay: if >25% of changed slots fail corner+perimeter,
-            // it's an interface event. Don't update prevOccupied — freeze real state.
-            const cornerBrackets = Inventory.loadCornerBrackets();
-            if (result.changes >= 4 && baseline && cornerBrackets) {
-                let maskedCount = 0;
-                for (let i = 0; i < result.slots.length; i++) {
-                    if (!result.slots[i].changed) continue;
-                    if (!Inventory.cornersMatchBaseline(img, result.anchor, i, baseline) ||
-                        !Inventory.cornerBracketsMatch(img, result.anchor, i, cornerBrackets)) {
-                        maskedCount++;
+            for (let i = 0; i < result.slots.length; i++) {
+                if (!result.slots[i].changed) continue;
+
+                // Step 1: Outer perimeter check
+                if (!outerPerm || !Inventory.outerPermClear(img, result.anchor, i, outerPerm)) {
+                    // Slot is obstructed (tooltip/interface covering it)
+                    obstructed.push(i);
+                    continue;
+                }
+
+                // Step 2: Empty check
+                if (emptyRef) {
+                    const mm = Inventory.slotEmptyMismatch(img, result.anchor, i, emptyRef);
+                    if (mm > 0.03) nowOccupied.push(i); // has item
+                    // else: slot is empty, skip
+                } else {
+                    nowOccupied.push(i); // no empty ref → treat as occupied
+                }
+            }
+
+            // Draw red for obstructed slots (they had hash changes but are covered)
+            if (obstructed.length > 0) {
+                drawSlotOverlaysFor(result.slots.filter(s => obstructed.includes(s.index)), { r: 255, g: 80, b: 80 });
+                log(`  ⏭ Obstructed: ${obstructed.map(i => `#${i+1}`).join(" ")}`);
+            }
+
+            // Drag detection: if RS cursor is inside inventory grid and hasn't moved
+            // for 2+ consecutive scans, the user is likely holding left click (dragging).
+            let isDragging = false;
+            try {
+                const pos = a1lib.getMousePosition();
+                if (pos) {
+                    const anc = result.anchor;
+                    // Store grid bounds at capture? For now compute from anchor
+                    const gridLeft = anc.x - 1;
+                    const gridTop = anc.y - 1;
+                    const gridRight = anc.x + 3 * anc.colStride + 37;
+                    const gridBottom = anc.y + 6 * anc.rowStride + 33;
+                    const inGrid = pos.x >= gridLeft && pos.x <= gridRight && pos.y >= gridTop && pos.y <= gridBottom;
+                    if (inGrid) {
+                        const same = state.prevRsMouse.x === pos.x && state.prevRsMouse.y === pos.y;
+                        if (same) state.prevRsMouseSame++;
+                        else state.prevRsMouseSame = 0;
+                        if (state.prevRsMouseSame >= 2) isDragging = true;
+                        state.prevRsMouse = { x: pos.x, y: pos.y };
+                    } else {
+                        state.prevRsMouseSame = 0;
                     }
                 }
-                if (maskedCount / result.changes > 0.5 || maskedCount === result.changes) {
-                    log(`  ⏭ Interface detected (${maskedCount}/${result.changes} masked) — holding state`);
-                    state.afterInterface = true;
-                    drawSlotOverlays(result, { r: 255, g: 80, b: 80 });
-                    updateDebugGrid(result, true);
-                    return; // don't update prevOccupied
-                }
+            } catch { /* ignore */ }
+
+            if (isDragging) {
+                drawSlotOverlaysFor(result.slots.filter(s => s.changed), { r: 255, g: 150, b: 200 }); // pink
+                updateDebugGrid(result, true);
+                log(`  ⏭ Drag detected — ignoring ${result.changes} change(s)`);
+                return;
             }
 
+            // Track state
+            const prevOccupied = state.prevOccupied;
+            const newPickups = nowOccupied.filter(i => !prevOccupied.has(i));
+            const removals = Array.from(prevOccupied).filter(i => !nowOccupied.includes(i));
+            state.prevOccupied = new Set(nowOccupied);
 
-            // Filter nowOccupied: both 4-corner AND bracket must match saved baseline.
-            if (baseline && cornerBrackets) {
-                const realOccupied = nowOccupied.filter(i =>
-                    Inventory.cornersMatchBaseline(img, result.anchor, i, baseline) &&
-                    Inventory.cornerBracketsMatch(img, result.anchor, i, cornerBrackets)
-                );
-                const overlayMasked = nowOccupied.filter(i => !realOccupied.includes(i));
-                if (overlayMasked.length > 0) {
-                    // Show red boxes for masked slots so user sees the overlay was caught
-                    const maskedSlots = result.slots.filter(s => overlayMasked.includes(s.index));
-                    drawSlotOverlaysFor(maskedSlots, { r: 255, g: 80, b: 80 });
-                    const reasons = overlayMasked.map(i => {
-                        const c = Inventory.cornersMatchBaseline(img, result.anchor, i, baseline);
-                        const p = Inventory.cornerBracketsMatch(img, result.anchor, i, cornerBrackets);
-                        return `#${i+1}(corners=${c?"✓":"✗"},bracket=${p?"✓":"✗"})`;
-                    }).join(" ");
-                    log(`  ⏭ Overlay masked: ${reasons}`);
-                }
-                nowOccupied.length = 0;
-                nowOccupied.push(...realOccupied);
-            } else if (baseline) {
-                const realOccupied = nowOccupied.filter(i =>
-                    Inventory.cornersMatchBaseline(img, result.anchor, i, baseline)
-                );
-                const overlayMasked = nowOccupied.filter(i => !realOccupied.includes(i));
-                if (overlayMasked.length > 0) {
-                    const maskedSlots = result.slots.filter(s => overlayMasked.includes(s.index));
-                    drawSlotOverlaysFor(maskedSlots, { r: 255, g: 80, b: 80 });
-                    log(`  ⏭ Overlay masked (corners): slots ${overlayMasked.map(i => `#${i+1}`).join(" ")}`);
-                }
-                nowOccupied.length = 0;
-                nowOccupied.push(...realOccupied);
-            }
-
-            // New pickups: slots occupied now that were NOT occupied last scan
-            const newPickups = nowOccupied.filter(i => !state.prevOccupied.has(i));
-            // Removals: slots empty now that WERE occupied last scan
-            const removals = Array.from(state.prevOccupied).filter(i => !nowOccupied.includes(i));
-
-            // Show magenta for removals immediately (no corner/filter check needed — removing items is always safe)
+            // Magenta for removals
             if (removals.length > 0) {
-                const removalSlots = result.slots.filter(s => removals.includes(s.index));
-                drawSlotOverlaysFor(removalSlots, { r: 255, g: 0, b: 255 }); // magenta
-                const rnames = removalSlots.map(s => `#${s.index + 1}`).join(" ");
-                log(`  💨 Removed: ${rnames}`);
+                drawSlotOverlaysFor(result.slots.filter(s => removals.includes(s.index)), { r: 255, g: 0, b: 255 });
+                log(`  💨 Removed: ${removals.map(i => `#${i+1}`).join(" ")}`);
             }
-
-            state.prevOccupied = new Set(nowOccupied);
-
-
-            if (newPickups.length === 0 && removals.length === 0) {
-                updateDebugGrid(result);
-                return;
-            }
-            if (newPickups.length === 0) {
-                updateDebugGrid(result);
-                return;
-            }
-
-            // Anti-drag check
-            if (isCursorInInventory(result)) {
-                drawSlotOverlaysFor(result.slots.filter(s => newPickups.includes(s.index)), { r: 255, g: 80, b: 80 });
-                log(`  ⏭ Skipped: cursor inside inventory (likely drag)`);
-                state.prevOccupied = new Set(nowOccupied);
-                updateDebugGrid(result, true);
-                return;
-            }
-
-            state.prevOccupied = new Set(nowOccupied);
 
             if (newPickups.length === 0) {
-                drawSlotOverlays(result, { r: 255, g: 80, b: 80 });
-                updateDebugGrid(result, true);
-                log(`  ⏭ Skipped: all pickups failed corner/drag checks`);
+                if (removals.length === 0 && obstructed.length === 0) updateDebugGrid(result);
                 return;
             }
 
+            // Green for pickups
             const confirmedSlots = result.slots.filter(s => newPickups.includes(s.index));
             drawSlotOverlaysFor(confirmedSlots, { r: 80, g: 200, b: 80 });
-            const names = confirmedSlots.map(s => `#${s.index + 1}[r${s.row},c${s.col}]`).join(" ");
-            log(`  ✅ Confirmed: ${names} (${newPickups.length} pickup(s))`);
+            log(`  ✅ Pickup: ${newPickups.map(i => `#${i+1}`).join(" ")}`);
             updateScanStatus(`${newPickups.length} pickup(s)`);
             for (const slot of confirmedSlots) appendChangeEntry(slot, result.time);
-
-            // Lock confirmed slots into occupied state — prevents animation jitter
-            // from causing false removal+repickup cycles on the next scan.
             for (const idx of newPickups) state.prevOccupied.add(idx);
         } else {
             updateScanStatus(`Polling #${state.scanCount}`);
@@ -369,6 +330,38 @@ function doScan(): void {
 
 // Re-export data.ts functions for HTML onclick handlers
 export { unlockItem, isUnlocked, getUnlockedCount, getUnlockedItems, resetData } from "./data";
+
+// ============================================================
+// ============================================================
+// Grid boundary overlay
+// ============================================================
+
+let showGridBoundary = false;
+
+export function updateGridBoundary(): void {
+    const cb = document.getElementById("show_grid_boundary") as HTMLInputElement;
+    showGridBoundary = cb?.checked ?? false;
+    log(`updateGridBoundary: show=${showGridBoundary} inAlt1=${state.inAlt1}`);
+    if (!state.inAlt1) return;
+    if (!showGridBoundary) {
+        alt1.overLayClearGroup("bronzeman_boundary");
+    }
+}
+
+/** Called every scan to draw (or skip) the grid boundary overlay. */
+function drawBoundaryOverlay(): void {
+    if (!state.inAlt1 || !showGridBoundary) return;
+    const anc = Inventory.loadAnchor();
+    if (!anc) return;
+    const left = anc.x - 1;
+    const top = anc.y - 1;
+    const w = 3 * anc.colStride + 38;
+    const h = 6 * anc.rowStride + 34;
+    const c = a1lib.mixColor(80, 200, 255);
+    const ttl = POLL_INTERVAL_MS + 200;
+    alt1.overLaySetGroup("bronzeman_boundary");
+    alt1.overLayRect(c, left, top, w, h, ttl, 1);
+}
 
 // ============================================================
 // Bootstrap
