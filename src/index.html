@@ -31,7 +31,7 @@
         <div class="search-panel">
             <input type="text" id="search_input" class="text-input" placeholder="Search unlocks...">
         </div>
-        <div id="search_results" class="search-results"></div>
+        <div id="search_results" class="search-results"><div id="search_results_inner" class="search-results-inner"></div></div>
     </div>
 
     <!-- Tab: Setup -->
@@ -58,7 +58,7 @@
             <input type="checkbox" class="pixel-checkbox" id="search_hide_untradable" onchange="Bronzeman.toggleSearchHideUntradable()">
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;">
-            <label for="search_group_similar" style="font-size:12px;color:#ccc;">Group similar items</label>
+            <label for="search_group_similar" style="font-size:12px;color:#ccc;" title="Show only one entry per item, hiding dose/charge/stack counts.">Group similar items</label>
             <input type="checkbox" class="pixel-checkbox" id="search_group_similar" onchange="Bronzeman.toggleSearchGroupSimilar()">
         </div>
         <div class="section-title" style="margin-top:12px;">Progress</div>
