@@ -10,6 +10,8 @@ import { SlotLoadingAnimation } from "./slot-animation";
 import goldDot from "./assets/images/gold_dot.png";
 import { TooltipScanner, readTooltipItemName } from "./tooltip-read";
 import { fetchItemTradeable } from "./wiki";
+import type { WikiQueryResult } from "./wiki";
+import { showDisambiguation, closeDisambiguation } from "./ui";
 import { getNonUnlockedSlotIndices } from "./slot-scan";
 
 // ============================================================
@@ -291,12 +293,72 @@ const NON_UNLOCKED_DOT_GROUP = "bronzeman_nonunlock";
 let nonUnlockedDotTimer: ReturnType<typeof setInterval> | null = null;
 let nonUnlockedDotEncoded: string | null = null;
 
-/** Hover‑to‑animation: which slot's gold dot is being hovered, since when. */
+/** Hover‑to‑animation: which slot's gold dot is being hovered. */
 let hoveredDotSlot: number | null = null;
 let hoverAnimation: SlotLoadingAnimation | null = null;
-/** True once the hover's item-name + wiki query have resolved — prevents the
- *  flow restarting while the mouse stays on the dot. Reset when the mouse leaves. */
+/** True once the hover flow fully resolved (success or failure) — no restart
+ *  while the mouse stays on the dot. Reset when the mouse leaves. */
 let hoverResolved = false;
+/** True while a wiki query is in flight. */
+let queryBusy = false;
+/** True while the disambiguation pane is open — blocks new scans until the
+ *  user picks an option or closes the pane. */
+let disambigOpen = false;
+
+function finishHoverFlow(): void {
+    if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
+    hoverResolved = true;
+}
+
+function handleWikiResult(result: WikiQueryResult, queriedName: string): void {
+    queryBusy = false;
+    if (result.ok) {
+        log(`Wiki: "${queriedName}" tradeable = ${result.tradeable}`);
+        finishHoverFlow();
+    } else if (result.disambig && result.disambig.length > 0) {
+        // Ask the user which option is the right item — animation keeps running.
+        disambigOpen = true;
+        showDisambiguation(result.disambig,
+            (name) => {
+                disambigOpen = false;
+                log(`Wiki disambiguation: selected "${name}"`);
+                queryBusy = true;
+                void fetchItemTradeable(name).then(r => handleWikiResult(r, name));
+            },
+            () => {
+                // ✕ or click-outside — abandoned, end the flow.
+                disambigOpen = false;
+                log("Wiki disambiguation: abandoned");
+                finishHoverFlow();
+            });
+    } else if (result.status !== undefined) {
+        showNotification(`Failed to query item via Wiki API (${result.status})`, 3000, "danger");
+        finishHoverFlow();
+    } else {
+        showNotification("Failed to query item via Wiki API (no tradeable data)", 3000, "danger");
+        finishHoverFlow();
+    }
+}
+
+function startHoverFlow(slotIndex: number): void {
+    if (hoverAnimation === null) {
+        const slot = inventory.getSlot(slotIndex);
+        if (slot) {
+            hoverAnimation = new SlotLoadingAnimation(slot);
+            hoverAnimation.start();
+        }
+    }
+    const itemName = readTooltipItemName();
+    if (!itemName) {
+        showNotification("Failed to read item name", 3000, "danger");
+        hoveredDotSlot = null;
+        hoverResolved = false;
+        return;
+    }
+    log(`Hovered item: "${itemName}" (slot ${slotIndex})`);
+    queryBusy = true;
+    void fetchItemTradeable(itemName).then(result => handleWikiResult(result, itemName));
+}
 
 function drawNonUnlockedDots(): void {
     if (!state.inAlt1 || !inventory.isCalibrated || !nonUnlockedDotEncoded) return;
@@ -309,8 +371,8 @@ function drawNonUnlockedDots(): void {
         alt1.overLayImage(slot.x + SLOT_DOT_X, slot.y + SLOT_DOT_Y, nonUnlockedDotEncoded, SLOT_DOT_W, SLOT_DOT_DURATION_MS);
     });
 
-    // Hover detection: if the mouse is over a gold dot for ≥300ms, start the
-    // slot loading animation on that slot. Stop when the mouse leaves.
+    // Hover detection over the gold dots. The animation is NOT stopped when the
+    // mouse leaves — it runs until the wiki pipeline resolves or is abandoned.
     const mouse = a1lib.getMousePosition();
     let overIdx: number | null = null;
     if (mouse) {
@@ -327,36 +389,11 @@ function drawNonUnlockedDots(): void {
     if (overIdx !== hoveredDotSlot) {
         hoveredDotSlot = overIdx;
         hoverResolved = false;
-        if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
     }
-    if (hoveredDotSlot !== null && hoverAnimation === null && !hoverResolved) {
-        // Read the item name from the tooltip before starting the animation.
-        const itemName = readTooltipItemName();
-        if (itemName) {
-            log(`Hovered item: "${itemName}" (slot ${hoveredDotSlot})`);
-            const slot = inventory.getSlot(hoveredDotSlot);
-            if (slot) {
-                hoverAnimation = new SlotLoadingAnimation(slot);
-                hoverAnimation.start();
-                // Query the wiki for |tradeable = ... — the animation runs while
-                // the query is in flight, then stops on success or failure.
-                void fetchItemTradeable(itemName).then(result => {
-                    if (result.ok) {
-                        log(`Wiki: "${itemName}" tradeable = ${result.tradeable}`);
-                    } else if (result.status !== undefined) {
-                        showNotification(`Failed to query item via Wiki API (${result.status})`, 3000, "danger");
-                    } else {
-                        showNotification("Failed to query item via Wiki API (no tradeable data)", 3000, "danger");
-                    }
-                    if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
-                    hoverResolved = true;
-                });
-            }
-        } else {
-            showNotification("Failed to read item name", 3000, "danger");
-            hoveredDotSlot = null;
-            hoverResolved = false;
-        }
+    // Guard: no new scan while a query is in flight or the disambiguation pane
+    // is up — prevents overlapping query boxes / breaking the workflow.
+    if (hoveredDotSlot !== null && !hoverResolved && !queryBusy && !disambigOpen && hoverAnimation === null) {
+        startHoverFlow(hoveredDotSlot);
     }
 }
 
@@ -374,6 +411,9 @@ export function stopNonUnlockedDotRefresh(): void {
     nonUnlockedDotEncoded = null;
     hoveredDotSlot = null;
     hoverResolved = false;
+    queryBusy = false;
+    disambigOpen = false;
+    closeDisambiguation();
     if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
     try {
         alt1.overLaySetGroup(NON_UNLOCKED_DOT_GROUP);

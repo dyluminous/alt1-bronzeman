@@ -74,6 +74,7 @@ export {
     removeIgnore,
     showIgnoreTooltip, hideIgnoreTooltip, moveIgnoreTooltip,
     openSlotDebug, closeSlotDebug, refreshSlotDebug,
+    showDisambiguation, selectDisambiguationOption, closeDisambiguation,
 } from "./ui";
 
 // ============================================================

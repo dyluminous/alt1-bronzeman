@@ -416,3 +416,40 @@
         border-color: var(--rs-red);
         opacity: 0.5;
     }
+
+    /* Wiki disambiguation pane — reuses slot-debug-pane/header/close */
+    .wiki-disambig-body {
+        padding: 10px;
+        display: flex; flex-direction: column; gap: 8px;
+    }
+    .wiki-disambig-msg {
+        color: var(--rs-text);
+        font-size: 12px;
+        margin-bottom: 4px;
+    }
+    .wiki-disambig-row {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--rs-border);
+        border-radius: 4px;
+        padding: 8px 10px;
+        cursor: pointer;
+    }
+    .wiki-disambig-row:hover {
+        background: rgba(212, 168, 75, 0.15);
+        border-color: var(--rs-gold);
+    }
+    .wiki-disambig-name {
+        color: var(--rs-gold);
+        font-size: 13px;
+        font-weight: 600;
+        display: block;
+    }
+    .wiki-disambig-desc {
+        color: var(--rs-text);
+        font-size: 11px;
+        margin-top: 2px;
+    }
+    .wiki-disambig-note {
+        color: #888;
+        font-size: 11px;
+    }
