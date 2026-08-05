@@ -1,14 +1,14 @@
 // capture.ts — inventory capture lifecycle for Bronzeman Mode
 import * as Detect from "./inventory-detect";
-import { inventory } from "../classes/inventory";
-import { state, captureFullRs, showNotification, NotificationHandle, log } from "../core";
-import { updateUI } from "../ui/ui";
-import { drawDetectDebug, updateGridDebug, drawAnchorWatchDot, clearAnchorWatchDot, stopGeDetection, initGeDetection, geIsOpen } from "./overlay";
-import { startNonUnlockedDotRefresh, stopNonUnlockedDotRefresh } from "./dot-hover";
-import { startSlotHover, stopSlotHover } from "./slot-hover";
-import { startAnchorWatch, stopAnchorWatch } from "./anchor-watch";
-import { startSlotScan, stopSlotScan, captureCornerRefs } from "./slot-scan";
-import { formatElapsed } from "../utils/helpers";
+import { inventory } from "../../classes/inventory";
+import { state, captureFullRs, showNotification, NotificationHandle, log } from "../../core";
+import { updateUI } from "../../ui/ui";
+import { drawDetectDebug, updateGridDebug, drawAnchorWatchDot, clearAnchorWatchDot, stopGeDetection, initGeDetection, geIsOpen } from "../overlay/overlay-draw";
+import { startNonUnlockedDotRefresh, stopNonUnlockedDotRefresh } from "../unlock/unlock-hover";
+import { startSlotHover, stopSlotHover } from "./inventory-hover";
+import { startAnchorWatch, stopAnchorWatch } from "./inventory-resize-watch";
+import { startSlotScan, stopSlotScan, captureCornerRefs } from "./inventory-scan";
+import { formatElapsed } from "../../utils/helpers";
 
 // ============================================================
 // Auto-capture on/off — wired to the Developer mode checkbox.

@@ -1,7 +1,7 @@
 // detect.ts — pure inventory grid detection. No state; feeds the Inventory class.
 import { ImgRef } from "alt1/base";
-import type { BackpackAnchor, FingerprintHit } from "../types";
-import { lightness } from "../core";
+import type { BackpackAnchor, FingerprintHit } from "../../types";
+import { lightness } from "../../core";
 
 // ============================================================
 // Fingerprint slot detection

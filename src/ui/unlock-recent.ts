@@ -5,7 +5,7 @@
 // shows more without needing new captures.
 import { log, LS_KEYS } from "../core";
 import { updateUI } from "./ui";
-import { getRecentRecords, type UnlockedItemRecord, type HashEntry } from "../services/data";
+import { getRecentRecords, type UnlockedItemRecord, type HashEntry } from "../services/unlock/unlock-store";
 import type { RecentEntry } from "../types";
 
 const MAX_STORED = 28;

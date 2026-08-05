@@ -1,14 +1,14 @@
 // overlay.ts — RS overlay drawing for Bronzeman Mode
-import { inventory } from "../classes/inventory";
-import * as Detect from "./inventory-detect";
-import { Inventory } from "../classes/inventory";
-import { InventorySlot } from "../classes/inventory-slot";
-import { state, captureFullRs, log, showNotification } from "../core";
-import { getAnchorWatchPoints } from "./anchor-watch";
-import { SlotLoadingAnimation } from "../classes/slot-animation";
-import { SLOT_DOT_X, SLOT_DOT_Y, SLOT_DOT_W, loadGoldDotEncoded } from "../ui/gold-dot";
-import { TooltipScanner } from "./tooltip-read";
-import { RS_GOLD, RS_GREEN, RS_RED, OVERLAY_YELLOW, OVERLAY_WHITE } from "../utils/colors";
+import { inventory } from "../../classes/inventory";
+import * as Detect from "../inventory/inventory-detect";
+import { Inventory } from "../../classes/inventory";
+import { InventorySlot } from "../../classes/inventory-slot";
+import { state, captureFullRs, log, showNotification } from "../../core";
+import { getAnchorWatchPoints } from "../inventory/inventory-resize-watch";
+import { SlotLoadingAnimation } from "../../classes/slot-loading-animation";
+import { SLOT_DOT_X, SLOT_DOT_Y, SLOT_DOT_W, loadGoldDotEncoded } from "../../utils/gold-dot-asset";
+import { TooltipScanner } from "./tooltip-scanner";
+import { RS_GOLD, RS_GREEN, RS_RED, OVERLAY_YELLOW, OVERLAY_WHITE } from "../../utils/colors";
 
 // ============================================================
 // Detection debug — corner brackets on all slots
@@ -292,7 +292,7 @@ export function toggleTooltipDebug(): void {
 
 
 // ============================================================
-// GE debug re-export (implemented in ge-debug.ts)
+// GE detection re-export (implemented in ge-detection.ts)
 // ============================================================
 
-export { initGeDetection, toggleGeDebugOverlays, stopGeDetection, geIsOpen } from "./ge-debug";
+export { initGeDetection, toggleGeDebugOverlays, stopGeDetection, geIsOpen } from "./ge-detection";

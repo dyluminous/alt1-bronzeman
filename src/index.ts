@@ -19,11 +19,11 @@ import { initOnLoad } from "./bootstrap";
 // Bronzeman namespace — re-exports for HTML onclick handlers
 // ============================================================
 
-export { toggleAutoCapture, clearReference, stopAutoCapture, startAutoCapture } from "./services/capture";
-export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug, toggleGeDebugOverlays } from "./services/overlay";
-export { diagnoseSlotScan, dumpSlotHash, debugCorners, ocrStackableDebug, readStackableQuantity } from "./services/slot-scan";
-export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks, dumpItemHashes, getRecentRecords } from "./services/data";
-export { backupUnlocks, restoreUnlocks } from "./services/backup";
+export { toggleAutoCapture, clearReference, stopAutoCapture, startAutoCapture } from "./services/inventory/inventory-capture";
+export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug, toggleGeDebugOverlays } from "./services/overlay/overlay-draw";
+export { diagnoseSlotScan, dumpSlotHash, debugCorners, ocrStackableDebug, readStackableQuantity } from "./services/inventory/inventory-scan";
+export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks, dumpItemHashes, getRecentRecords } from "./services/unlock/unlock-store";
+export { backupUnlocks, restoreUnlocks } from "./services/unlock/unlock-backup";
 export { modalCancel, modalOk } from "./ui/modal";
 export {
     resetUnlocks,
@@ -35,7 +35,7 @@ export {
     toggleSearchHideUntradable, toggleSearchGroupSimilar,
     setRecentUnlocksCount, stepRecentUnlocksCount, stepManualUnlockSlot,
 } from "./ui/ui";
-export { manualUnlock, openManualUnlock, closeManualUnlock } from "./ui/manual-unlock";
+export { manualUnlock, openManualUnlock, closeManualUnlock } from "./ui/unlock-manual";
 
 // ============================================================
 // Bootstrap

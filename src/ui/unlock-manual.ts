@@ -3,13 +3,13 @@
 // Settings tab's "Manual item unlock" button.
 import { inventory } from "../classes/inventory";
 import { log, showNotification } from "../core";
-import { addUnlockedItem } from "../services/data";
-import { recordUnlock, resolveImageUrl } from "./recent-unlocks";
-import { readStackableQuantity } from "../services/slot-scan";
+import { addUnlockedItem } from "../services/unlock/unlock-store";
+import { recordUnlock, resolveImageUrl } from "./unlock-recent";
+import { readStackableQuantity } from "../services/inventory/inventory-scan";
 import type { WikiQueryResult } from "../services/wiki";
 import { fetchItemTradeable, pickImageForQuantity } from "../services/wiki";
-import { SlotLoadingAnimation } from "../classes/slot-animation";
-import { readTooltipItemName } from "../services/tooltip-read";
+import { SlotLoadingAnimation } from "../classes/slot-loading-animation";
+import { readTooltipItemName } from "../services/overlay/tooltip-scanner";
 import { showInlinePanel, hideInlinePanel, showDisambiguation, closeDisambiguation } from "./ui";
 
 // ============================================================

@@ -1,10 +1,10 @@
 // bootstrap.ts — app initialisation after DOM is ready
 import { state, log } from "./core";
 import { updateAlt1Status, updateAnchorDot, updateUI, applyDeveloperMode, applySearchSettings, setupSearchHandler } from "./ui/ui";
-import { initUnlockDB } from "./services/data";
-import { initRecentUnlocks, getRecentUnlocksLimit } from "./ui/recent-unlocks";
-import { calibrateGrid } from "./services/capture";
-import { setGeStateHook } from "./services/ge-debug";
+import { initUnlockDB } from "./services/unlock/unlock-store";
+import { initRecentUnlocks, getRecentUnlocksLimit } from "./ui/unlock-recent";
+import { calibrateGrid } from "./services/inventory/inventory-capture";
+import { setGeStateHook } from "./services/overlay/ge-detection";
 
 export function initOnLoad(): void {
     log("Bronzeman initializing...");

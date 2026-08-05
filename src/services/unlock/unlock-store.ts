@@ -1,10 +1,10 @@
 // data.ts — UnlockStore: IndexedDB persistence + in-memory unlock lookup
-import { state, log, showNotification } from "../core";
-import { lowerHalfOf, nibbleTolerantMatch } from "../utils/hash";
-import { hashChecksum } from "../utils/helpers";
-import type { HashEntry, UnlockedItemRecord, SearchEntry } from "../types";
+import { state, log, showNotification } from "../../core";
+import { lowerHalfOf, nibbleTolerantMatch } from "../../utils/hash";
+import { hashChecksum } from "../../utils/helpers";
+import type { HashEntry, UnlockedItemRecord, SearchEntry } from "../../types";
 
-export type { HashEntry, UnlockedItemRecord, SearchEntry } from "../types";
+export type { HashEntry, UnlockedItemRecord, SearchEntry } from "../../types";
 
 // ============================================================
 // UnlockStore — IndexedDB (tradable + untradable stores) plus the

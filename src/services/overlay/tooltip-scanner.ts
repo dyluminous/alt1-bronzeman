@@ -2,9 +2,9 @@
 import * as a1lib from "alt1";
 import type { ImgRef } from "alt1";
 import * as OCR from "alt1/ocr";
-import { captureFullRs, log } from "../core";
-import type { TooltipHit, TooltipRun, TooltipVerticalRun, TooltipMeasure } from "../types";
-import { RS_GOLD, RS_GREEN, OVERLAY_MAGENTA } from "../utils/colors";
+import { captureFullRs, log } from "../../core";
+import type { TooltipHit, TooltipRun, TooltipVerticalRun, TooltipMeasure } from "../../types";
+import { RS_GOLD, RS_GREEN, OVERLAY_MAGENTA } from "../../utils/colors";
 
 const tooltipFont = require("alt1/fonts/chatbox/14pt");
 

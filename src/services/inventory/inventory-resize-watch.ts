@@ -2,10 +2,10 @@
 // When the grid is resized/moved, at least one watched pixel changes; once the
 // new values hold stable for a few ticks (resize settled), the callback fires.
 // Reference colors are kept in memory only (no localStorage).
-import { inventory } from "../classes/inventory";
-import { capturePixel } from "../core";
-import type { Point } from "../classes/inventory-slot";
-import { rgbMatch } from "../utils/helpers";
+import { inventory } from "../../classes/inventory";
+import { capturePixel } from "../../core";
+import type { Point } from "../../classes/inventory-slot";
+import { rgbMatch } from "../../utils/helpers";
 
 /** The border pixels the watch monitors — overlay drawing must avoid these. */
 export function getAnchorWatchPoints(): Point[] {

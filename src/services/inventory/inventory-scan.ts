@@ -5,13 +5,13 @@
 // against the slot's previousHash to detect appeared / removed / changed / moved.
 import * as a1lib from "alt1";
 import * as OCR from "alt1/ocr";
-import { inventory } from "../classes/inventory";
-import { captureFullRs, log, lightness } from "../core";
+import { inventory } from "../../classes/inventory";
+import { captureFullRs, log, lightness } from "../../core";
 import type { ImgRef } from "alt1/base";
-import { InventorySlot } from "../classes/inventory-slot";
-import { isHashUnlocked, isLowerHalfUnlocked, isHashNibbleUnlocked } from "./data";
-import { hashInterior, LOWER_HALF_OFFSET } from "../utils/hash";
-import { readPixel } from "../utils/helpers";
+import { InventorySlot } from "../../classes/inventory-slot";
+import { isHashUnlocked, isLowerHalfUnlocked, isHashNibbleUnlocked } from "../unlock/unlock-store";
+import { hashInterior, LOWER_HALF_OFFSET } from "../../utils/hash";
+import { readPixel } from "../../utils/helpers";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const stackableFont = require("alt1/fonts/pixel_8px_digits");
 

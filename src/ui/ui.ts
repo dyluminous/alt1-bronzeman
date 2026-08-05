@@ -2,15 +2,15 @@
 import { inventory } from "../classes/inventory";
 import { InventorySlot } from "../classes/inventory-slot";
 import { state, escHtml, captureFullRs, LS_KEYS, log, showNotification, geSuppressGroup } from "../core";
-import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount, getSearchIndex } from "../services/data";
-import { hashToPngDataUrl, getItemRecord } from "../services/data";
-import type { UnlockedItemRecord } from "../services/data";
-import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks, setRecentUnlocksLimit } from "./recent-unlocks";
+import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount, getSearchIndex } from "../services/unlock/unlock-store";
+import { hashToPngDataUrl, getItemRecord } from "../services/unlock/unlock-store";
+import type { UnlockedItemRecord } from "../services/unlock/unlock-store";
+import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks, setRecentUnlocksLimit } from "./unlock-recent";
 import { showModal } from "./modal";
-import { getObscuredSlotIndices } from "../services/slot-scan";
-import { geIsOpen } from "../services/ge-debug";
+import { getObscuredSlotIndices } from "../services/inventory/inventory-scan";
+import { geIsOpen } from "../services/overlay/ge-detection";
 import type { DisambiguationOption } from "../services/wiki";
-import type { SearchEntry } from "../services/data";
+import type { SearchEntry } from "../services/unlock/unlock-store";
 import { BUILD_NUM } from "../version";
 
 // ============================================================

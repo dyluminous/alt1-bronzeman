@@ -1,10 +1,10 @@
 // backup.ts — backup/restore the unlock DB to/from a gzipped JSON file,
 // plus the full-screen loading overlay shown while a restore runs.
-import { log, showNotification } from "../core";
-import { exportUnlockData, importUnlockData } from "./data";
-import { stopAutoCapture, startAutoCapture } from "./capture";
-import { updateUI } from "../ui/ui";
-import { initRecentUnlocks } from "../ui/recent-unlocks";
+import { log, showNotification } from "../../core";
+import { exportUnlockData, importUnlockData } from "./unlock-store";
+import { stopAutoCapture, startAutoCapture } from "../inventory/inventory-capture";
+import { updateUI } from "../../ui/ui";
+import { initRecentUnlocks } from "../../ui/unlock-recent";
 
 // ============================================================
 // Gzip helpers — the backup file is gzipped JSON (.json.gz)
