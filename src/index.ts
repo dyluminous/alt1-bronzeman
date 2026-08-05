@@ -9,10 +9,39 @@ import {
 } from "./core";
 import {
     updateAlt1Status, updateScanStatus, updateUI, updateDebugGrid,
-    appendChangeEntry, drawDetectDebug, drawSlotOverlaysFor,
-    isCursorInInventory,
+    drawDetectDebug, drawSlotOverlaysFor, isCursorInInventory,
+    showScanPickup, getCurrentPickup,
 } from "./ui";
-import { loadState, unlockItem } from "./data";
+import { loadState, unlockItem, resetUnlocks } from "./data";
+import TooltipReader from "alt1/tooltip";
+import * as OCR from "alt1/ocr";
+
+// Max recent pickups to remember
+const MAX_PICKUPS = 20;
+
+interface PickupEntry {
+    slotIndex: number;
+    imageUrl: string;
+    time: number;
+    noted: boolean;
+}
+
+const recentPickups: PickupEntry[] = [];
+
+function isNotedItem(img: any, anc: Inventory.BackpackAnchor, slotIndex: number): boolean {
+    const row = Math.floor(slotIndex / Inventory.COLS);
+    const col = slotIndex % Inventory.COLS;
+    const sx = anc.x + col * anc.colStride;
+    const sy = anc.y + row * anc.rowStride;
+    // Check pixels at (11,0) and (12,0) relative to slot (0-indexed)
+    const px11 = img.toData(sx + 11, sy + 0, 1, 1);
+    const px12 = img.toData(sx + 12, sy + 0, 1, 1);
+    if (!px11 || !px12) return false;
+    const tol = 15;
+    const match11 = Math.abs(px11.data[0] - 149) <= tol && Math.abs(px11.data[1] - 134) <= tol && Math.abs(px11.data[2] - 94) <= tol;
+    const match12 = Math.abs(px12.data[0] - 0) <= 3 && Math.abs(px12.data[1] - 0) <= 3 && Math.abs(px12.data[2] - 2) <= 3;
+    return match11 && match12;
+}
 
 import "./index.html";
 import "./appconfig.json";
@@ -295,12 +324,39 @@ function doScan(): void {
                 return;
             }
 
-            // Green for pickups
+            // Green/magenta for pickups — noted items get magenta
             const confirmedSlots = result.slots.filter(s => newPickups.includes(s.index));
-            drawSlotOverlaysFor(confirmedSlots, { r: 80, g: 200, b: 80 });
-            log(`  ✅ Pickup: ${newPickups.map(i => `#${i+1}`).join(" ")}`);
+            const notedSlots = confirmedSlots.filter(s => isNotedItem(img, result.anchor, s.index));
+            const unotedSlots = confirmedSlots.filter(s => !notedSlots.includes(s));
+            if (unotedSlots.length > 0) drawSlotOverlaysFor(unotedSlots, { r: 80, g: 200, b: 80 });
+            if (notedSlots.length > 0) drawSlotOverlaysFor(notedSlots, { r: 255, g: 80, b: 80 });
+            log(`  ✅ Pickup: ${newPickups.map(i => `#${i+1}`).join(" ")}${notedSlots.length > 0 ? " (noted)" : ""}`);
             updateScanStatus(`${newPickups.length} pickup(s)`);
-            for (const slot of confirmedSlots) appendChangeEntry(slot, result.time);
+            for (const slot of confirmedSlots) {
+                const noted = notedSlots.includes(slot);
+                // Capture slot pixels as data URL
+                const row = Math.floor(slot.index / Inventory.COLS);
+                const col = slot.index % Inventory.COLS;
+                const sx = result.anchor.x + col * result.anchor.colStride;
+                const sy = result.anchor.y + row * result.anchor.rowStride;
+                const pixelData = img.toData(sx, sy, 36, 32);
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 36; canvas.height = 32;
+                    const ctx = canvas.getContext('2d')!;
+                    const id = ctx.createImageData(36, 32);
+                    id.data.set(pixelData.data);
+                    ctx.putImageData(id, 0, 0);
+                    const url = canvas.toDataURL();
+                    recentPickups.unshift({ slotIndex: slot.index, imageUrl: url, time: Date.now(), noted });
+                    if (recentPickups.length > MAX_PICKUPS) recentPickups.pop();
+                } catch { /* canvas not available */ }
+            }
+            updatePickupGrid();
+            // Show the most recent pickup in the Scan tab
+            if (recentPickups.length > 0) {
+                showScanPickup(recentPickups[0].imageUrl, recentPickups[0].slotIndex);
+            }
             for (const idx of newPickups) state.prevOccupied.add(idx);
         } else {
             updateScanStatus(`Polling #${state.scanCount}`);
@@ -319,14 +375,367 @@ function doScan(): void {
 
 
 // Re-export data.ts functions for HTML onclick handlers
-export { unlockItem, isUnlocked, getUnlockedCount, getUnlockedItems, resetData } from "./data";
+export { unlockItem, isUnlocked, getUnlockedCount, getUnlockedItems, resetData, resetUnlocks } from "./data";
 
 // ============================================================
+// Unlock current pickup — scanning mode via tooltip
+// ============================================================
+
+interface ScanningState {
+    imageUrl: string;
+    slotIndex: number;
+    timer: ReturnType<typeof setInterval> | null;
+    lastTooltipAttempt: number;
+    hasEnteredSlot: boolean;
+}
+
+let scanning: ScanningState | null = null;
+
+/** Toggle: starts scanning mode or cancels it. */
+export function unlockCurrentItem(): void {
+    if (scanning) {
+        // Cancel scanning
+        cancelScanning();
+        return;
+    }
+
+    const { imageUrl, slotIndex } = getCurrentPickup();
+    if (!imageUrl) {
+        log("No pickup to unlock.");
+        return;
+    }
+
+    if (!state.inAlt1) {
+        log("Not in Alt1 — cannot scan tooltip.");
+        return;
+    }
+
+    const anc = Inventory.loadAnchor();
+    if (!anc) {
+        log("No anchor — cannot determine slot position.");
+        return;
+    }
+
+    // Enter scanning mode
+    scanning = { imageUrl, slotIndex, timer: null, lastTooltipAttempt: 0, hasEnteredSlot: false };
+
+    const btn = document.getElementById("btn_unlock");
+    if (btn) {
+        btn.textContent = "⏹ Cancel";
+        btn.classList.add("scanning");
+    }
+
+    const hint = document.getElementById("scan_hint");
+    if (hint) hint.style.display = "block";
+
+    log(`Scanning mode — hover over slot #${slotIndex + 1} to read item name.`);
+
+    // Start polling mouse position
+    scanning.timer = setInterval(pollScanningMouse, 150);
+}
+
+function cancelScanning(): void {
+    if (!scanning) return;
+    if (scanning.timer) { clearInterval(scanning.timer); scanning.timer = null; }
+    scanning = null;
+
+    const btn = document.getElementById("btn_unlock");
+    if (btn) {
+        btn.textContent = "🔓 Unlock";
+        btn.classList.remove("scanning");
+    }
+
+    const hint = document.getElementById("scan_hint");
+    if (hint) hint.style.display = "none";
+
+    log("Scanning cancelled.");
+}
+
+const TOOLTIP_RETRY_MS = 600;
+
+function pollScanningMouse(): void {
+    if (!scanning || !state.inAlt1) { cancelScanning(); return; }
+
+    const anc = Inventory.loadAnchor();
+    if (!anc) { cancelScanning(); return; }
+
+    // Get slot screen bounds
+    const row = Math.floor(scanning.slotIndex / Inventory.COLS);
+    const col = scanning.slotIndex % Inventory.COLS;
+    const sx = anc.x + col * anc.colStride;
+    const sy = anc.y + row * anc.rowStride;
+    const sw = 36;
+    const sh = 32;
+
+    // Check mouse position
+    let pos;
+    try { pos = a1lib.getMousePosition(); } catch { return; }
+    if (!pos) return;
+
+    const insideSlot = pos.x >= sx && pos.x <= sx + sw && pos.y >= sy && pos.y <= sy + sh;
+
+    if (!insideSlot) {
+        // Only cancel if the mouse was previously inside the slot
+        if (scanning.hasEnteredSlot) {
+            log(`Mouse left slot #${scanning.slotIndex + 1}, cancelling scan.`);
+            cancelScanning();
+        }
+        return;
+    }
+
+    // Mouse is inside the slot — mark entry and respect cooldown
+    scanning.hasEnteredSlot = true;
+    const now = Date.now();
+    if (now - scanning.lastTooltipAttempt < TOOLTIP_RETRY_MS) return;
+    scanning.lastTooltipAttempt = now;
+
+    log(`Reading tooltip for slot #${scanning.slotIndex + 1}...`);
+
+    try {
+        // Start from cursor position, look downward for 0f0e0c (rgb(15,14,12))
+        const anc = Inventory.loadAnchor();
+        if (!anc) { cancelScanning(); return; }
+
+        // Capture a generous area below and around the cursor
+        const captW = 250;
+        const captH = 100;
+        const captX = Math.max(0, sx - 50);
+        const captY = sy;
+
+        const img = a1lib.captureHold(captX, captY, captW, captH);
+        if (!img) { log("  Failed to capture."); return; }
+
+        const data = img.toData();
+        if (!data) { log("  Failed to read pixels."); return; }
+
+        // Get the cursor position relative to the capture
+        let cursorInCaptX = -1, cursorInCaptY = -1;
+        try {
+            const mpos = a1lib.getMousePosition();
+            if (mpos) {
+                cursorInCaptX = mpos.x - captX;
+                cursorInCaptY = mpos.y - captY;
+            }
+        } catch { /* ignore */ }
+        if (cursorInCaptX < 0 || cursorInCaptY < 0) { log("  No cursor pos."); return; }
+
+        // Search downward from cursor for 0f0e0c pixels with ±3 tolerance
+        const R_MIN = 12, R_MAX = 18;
+        const G_MIN = 11, G_MAX = 17;
+        const B_MIN = 9, B_MAX = 15;
+
+        let foundX = -1, foundY = -1;
+        for (let py = cursorInCaptY; py < captH; py++) {
+            for (let px = 0; px < captW; px++) {
+                const i = (py * captW + px) * 4;
+                const r = data.data[i], g = data.data[i + 1], b = data.data[i + 2];
+                if (r >= R_MIN && r <= R_MAX && g >= G_MIN && g <= G_MAX && b >= B_MIN && b <= B_MAX) {
+                    foundX = px;
+                    foundY = py;
+                    break;
+                }
+            }
+            if (foundX >= 0) break;
+        }
+
+        if (foundX < 0) {
+            log("  No 0f0e0c found below cursor.");
+            if (showTooltipDebug && state.inAlt1) {
+                alt1.overLaySetGroup("bronzeman_tooltipdbg");
+                alt1.overLayClearGroup("bronzeman_tooltipdbg");
+                alt1.overLayRect(a1lib.mixColor(0, 255, 0), captX, captY, captW, captH, 2000, 1);
+                alt1.overLayText("No 0f0e0c", a1lib.mixColor(255, 0, 0), 11, captX + 5, captY + 5, 2000);
+            }
+            return;
+        }
+
+        // Flood-fill to find the dark rectangle bounds
+        let minX = foundX, maxX = foundX, minY = foundY, maxY = foundY;
+        for (let px = foundX - 1; px >= 0; px--) {
+            const i = (foundY * captW + px) * 4;
+            const r = data.data[i], g = data.data[i+1], b = data.data[i+2];
+            if (r >= R_MIN && r <= R_MAX && g >= G_MIN && g <= G_MAX && b >= B_MIN && b <= B_MAX) minX = px;
+            else break;
+        }
+        for (let px = foundX + 1; px < captW; px++) {
+            const i = (foundY * captW + px) * 4;
+            const r = data.data[i], g = data.data[i+1], b = data.data[i+2];
+            if (r >= R_MIN && r <= R_MAX && g >= G_MIN && g <= G_MAX && b >= B_MIN && b <= B_MAX) maxX = px;
+            else break;
+        }
+        const midX = Math.round((minX + maxX) / 2);
+        for (let py = foundY - 1; py >= 0; py--) {
+            const i = (py * captW + midX) * 4;
+            const r = data.data[i], g = data.data[i+1], b = data.data[i+2];
+            if (r >= R_MIN && r <= R_MAX && g >= G_MIN && g <= G_MAX && b >= B_MIN && b <= B_MAX) minY = py;
+            else break;
+        }
+        for (let py = foundY + 1; py < captH; py++) {
+            const i = (py * captW + midX) * 4;
+            const r = data.data[i], g = data.data[i+1], b = data.data[i+2];
+            if (r >= R_MIN && r <= R_MAX && g >= G_MIN && g <= G_MAX && b >= B_MIN && b <= B_MAX) maxY = py;
+            else break;
+        }
+
+        log(`  Found 0f0e0c at (${foundX},${foundY}) in capture, box: [${minX}..${maxX}]x[${minY}..${maxY}]`);
+
+        const tooltipW = maxX - minX + 1;
+        const tooltipH = maxY - minY + 1;
+        const centerX = minX + Math.round(tooltipW / 2);
+        const centerY = minY + Math.round(tooltipH / 3); // text is in upper portion
+
+        // Debug overlay: magenta box = detected tooltip bounds (used for OCR)
+        if (showTooltipDebug && state.inAlt1) {
+            alt1.overLaySetGroup("bronzeman_tooltipdbg");
+            alt1.overLayClearGroup("bronzeman_tooltipdbg");
+            alt1.overLayRect(a1lib.mixColor(255, 0, 255), captX + minX, captY + minY, tooltipW, tooltipH, 2000, 2);
+        }
+
+        // Try OCR on the detected tooltip area — try multiple font sizes
+        try {
+            if (tooltipW > 20 && tooltipH > 10) {
+                const colors: OCR.ColortTriplet[] = [[248, 213, 107], [184, 209, 209]];
+                let found = "";
+                const fontTries = [
+                    require("alt1/fonts/chatbox/16pt"),
+                    require("alt1/fonts/chatbox/14pt"),
+                    require("alt1/fonts/chatbox/12pt"),
+                    require("alt1/fonts/chatbox/10pt"),
+                ];
+                for (const f of fontTries) {
+                    try {
+                        const result = OCR.findReadLine(data, f, colors, centerX, centerY, tooltipW, tooltipH);
+                        if (result?.text && result.text.length > 1) { found = result.text; break; }
+                    } catch {}
+                }
+                if (found) {
+                    log(`  OCR text: "${found}"`);
+                    const itemName = extractItemName(found);
+                    if (itemName) {
+                        log(`  Name: "${itemName}"`);
+                        if (unlockItem(itemName, scanning.imageUrl)) {
+                            log(`UNLOCKED: "${itemName}"`);
+                            updateUI();
+                        } else {
+                            log(`"${itemName}" already unlocked.`);
+                        }
+                        cancelScanning();
+                    }
+                } else {
+                    log("  OCR: no text found");
+                }
+            }
+        } catch (e) { log(`  OCR error: ${e}`); }
+    } catch (e) {
+        log(`  Scan error: ${e}`);
+    }
+}
+
+/** Strip common RS3 action prefixes from tooltip text to get the item name. */
+function extractItemName(raw: string): string {
+    if (!raw) return "";
+    const t = raw.trim();
+    // Common RS3 action words
+    const actions = [
+        "Use", "Wield", "Equip", "Wear", "Eat", "Drink", "Drop", "Examine",
+        "Bury", "Clean", "Empty", "Fill", "Light", "String", "Craft", "Fletch",
+        "Open", "Close", "Read", "Teleport", "Cast", "Rub", "Activate",
+        "Deactivate", "Check", "Mix", "Grind", "Cook", "Smelt", "Smith",
+        "Enchant", "Charge", "Alch", "Disassemble", "Augment", "Siphon",
+        "Dissolve", "Take", "Remove", "Withdraw", "Deposit", "Store",
+        "Release", "Toggle", "Configure", "Convert", "Combine",
+    ];
+    for (const act of actions) {
+        if (t.startsWith(act + " ")) {
+            return t.substring(act.length + 1).trim();
+        }
+    }
+    // If no action prefix matched, the OCR probably returned just the item name
+    return t;
+}
+
+// ============================================================
+// ============================================================
+// Pickup grid — renders recent item thumbnails in the Scan tab
+// ============================================================
+
+function updatePickupGrid(): void {
+    const container = document.getElementById("pickup_grid");
+    if (!container) return;
+    if (recentPickups.length === 0) {
+        container.innerHTML = `<div style="color:#555;text-align:center;padding:8px;">No items picked up yet.</div>`;
+        return;
+    }
+    container.innerHTML = recentPickups.map((p, i) =>
+        `<div class="pickup-thumb" style="border-color:${p.noted ? '#f44336' : '#4caf50'}" title="Slot #${p.slotIndex + 1}${p.noted ? ' (noted)' : ''}">
+            <img src="${p.imageUrl}" alt="slot ${p.slotIndex + 1}">
+            <div class="pickup-label" style="color:${p.noted ? '#f44336' : '#4caf50'}">#${p.slotIndex + 1}</div>
+        </div>`
+    ).join("");
+}
+
+export function savePickupImages(): void {
+    if (recentPickups.length === 0) { log("No pickup images to save"); return; }
+    log(`Saving ${recentPickups.length} pickup image(s)...`);
+    for (const p of recentPickups) {
+        const link = document.createElement('a');
+        link.download = `pickup_slot${p.slotIndex + 1}_${p.time}.png`;
+        link.href = p.imageUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    log(`Triggered download for ${recentPickups.length} image(s)`);
+}
+
+export function debugPickupPixels(): void {
+    if (recentPickups.length === 0) { log("No pickups to debug"); return; }
+    const p = recentPickups[0];
+    const anc = Inventory.loadAnchor();
+    if (!anc) { log("No anchor saved"); return; }
+    if (!state.inAlt1) { log("Not in Alt1"); return; }
+    const img = captureFullRs();
+    if (!img) { log("Failed to capture RS"); return; }
+    const row = Math.floor(p.slotIndex / Inventory.COLS);
+    const col = p.slotIndex % Inventory.COLS;
+    const sx = anc.x + col * anc.colStride;
+    const sy = anc.y + row * anc.rowStride;
+
+    log(`=== Debug pickup slot #${p.slotIndex + 1} at (${sx},${sy}) ===`);
+    // Log several pixel positions
+    const positions: { name: string; ox: number; oy: number }[] = [
+        { name: "(11,0) noted ref1", ox: 11, oy: 0 },
+        { name: "(12,0) noted ref2", ox: 12, oy: 0 },
+        { name: "TL corner (1,1)", ox: 1, oy: 1 },
+        { name: "Center (18,16)", ox: 18, oy: 16 },
+        { name: "BR corner (34,30)", ox: 34, oy: 30 },
+    ];
+    for (const pos of positions) {
+        const d = img.toData(sx + pos.ox, sy + pos.oy, 1, 1);
+        if (d) {
+            const r = d.data[0], g = d.data[1], b = d.data[2];
+            const hex = `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+            log(`  ${pos.name}: rgb(${r},${g},${b}) ${hex}`);
+        }
+    }
+    log(`=== End debug ===`);
+}
+
 // ============================================================
 // Grid boundary overlay
 // ============================================================
 
 let showGridBoundary = false;
+let showTooltipDebug = false;
+
+export function toggleTooltipDebug(): void {
+    const cb = document.getElementById("show_tooltip_debug") as HTMLInputElement;
+    showTooltipDebug = cb?.checked ?? false;
+    log(`showTooltipDebug=${showTooltipDebug}`);
+    if (!showTooltipDebug && state.inAlt1) {
+        alt1.overLayClearGroup("bronzeman_tooltipdbg");
+    }
+}
 
 export function updateGridBoundary(): void {
     const cb = document.getElementById("show_grid_boundary") as HTMLInputElement;
