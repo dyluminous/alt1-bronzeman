@@ -34,6 +34,8 @@ interface PickupEntry {
 }
 
 const recentPickups: PickupEntry[] = [];
+let renderedCardIndices: number[] = [];
+let renderedCardNodes: HTMLElement[] = [];
 
 function isNotedItem(img: any, anc: Inventory.BackpackAnchor, slotIndex: number): boolean {
     const row = Math.floor(slotIndex / Inventory.COLS);
@@ -410,7 +412,7 @@ function doScan(): void {
                     if (recentPickups.length > MAX_PICKUPS) recentPickups.pop();
                 } catch { /* canvas not available */ }
             }
-            refreshPickupGrid();
+            diffPickupGrid();
             updatePickupGrid();
             for (const idx of newPickups) state.prevOccupied.add(idx);
         } else {
@@ -845,25 +847,70 @@ function extractItemName(raw: string): string {
 // ============================================================
 // Pickup grid — renders recent item thumbnails and scan tab cards
 
-/** Refresh the scan tab pickup cards from recentPickups */
-function refreshPickupGrid(): void {
+/** Build a single pickup card DOM node */
+function buildCardNode(p: PickupEntry, index: number): HTMLElement {
+    const card = document.createElement("div");
+    card.className = "pickup-card";
+    card.addEventListener("click", () => unlockPickup(index));
+
+    const btn = document.createElement("button");
+    btn.className = "btn-item-menu-overlay";
+    btn.textContent = "✕";
+    btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        // TODO: wire ignore
+    });
+    card.appendChild(btn);
+
+    const wrap = document.createElement("div");
+    wrap.className = "pickup-img-wrap";
+
+    const img = document.createElement("img");
+    img.src = p.imageUrl;
+    img.alt = "pickup";
+    wrap.appendChild(img);
+
+    card.appendChild(wrap);
+    return card;
+}
+
+/** Diff-based update of the scan tab pickup grid — only touches changed cards */
+function diffPickupGrid(): void {
     const grid = document.getElementById("scan_pickup_grid");
     const ph = document.getElementById("scan_placeholder");
     if (!grid) return;
+
+    // Empty state
     if (recentPickups.length === 0) {
         grid.innerHTML = "";
         if (ph) ph.style.display = "block";
+        renderedCardIndices = [];
+        renderedCardNodes = [];
         return;
     }
     if (ph) ph.style.display = "none";
-    grid.innerHTML = recentPickups.map((p, i) =>
-        `<div class="pickup-card" onclick="Bronzeman.unlockPickup(${i})">
-            <button class="btn-item-menu-overlay" onclick="event.stopPropagation();void(0)">✕</button>
-            <div class="pickup-img-wrap">
-                <img src="${p.imageUrl}" alt="pickup">
-            </div>
-        </div>`
-    ).join("");
+
+    const currentIndices = new Set(recentPickups.map((_, i) => i));
+
+    // 1. Remove cards whose index no longer exists
+    for (let i = renderedCardNodes.length - 1; i >= 0; i--) {
+        if (!currentIndices.has(renderedCardIndices[i])) {
+            grid.removeChild(renderedCardNodes[i]);
+            renderedCardNodes.splice(i, 1);
+            renderedCardIndices.splice(i, 1);
+        }
+    }
+
+    // 2. Add cards for indices not yet rendered
+    const renderedSet = new Set(renderedCardIndices);
+    for (let i = 0; i < recentPickups.length; i++) {
+        if (!renderedSet.has(i)) {
+            const card = buildCardNode(recentPickups[i], i);
+            grid.appendChild(card);
+            renderedCardNodes.push(card);
+            renderedCardIndices.push(i);
+        }
+    }
 }
 
 /** Renders the item log tab */
