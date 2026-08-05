@@ -48,14 +48,14 @@
         </div>
         <div class="section-title">Overlays</div>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;">
-            <input type="checkbox" class="pixel-checkbox" id="show_grid_boundary" onchange="Bronzeman.updateGridBoundary()">
+            <input type="checkbox" class="pixel-checkbox" id="show_grid_boundary" onchange="Bronzeman.updateGridDebug()">
             <span>Inventory debugging</span>
         </label>
-        <div class="section-title">Output</div>
+        <div class="section-title">Misc</div>
         <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;">
             <div class="btn btn-primary" onclick="Bronzeman.dumpIgnoredItems()" style="width:100%;padding-top:6px;padding-bottom:6px;">Ignored &gt; Console</div>
             <div class="btn btn-primary" onclick="Bronzeman.debugFindSlot()" style="width:100%;padding-top:6px;padding-bottom:6px;">Fingerprint Slot</div>
-            <div class="btn btn-primary" onclick="Bronzeman.openSlotDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">Slot Hash Debug</div>
+            <div class="btn btn-primary" onclick="Bronzeman.openSlotDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Slots interface</div>
         </div>
 
         <div id="log" style="display:none;"></div>
