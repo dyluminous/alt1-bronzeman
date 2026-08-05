@@ -179,3 +179,27 @@ export function clearSlotHover(): void {
     alt1.overLayClearGroup(HOVER_GROUP);
 }
 
+// ============================================================
+// Test slot animation — gold box on the border of slot 27
+// ============================================================
+
+const TEST_ANIM_GROUP = "bronzeman_testanim";
+
+/** Debug: draw a gold box on the border of the last slot (index 27). */
+export function testSlotAnimation(): void {
+    if (!state.inAlt1) { log("Not in Alt1"); return; }
+    const slot = inventory.getSlot(27);
+    if (!slot) { log("Slot 27 not available (inventory not calibrated?)"); return; }
+    const gold = a1lib.mixColor(212, 168, 75); // --rs-gold (#D4A84B)
+    const dur = 5000;
+    alt1.overLaySetGroup(TEST_ANIM_GROUP);
+    alt1.overLayClearGroup(TEST_ANIM_GROUP);
+    // Slot cell is 38×34 including the 1px border; draw the 4 edges on it.
+    alt1.overLayRect(gold, slot.x, slot.y, 38, 1, dur, 1);
+    alt1.overLayRect(gold, slot.x, slot.y + 33, 38, 1, dur, 1);
+    alt1.overLayRect(gold, slot.x, slot.y, 1, 34, dur, 1);
+    alt1.overLayRect(gold, slot.x + 37, slot.y, 1, 34, dur, 1);
+    log(`Test Slot Animation: gold box on slot 27 border at (${slot.x},${slot.y})`);
+}
+
+
