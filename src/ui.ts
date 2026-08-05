@@ -1,8 +1,8 @@
-// ui.ts — DOM rendering and RS overlay drawing for Bronzeman Mode
-import * as a1lib from "alt1";
+// ui.ts — DOM rendering and UI action handlers for Bronzeman Mode
 import * as Inventory from "./inventory";
-import { state, escHtml, updateAnchorWarning } from "./core";
-import { getUnlockedCount, getUnlockedItems, getUnlockedItemData, getIgnoredItems } from "./data";
+import { state, escHtml, showNotification, log } from "./core";
+import { getUnlockedCount, getUnlockedItems, getUnlockedItemData, getIgnoredItems, getIgnoredCount, clearIgnoredItems, removeIgnoredItem, resetUnlocks as dataResetUnlocks } from "./data";
+import { showModal } from "./modal";
 import { BUILD_NUM } from "./version";
 
 // ============================================================
@@ -23,20 +23,38 @@ export function updateAlt1Status(): void {
 }
 
 // ============================================================
-// Main UI
+// Anchor dot + warning
 // ============================================================
-
 
 export function updateAnchorDot(): void {
     const el = document.getElementById("anchor_dot");
     if (!el) return;
     const anc = Inventory.loadAnchor();
-    if (anc) {
-        el.className = "anchor-dot";
-    } else {
-        el.className = "anchor-dot hidden";
+    el.className = anc ? "anchor-dot" : "anchor-dot hidden";
+}
+
+let anchorWarningHandle: import("./core").NotificationHandle | null = null;
+
+export function updateAnchorWarning(): void {
+    try {
+        if (Inventory.loadAnchor()) {
+            if (anchorWarningHandle) { anchorWarningHandle.remove(); anchorWarningHandle = null; }
+        } else {
+            if (!anchorWarningHandle) {
+                // Don't show during retry — capture.ts handles its own notifications
+                anchorWarningHandle = showNotification("Inventory not captured", 0, "danger");
+            }
+        }
+    } catch {
+        if (!anchorWarningHandle) {
+            anchorWarningHandle = showNotification("Inventory not captured", 0, "danger");
+        }
     }
 }
+
+// ============================================================
+// Main UI render
+// ============================================================
 
 export function updateUI(): void {
     const count = getUnlockedCount();
@@ -63,7 +81,7 @@ export function updateUI(): void {
         }
     }
 
-    // Render recent ignores (last 3) — pickup-card style
+    // Render recent ignores (last 3)
     const riList = document.getElementById("recent_ignores_list");
     if (riList) {
         const items = getIgnoredItems();
@@ -88,16 +106,15 @@ export function updateUI(): void {
 
     const calBtn = document.getElementById("calibrate_btn");
     if (calBtn) {
-        const anc = Inventory.loadAnchor();
         if (state.calibrating) {
-        calBtn.textContent = "Scanning...";
-        calBtn.style.pointerEvents = "none";
-        calBtn.style.opacity = "0.5";
-    } else {
-        calBtn.textContent = state.autocapture ? "Stop auto-capture" : "Start auto-capture";
-        calBtn.style.pointerEvents = "";
-        calBtn.style.opacity = "";
-    }
+            calBtn.textContent = "Scanning...";
+            calBtn.style.pointerEvents = "none";
+            calBtn.style.opacity = "0.5";
+        } else {
+            calBtn.textContent = state.autocapture ? "Stop auto-capture" : "Start auto-capture";
+            calBtn.style.pointerEvents = "";
+            calBtn.style.opacity = "";
+        }
     }
 
     updateAnchorDot();
@@ -105,37 +122,73 @@ export function updateUI(): void {
 }
 
 // ============================================================
-// RS Overlays
+// Ignore list action handlers (called from HTML onclick)
 // ============================================================
 
-/** Draw corner brackets on all 28 detected slots. */
-export function drawDetectDebug(anc: Inventory.BackpackAnchor, isError: boolean = false): void {
-    if (!state.inAlt1) return;
-    alt1.overLayClearGroup("bronzeman_detect");
-    alt1.overLaySetGroup("bronzeman_detect");
-    const LEN = 11;
-    const dur = 2000;
-    const yc = isError ? a1lib.mixColor(255, 60, 60) : a1lib.mixColor(255, 255, 0);
-    const rows = anc.gridRows ?? Inventory.ROWS;
-    const cols = anc.gridCols ?? Inventory.COLS;
-    const total = cols * rows;
-    const lastRowCols = total > 28 ? cols - (total - 28) : cols;
-    for (let row = 0; row < rows; row++) {
-        const slotCols = (row === rows - 1) ? lastRowCols : cols;
-        for (let col = 0; col < slotCols; col++) {
-            const sx = anc.x + col * anc.colStride;
-            const sy = anc.y + row * anc.rowStride;
-            const r = sx + 35, b = sy + 31;
-            alt1.overLayRect(yc, sx, sy, LEN, 1, dur, 1);
-            alt1.overLayRect(yc, sx, sy, 1, LEN, dur, 1);
-            alt1.overLayRect(yc, r - LEN + 1, sy, LEN, 1, dur, 1);
-            alt1.overLayRect(yc, r, sy, 1, LEN, dur, 1);
-            alt1.overLayRect(yc, sx, b, LEN, 1, dur, 1);
-            alt1.overLayRect(yc, sx, b - LEN + 1, 1, LEN, dur, 1);
-            alt1.overLayRect(yc, r - LEN + 1, b, LEN, 1, dur, 1);
-            alt1.overLayRect(yc, r, b - LEN + 1, 1, LEN, dur, 1);
-        }
-    }
+export function resetUnlocks(): void {
+    showModal("Delete all unlocked items?", "DANGER", () => {
+        dataResetUnlocks();
+        updateUI();
+    });
 }
 
+export function resetIgnores(): void {
+    showModal("Delete all ignored items?", "DANGER", () => {
+        clearIgnoredItems();
+        showNotification("All ignored items cleared", 2000, "success");
+        updateUI();
+    });
+}
 
+export function dumpIgnoredItems(): void {
+    const items = getIgnoredItems();
+    if (items.length === 0) { log("Ignore list is empty."); return; }
+    console.table(items.map(i => ({
+        name: i.name ?? "(unnamed)",
+        hash: i.hash.slice(0, 16) + "…",
+        ignoredAt: new Date(i.ignoredAt).toLocaleString()
+    })));
+    log(`Ignore list: ${items.length} item(s) logged to console.`);
+}
+
+export function removeIgnore(hash: string): void {
+    hideIgnoreTooltip();
+    removeIgnoredItem(hash);
+    updateUI();
+}
+
+// ============================================================
+// Ignore list tooltip
+// ============================================================
+
+export function showIgnoreTooltip(name: string): void {
+    const el = document.getElementById("ignore_tooltip");
+    if (el) { el.textContent = name; el.style.display = "block"; }
+}
+
+export function hideIgnoreTooltip(): void {
+    const el = document.getElementById("ignore_tooltip");
+    if (el) el.style.display = "none";
+}
+
+export function moveIgnoreTooltip(e: MouseEvent): void {
+    const el = document.getElementById("ignore_tooltip");
+    if (!el) return;
+    const gap = 12;
+    const yOffset = 10;
+    let left = e.clientX + gap;
+    let top_ = e.clientY + gap + yOffset;
+    el.style.left = left + "px";
+    el.style.top = top_ + "px";
+    const r = el.getBoundingClientRect();
+    if (r.left + r.width > window.innerWidth) {
+        left = e.clientX - gap - r.width;
+    }
+    if (r.top + r.height > window.innerHeight) {
+        top_ = e.clientY - gap + yOffset - r.height;
+    }
+    left = Math.max(4, Math.min(left, window.innerWidth - r.width - 4));
+    top_ = Math.max(4, Math.min(top_, window.innerHeight - r.height - 4));
+    el.style.left = left + "px";
+    el.style.top = top_ + "px";
+}
