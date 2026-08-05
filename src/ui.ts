@@ -184,10 +184,19 @@ function rerenderSearchIfActive(): void {
 
 /** Attach the debounced input handler to the search text box. Safe to call
  *  multiple times — the old listener is discarded. */
+function showSearchClearButton(): void {
+    const clear = document.getElementById("search_clear_btn");
+    const input = document.getElementById("search_input") as HTMLInputElement | null;
+    if (clear && input) {
+        clear.style.display = input.value.length > 0 ? "block" : "none";
+    }
+}
+
 export function setupSearchHandler(): void {
     const input = document.getElementById("search_input") as HTMLInputElement | null;
     if (!input) return;
     const handler = (): void => {
+        showSearchClearButton();
         if (searchTimer) clearTimeout(searchTimer);
         searchTimer = setTimeout(() => renderSearchResults(input.value.trim()), 150);
     };

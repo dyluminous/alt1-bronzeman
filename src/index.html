@@ -29,7 +29,10 @@
     <!-- Tab: Search -->
     <div class="tab-panel" id="panel_search">
         <div class="search-panel">
-            <input type="text" id="search_input" class="text-input" placeholder="Search unlocks...">
+            <div style="position:relative;">
+                <input type="text" id="search_input" class="text-input" placeholder="Search unlocks..." spellcheck="false" style="padding-right:24px;">
+                <span id="search_clear_btn" onclick="document.getElementById('search_input').value='';document.getElementById('search_input').dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('search_clear_btn').style.display='none';" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;color:#8a857e;font-size:14px;display:none;">&#x2715;</span>
+            </div>
         </div>
         <div id="search_results" class="search-results"><div id="search_results_inner" class="search-results-inner"></div></div>
     </div>
@@ -131,7 +134,6 @@
             <div class="btn btn-primary" onclick="Bronzeman.openItemPngs()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Item PNGs</div>
             <div class="btn btn-primary" onclick="Bronzeman.ocrStackableDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">OCR Stackable (Slot 27)</div>
             <div class="btn btn-primary" id="ge_debug_btn" onclick="Bronzeman.toggleGeDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">Enable GE overlay</div>
-            <div id="ge_ocr_preview" style="margin-top:4px;"></div>
         </div>
         </div>
         <div id="slot_debug_inline" style="display:none;flex:1;flex-direction:column;">
