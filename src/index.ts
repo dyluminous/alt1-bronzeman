@@ -57,7 +57,7 @@ function initOnLoad() {
 export { captureReference, clearReference } from "./capture";
 
 // Overlay
-export { debugFindSlot, updateGridDebug, testSlotAnimation } from "./overlay";
+export { debugFindSlot, updateGridDebug, toggleSlotAnimation } from "./overlay";
 
 // Slot scan diagnostics
 export { diagnoseSlotScan, dumpSlotHash, debugCorners } from "./slot-scan";

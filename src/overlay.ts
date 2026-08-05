@@ -82,7 +82,7 @@ export function debugFindSlot(): void {
             const slotCols = (r === rows - 1) ? lastRowCols : cols;
             for (let c = 0; c < slotCols; c++) {
                 const slot = new InventorySlot(anc, cols, idx++);
-                const sw = 38, sh = 34;
+                const sw = InventorySlot.CELL_W, sh = InventorySlot.CELL_H;
                 alt1.overLayRect(yc, slot.tl.x, slot.tl.y, sw, 1, dur, 1);
                 alt1.overLayRect(yc, slot.tl.x, slot.br.y, sw, 1, dur, 1);
                 alt1.overLayRect(yc, slot.tl.x, slot.tl.y, 1, sh, dur, 1);
@@ -180,26 +180,101 @@ export function clearSlotHover(): void {
 }
 
 // ============================================================
-// Test slot animation — gold box on the border of slot 27
+// Test slot animation — gold "loading ring" on slot 27's border
 // ============================================================
 
 const TEST_ANIM_GROUP = "bronzeman_testanim";
+let animTimer: ReturnType<typeof setInterval> | null = null;
+let animStart = 0;
+/** Cumulative head distance (px) at the last frame — never modded, so the
+ *  [prev, cur) tiling stays contiguous across the cycle wrap. */
+let animLastPos = 0;
 
-/** Debug: draw a gold box on the border of the last slot (index 27). */
-export function testSlotAnimation(): void {
-    if (!state.inAlt1) { log("Not in Alt1"); return; }
+const ANIM_GOLD = (): number => a1lib.mixColor(212, 168, 75); // --rs-gold (#D4A84B)
+/** Frame interval — Alt1's practical overlay redraw ceiling is ~30fps. */
+const ANIM_STEP_MS = 33;
+/** Perimeter of the slot cell border (2×(38+34)). */
+const ANIM_PERIMETER = 2 * (InventorySlot.CELL_W + InventorySlot.CELL_H);
+/** One full loop: ~3px/frame → 48 frames. */
+const ANIM_CYCLE_MS = Math.ceil(ANIM_PERIMETER / 3) * ANIM_STEP_MS;
+/** Trail length — exactly half the ring, so the tail is 72px behind the head. */
+const ANIM_TAIL_PX = ANIM_PERIMETER / 2;
+/** How long a drawn pixel stays visible: the time the head takes to advance ANIM_TAIL_PX.
+ *  Oldest pixels expire one-by-one in draw order, keeping the trail at a constant 72px. */
+const ANIM_TAIL_MS = Math.round(ANIM_TAIL_PX / ANIM_PERIMETER * ANIM_CYCLE_MS);
+
+/** The border edge at perimeter-distance d from TL, going clockwise.
+ *  Perimeter is 2×(W+H); corners are counted once at the start of each edge,
+ *  so the four corner pixels get double-drawn (harmless overlap). */
+function borderEdgeAt(slot: InventorySlot, d: number): { x: number; y: number; dx: number; dy: number; end: number } {
+    const W = InventorySlot.CELL_W, H = InventorySlot.CELL_H;
+    if (d < W) return { x: slot.x + d, y: slot.y, dx: 1, dy: 0, end: W };                               // TL→TR
+    if (d < W + H) return { x: slot.x + W - 1, y: slot.y + d - W, dx: 0, dy: 1, end: W + H };           // TR→BR
+    if (d < 2 * W + H) return { x: slot.x + (2 * W + H - 1 - d), y: slot.y + H - 1, dx: -1, dy: 0, end: 2 * W + H }; // BR→BL
+    return { x: slot.x, y: slot.y + (ANIM_PERIMETER - 1 - d), dx: 0, dy: -1, end: ANIM_PERIMETER };      // BL→TL
+}
+
+/** Draw a 1px segment of length len starting at perimeter-distance d (wraps corners). */
+function drawBorderSegment(slot: InventorySlot, d: number, len: number, dur: number): void {
+    d = Math.round(d); // overLayRect requires int32 coords — keep all math integral
+    let remaining = len;
+    while (remaining > 0) {
+        const e = borderEdgeAt(slot, d);
+        const n = Math.min(remaining, e.end - d);
+        const color = ANIM_GOLD();
+        if (e.dx === 1) alt1.overLayRect(color, e.x, e.y, n, 1, dur, 1);
+        else if (e.dy === 1) alt1.overLayRect(color, e.x, e.y, 1, n, dur, 1);
+        else if (e.dx === -1) alt1.overLayRect(color, e.x - n + 1, e.y, n, 1, dur, 1);
+        else alt1.overLayRect(color, e.x, e.y - n + 1, 1, n, dur, 1);
+        d = (d + n) % ANIM_PERIMETER;
+        remaining -= n;
+    }
+}
+
+/** One frame: draw the segment from the last frame's head position to the current one.
+ *  Tiling [prev, cur) keeps the trail contiguous — rounding the endpoints can't
+ *  leave 1px gaps the way rounding a fixed 3px step per frame can. */
+function slotAnimTick(): void {
+    if (!inventory.isCalibrated) return;
+    const slot = inventory.getSlot(27);
+    if (!slot) return;
+    const pos = (Date.now() - animStart) / ANIM_CYCLE_MS * ANIM_PERIMETER;
+    const start = Math.round(animLastPos) % ANIM_PERIMETER;
+    const end = Math.round(pos) % ANIM_PERIMETER;
+    const len = (end - start + ANIM_PERIMETER) % ANIM_PERIMETER;
+    if (len > 0) drawBorderSegment(slot, start, len, ANIM_TAIL_MS);
+    animLastPos = pos;
+}
+
+/** Start/stop the loading-ring animation on slot 27's border, driven by the
+ *  "Show slot animation" debug checkbox. */
+export function toggleSlotAnimation(): void {
+    const cb = document.getElementById("show_slot_animation") as HTMLInputElement | null;
+    const on = cb?.checked ?? false;
+    if (!state.inAlt1) {
+        if (on && cb) cb.checked = false; // can't draw outside Alt1 — revert the check
+        log("Not in Alt1");
+        return;
+    }
+    if (on) startSlotAnimation();
+    else stopSlotAnimation();
+}
+
+function startSlotAnimation(): void {
     const slot = inventory.getSlot(27);
     if (!slot) { log("Slot 27 not available (inventory not calibrated?)"); return; }
-    const gold = a1lib.mixColor(212, 168, 75); // --rs-gold (#D4A84B)
-    const dur = 5000;
     alt1.overLaySetGroup(TEST_ANIM_GROUP);
-    alt1.overLayClearGroup(TEST_ANIM_GROUP);
-    // Slot cell is 38×34 including the 1px border; draw the 4 edges on it.
-    alt1.overLayRect(gold, slot.x, slot.y, 38, 1, dur, 1);
-    alt1.overLayRect(gold, slot.x, slot.y + 33, 38, 1, dur, 1);
-    alt1.overLayRect(gold, slot.x, slot.y, 1, 34, dur, 1);
-    alt1.overLayRect(gold, slot.x + 37, slot.y, 1, 34, dur, 1);
-    log(`Test Slot Animation: gold box on slot 27 border at (${slot.x},${slot.y})`);
+    animStart = Date.now();
+    animLastPos = 0;
+    log(`Show slot animation: gold loading ring on slot 27 border from TL (${slot.tl.x},${slot.tl.y})`);
+    slotAnimTick();
+    animTimer = setInterval(slotAnimTick, ANIM_STEP_MS);
+}
+
+/** Stop the animation. Already-drawn segments are left to fade out naturally
+ *  (they carry a finite duration), rather than force-clearing the group. */
+function stopSlotAnimation(): void {
+    if (animTimer) { clearInterval(animTimer); animTimer = null; }
 }
 
 
