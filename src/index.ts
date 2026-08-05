@@ -1191,9 +1191,11 @@ export function debugFindSlot(): void {
                 alt1.overLayRect(yc, sx, sy, 1, sh, dur, 1);
                 alt1.overLayRect(yc, sx + sw - 1, sy, 1, sh, dur, 1);
                 // Slot number in center
-                alt1.overLayText(String(slotNum), white, 14, sx + sw / 2 - 8, sy + sh / 2 - 7, dur);
+                alt1.overLayText(String(slotNum), white, 10, sx + sw / 2 - 6, sy + sh / 2 - 5, dur);
             }
         }
+        const totalMs = Date.now() - t0;
+        log(`Total: ${totalMs}ms (fingerprint: ${ms}ms, gap/cols/rows: ${totalMs - ms}ms)`);
     } else {
         log(`No fingerprint slot found (scanned in ${ms}ms)`);
     }
