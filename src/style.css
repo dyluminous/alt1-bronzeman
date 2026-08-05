@@ -108,7 +108,7 @@
     }
 
     .section-title {
-        font-size: 11px; font-weight: bold; color: #aaa;
+        font-size: 11px; font-weight: bold; color: var(--rs-gold-muted);
         border-bottom: 1px solid #333; padding-bottom: 2px; margin: 6px 0 3px;
     }
 
@@ -315,6 +315,7 @@
         text-align:center;
         font-size:13px;
         pointer-events:auto;
+        white-space:pre-line;
         transition: transform 0.3s ease, opacity 0.3s ease;
     }
 
@@ -471,11 +472,11 @@
         border-radius: 4px;
         padding: 1px;
         box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.8);
-        width: 85px;
+        width: 58px;
     }
 
     .spinner-input {
-        width: 60px;
+        width: 36px;
         height: 100%;
         background: #13100e;
         border: 1px solid #28231f;

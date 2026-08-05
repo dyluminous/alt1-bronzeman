@@ -10,10 +10,11 @@ import { startAnchorWatch, stopAnchorWatch } from "./anchor-watch";
 import { startSlotScan, stopSlotScan, captureCornerRefs } from "./slot-scan";
 
 // ============================================================
-// Toggle auto-capture on/off
+// Toggle auto-capture on/off — wired to the debug-menu checkbox.
+// Auto-capture defaults ON at boot; this is the only off switch.
 // ============================================================
 
-export function captureReference(): void {
+export function toggleAutoCapture(): void {
     if (!state.inAlt1) { log("Not in Alt1."); return; }
     if (!alt1.permissionPixel) { log("No pixel permission."); return; }
 
@@ -70,7 +71,7 @@ export function calibrateGrid(opts?: { silent?: boolean }): void {
             captureCornerRefs(img);
             state.calibrating = false;
             state.autocapture = true;
-            if (!opts?.silent) showNotification("Inventory calibrated", 3000, "success");
+            if (!opts?.silent) showNotification("Inventory found", 3000, "success");
             drawDetectDebug(false);
             updateGridDebug();
             drawAnchorWatchDot();
@@ -119,20 +120,26 @@ export function clearReference(): void {
 }
 
 // ============================================================
-// Initial grid search — fires every 1s until inventory found or 5min timeout
+// Initial grid search — fires every 1s until inventory found.
+// No timeout: auto-capture is always-on, so the scan keeps trying
+// until the backpack comes into view (or the user disables it).
 // ============================================================
 
 let gridSearchHandle: ReturnType<typeof setInterval> | null = null;
 let gridSearchStarted = 0;
 let gridSearchNotify: NotificationHandle | null = null;
-const GRID_SEARCH_TIMEOUT_MS = 5 * 60 * 1000;
 
-/** Format ms as mm:ss (e.g. 05:00), used for the scanning countdown. */
-function formatCountdown(ms: number): string {
-    const total = Math.max(0, Math.ceil(ms / 1000));
-    const m = Math.floor(total / 60);
+/** Format ms as mm:ss (e.g. 00:05), or hh:mm:ss once an hour elapses. */
+function formatElapsed(ms: number): string {
+    const total = Math.floor(ms / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
     const s = total % 60;
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    const mm = String(m).padStart(2, "0");
+    const ss = String(s).padStart(2, "0");
+    return h > 0
+        ? `${String(h).padStart(2, "0")}:${mm}:${ss}`
+        : `${mm}:${ss}`;
 }
 
 function startGridSearch(): void {
@@ -148,20 +155,14 @@ function startGridSearch(): void {
         updateUI();
     }
     gridSearchStarted = Date.now();
-    log("Starting initial grid search (5min timeout)...");
-    gridSearchNotify = showNotification(`Scanning... (${formatCountdown(GRID_SEARCH_TIMEOUT_MS)})`, 0, "info");
+    log("Scanning for inventory...");
+    gridSearchNotify = showNotification(`Scanning for inventory...\n(${formatElapsed(0)})`, 0, "info");
     gridSearchHandle = setInterval(() => {
         if (inventory.isCalibrated) {
             stopGridSearch();
             return;
         }
-        const remaining = GRID_SEARCH_TIMEOUT_MS - (Date.now() - gridSearchStarted);
-        if (remaining <= 0) {
-            log("Grid search timed out after 5min.");
-            stopGridSearch();
-            return;
-        }
-        gridSearchNotify?.update(`Scanning... (${formatCountdown(remaining)})`);
+        gridSearchNotify?.update(`Scanning for inventory...\n(${formatElapsed(Date.now() - gridSearchStarted)})`);
         calibrateGrid();
     }, 1000);
 }

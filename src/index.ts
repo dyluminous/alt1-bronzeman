@@ -2,7 +2,7 @@
 // Bootstrap + Bronzeman namespace for HTML onclick handlers. All feature code
 // lives in domain modules: capture, overlay, ui, modal, data, inventory, core.
 import { state, log } from "./core";
-import { updateAlt1Status, updateUI } from "./ui";
+import { updateAlt1Status, updateUI, applyDebugTabVisibility } from "./ui";
 import { initUnlockDB } from "./data";
 import { initRecentUnlocks, setRecentUnlocksLimit, getRecentUnlocksLimit } from "./recent-unlocks";
 import { calibrateGrid } from "./capture";
@@ -23,6 +23,7 @@ function initOnLoad() {
     log(`inAlt1=${state.inAlt1}`);
 
     updateAlt1Status();
+    applyDebugTabVisibility();
     initUnlockDB().then(() => { updateUI(); initRecentUnlocks().catch(() => {}); });
     syncRecentUnlocksSpinner();
 
@@ -32,20 +33,6 @@ function initOnLoad() {
     }
 
     updateUI();
-
-    // Flash setup tab icon red when auto-capture is off
-    let flashOn = false;
-    setInterval(() => {
-        const img = document.getElementById("setup-tab-icon") as HTMLImageElement | null;
-        if (!img) return;
-        if (!state.autocapture) {
-            flashOn = !flashOn;
-            img.style.filter = flashOn ? "hue-rotate(-55deg) saturate(2)" : "";
-        } else {
-            img.style.filter = "";
-            flashOn = false;
-        }
-    }, 1000);
 
     log(`Init done. inAlt1=${state.inAlt1}`);
 }
@@ -61,7 +48,7 @@ function syncRecentUnlocksSpinner(): void {
 // ============================================================
 
 // Capture
-export { captureReference, clearReference } from "./capture";
+export { toggleAutoCapture, clearReference } from "./capture";
 
 // Overlay
 export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug } from "./overlay";
@@ -81,6 +68,7 @@ export {
     openSlotDebug, closeSlotDebug, refreshSlotDebug,
     showDisambiguation, selectDisambiguationOption, closeDisambiguation,
     openItemPngs, closeItemPngs,
+    toggleDebugTab,
 } from "./ui";
 
 // Recent unlocks setting
