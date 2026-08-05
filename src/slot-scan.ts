@@ -34,6 +34,11 @@ export function getNonUnlockedSlotIndices(): Set<number> {
     return nonUnlockedSlots;
 }
 
+/** Force a slot out of the dot set — used when its item just got unlocked. */
+export function removeNonUnlockedSlot(index: number): void {
+    nonUnlockedSlots.delete(index);
+}
+
 // ============================================================
 // Low-level reads from a captured image
 // ============================================================
@@ -353,10 +358,6 @@ function scanTick(): void {
     for (const r of removed) log(`Slot ${r.index}: item removed`);
     for (const a of appeared) log(`Slot ${a.index}: item appeared`);
     for (const c of changed) log(`Slot ${c.index}: item changed`);
-
-    // Slots covered by a tooltip/context menu shouldn't show dots —
-    // the player may be inspecting or manipulating them.
-    covered.forEach(idx => nonUnlockedSlots.delete(idx));
 
     prevUseSlots = useSlotsThisTick;
 }

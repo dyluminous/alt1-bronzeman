@@ -31,6 +31,8 @@ let unlockedItemDataList: UnlockedItemData[] = [];
 
 /** Flat hash lookup — the O(1) hot path used by the scan tick. */
 let unlockedHashes: Set<string> = new Set();
+/** Names already in the unlock DB — a name hit means "append hash, no notify". */
+let unlockedNames: Set<string> = new Set();
 
 // ============================================================
 // IndexedDB — unlock storage (tradable + untradable stores)
@@ -126,6 +128,7 @@ export async function initUnlockDB(): Promise<void> {
 
         for (const r of [...tradable, ...untradable]) {
             for (const h of r.hashes) unlockedHashes.add(h);
+            unlockedNames.add(r.name);
         }
         log(`Unlock DB ready: ${tradable.length} tradable, ${untradable.length} untradable, ${unlockedHashes.size} hashes.`);
     } catch (e) {
@@ -135,7 +138,9 @@ export async function initUnlockDB(): Promise<void> {
 
 /** Record an unlocked item (called after the wiki query resolves). Routes to
  *  the tradable/untradable store by tradeable flag; appends the hash so
- *  stackable quantity variants share one record. */
+ *  stackable quantity variants share one record. Idempotent by name — a name
+ *  already in the DB appends silently (no notification), only genuinely new
+ *  names notify. */
 export function addUnlockedItem(name: string, tradeable: boolean, stackable: boolean, hash: string): void {
     const store = tradeable ? STORE_TRADABLE : STORE_UNTRADABLE;
     if (unlockedHashes.has(hash)) {
@@ -143,6 +148,8 @@ export function addUnlockedItem(name: string, tradeable: boolean, stackable: boo
         return;
     }
     unlockedHashes.add(hash);
+    const isNewName = !unlockedNames.has(name);
+    if (isNewName) unlockedNames.add(name);
 
     // Load the record, append the hash, persist. If the DB isn't ready yet,
     // the hash is in memory and the record is lost on reload — acceptable
@@ -161,8 +168,12 @@ export function addUnlockedItem(name: string, tradeable: boolean, stackable: boo
         }
     };
     void persist();
-    log(`UNLOCKED: "${name}" (${tradeable ? "tradable" : "untradable"}, ${stackable ? "stackable" : "non-stackable"}) hash=${hash.slice(0, 12)}…`);
-    if (state.inAlt1) showNotification("Unlocked: " + name, 3000, "success");
+    if (isNewName) {
+        log(`UNLOCKED: "${name}" (${tradeable ? "tradable" : "untradable"}, ${stackable ? "stackable" : "non-stackable"}) hash=${hash.slice(0, 12)}…`);
+        if (state.inAlt1) showNotification("Unlocked: " + name, 3000, "success");
+    } else {
+        log(`New hash appended to existing item "${name}" (${hash.slice(0, 12)}…)`);
+    }
 }
 
 export function isHashUnlocked(hash: string): boolean {
@@ -251,6 +262,7 @@ export function resetData(): void {
     unlockedItems.clear();
     unlockedItemDataList = [];
     unlockedHashes.clear();
+    unlockedNames.clear();
     localStorage.removeItem(LS_KEYS.unlockedItems);
     localStorage.removeItem(LS_KEYS.unlockedItemData);
     localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
@@ -267,6 +279,7 @@ export function resetUnlocks(): void {
     unlockedItems.clear();
     unlockedItemDataList = [];
     unlockedHashes.clear();
+    unlockedNames.clear();
     localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
     localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify([]));
     if (_db) {
