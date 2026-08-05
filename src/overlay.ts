@@ -7,13 +7,8 @@ import { InventorySlot } from "./inventory-slot";
 import { state, captureFullRs, log, showNotification } from "./core";
 import { getAnchorWatchPoints } from "./anchor-watch";
 import { SlotLoadingAnimation } from "./slot-animation";
-import goldDot from "./assets/images/gold_dot.png";
-import { getNonUnlockedSlotIndices } from "./slot-scan";
-import { TooltipScanner, readTooltipItemName } from "./tooltip-read";
-import { fetchItemTradeable } from "./wiki";
-import type { WikiQueryResult } from "./wiki";
-import { addUnlockedItem } from "./data";
-import { showDisambiguation, closeDisambiguation } from "./ui";
+import { SLOT_DOT_X, SLOT_DOT_Y, SLOT_DOT_W, loadGoldDotEncoded } from "./gold-dot";
+import { TooltipScanner } from "./tooltip-read";
 
 // ============================================================
 // Detection debug — corner brackets on all slots
@@ -195,37 +190,10 @@ const SLOT_DOT_GROUP = "bronzeman_slotdot";
  *  even when frozen, so the dot is re-drawn with a fresh duration on a timer. */
 const SLOT_DOT_INTERVAL_MS = 500;
 const SLOT_DOT_DURATION_MS = 1000;
-/** Dot position on the slot, relative to the TL border pixel (0,0). */
-const SLOT_DOT_X = 26;
-const SLOT_DOT_Y = 2;
-/** gold_dot.png is 10×10. */
-const SLOT_DOT_W = 10;
 
 let slotDotTimer: ReturnType<typeof setInterval> | null = null;
 let slotDotSlot: InventorySlot | null = null;
 let slotDotEncoded: string | null = null;
-let goldDotPromise: Promise<string> | null = null;
-
-/** Load gold_dot.png once and return its encoded overlay-image string. */
-function loadGoldDotEncoded(): Promise<string> {
-    if (!goldDotPromise) {
-        goldDotPromise = new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-                const cv = document.createElement("canvas");
-                cv.width = img.width;
-                cv.height = img.height;
-                const ctx = cv.getContext("2d");
-                if (!ctx) { reject(new Error("no 2d context")); return; }
-                ctx.drawImage(img, 0, 0);
-                resolve(a1lib.encodeImageString(ctx.getImageData(0, 0, img.width, img.height)));
-            };
-            img.onerror = () => reject(new Error("failed to load gold_dot.png"));
-            img.src = goldDot;
-        });
-    }
-    return goldDotPromise;
-}
 
 /** Draw the gold dot at (SLOT_DOT_X, SLOT_DOT_Y) from the slot TL border pixel. */
 function drawSlotDotNow(): void {
@@ -243,7 +211,7 @@ function startSlotDot(slot: InventorySlot): void {
         slotDotEncoded = encoded;
         drawSlotDotNow();
         if (!slotDotTimer) slotDotTimer = setInterval(drawSlotDotNow, SLOT_DOT_INTERVAL_MS);
-    });
+    }).catch(() => log("Failed to load gold dot image"));
 }
 
 function stopSlotDot(): void {
@@ -283,173 +251,6 @@ export function toggleSlotAnimation(): void {
         slotAnimation?.stop();
         stopSlotDot();
     }
-}
-
-// ============================================================
-// Non-unlocked dot — gold dot on every slot not in the unlocked set
-// ============================================================
-
-const NON_UNLOCKED_DOT_GROUP = "bronzeman_nonunlock";
-
-let nonUnlockedDotTimer: ReturnType<typeof setInterval> | null = null;
-let nonUnlockedDotEncoded: string | null = null;
-/** The slots we've already drawn — redraw is skipped when nothing changed. */
-let drawnNonUnlockedSlots: Set<number> = new Set();
-
-/** Hover‑to‑animation: which slot's gold dot is being hovered. */
-let hoveredDotSlot: number | null = null;
-let hoverAnimation: SlotLoadingAnimation | null = null;
-/** True once the hover flow fully resolved (success or failure) — no restart
- *  while the mouse stays on the dot. Reset when the mouse leaves. */
-let hoverResolved = false;
-/** True while a wiki query is in flight. */
-let queryBusy = false;
-/** True while the disambiguation pane is open — blocks new scans until the
- *  user picks an option or closes the pane. */
-let disambigOpen = false;
-
-function finishHoverFlow(): void {
-    if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
-    hoverResolved = true;
-}
-
-function handleWikiResult(result: WikiQueryResult, queriedName: string, slotHash: string | null): void {
-    queryBusy = false;
-    if (result.ok) {
-        log(`Wiki: "${queriedName}" tradeable = ${result.tradeable}`);
-        // Store the unlock: name + tradeable flag + the slot's hash.
-        if (slotHash) {
-            addUnlockedItem(queriedName, result.tradeable?.toLowerCase() === "yes", slotHash);
-        } else {
-            log(`No slot hash available — skipping unlock record for "${queriedName}"`);
-        }
-        finishHoverFlow();
-    } else if (result.disambig && result.disambig.length > 0) {
-        // Only one item option after filtering — continue without a dialog.
-        if (result.disambig.length === 1) {
-            const name = result.disambig[0].name;
-            log(`Wiki disambiguation: only one item "${name}", continuing`);
-            queryBusy = true;
-            void fetchItemTradeable(name).then(r => handleWikiResult(r, name, slotHash));
-            return;
-        }
-        // Ask the user which option is the right item — animation keeps running.
-        disambigOpen = true;
-        showDisambiguation(result.disambig,
-            (name) => {
-                disambigOpen = false;
-                log(`Wiki disambiguation: selected "${name}"`);
-                queryBusy = true;
-                void fetchItemTradeable(name).then(r => handleWikiResult(r, name, slotHash));
-            },
-            () => {
-                // ✕ or click-outside — abandoned, end the flow.
-                disambigOpen = false;
-                log("Wiki disambiguation: abandoned");
-                finishHoverFlow();
-            });
-    } else if (result.status !== undefined) {
-        showNotification(`Failed to query item via Wiki API (${result.status})`, 3000, "danger");
-        finishHoverFlow();
-    } else {
-        showNotification("Failed to query item via Wiki API (no tradeable data)", 3000, "danger");
-        finishHoverFlow();
-    }
-}
-
-function startHoverFlow(slotIndex: number): void {
-    if (hoverAnimation === null) {
-        const slot = inventory.getSlot(slotIndex);
-        if (slot) {
-            hoverAnimation = new SlotLoadingAnimation(slot);
-            hoverAnimation.start();
-        }
-    }
-    // The scanned interior hash of this slot — the item identity used for storage.
-    const slot = inventory.getSlot(slotIndex);
-    const slotHash = slot && slot.previousHash && slot.previousHash !== "empty" ? slot.previousHash : null;
-    const itemName = readTooltipItemName();
-    if (!itemName) {
-        showNotification("Failed to read item name", 3000, "danger");
-        if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
-        hoveredDotSlot = null;
-        hoverResolved = false;
-        return;
-    }
-    log(`Hovered item: "${itemName}" (slot ${slotIndex}) hash=${slotHash ? slotHash.slice(0, 12) + "…" : "n/a"}`);
-    queryBusy = true;
-    void fetchItemTradeable(itemName).then(result => handleWikiResult(result, itemName, slotHash));
-}
-
-function drawNonUnlockedDots(): void {
-    if (!state.inAlt1 || !inventory.isCalibrated || !nonUnlockedDotEncoded) return;
-    const indices = getNonUnlockedSlotIndices();
-
-    // Hover detection over the gold dots. The animation is NOT stopped when the
-    // mouse leaves — it runs until the wiki pipeline resolves or is abandoned.
-    const mouse = a1lib.getMousePosition();
-    let overIdx: number | null = null;
-    if (mouse) {
-        indices.forEach(idx => {
-            if (overIdx !== null) return; // already found
-            const s = inventory.getSlot(idx);
-            if (!s) return;
-            const dx = s.x + SLOT_DOT_X, dy = s.y + SLOT_DOT_Y;
-            if (mouse.x >= dx && mouse.x < dx + SLOT_DOT_W && mouse.y >= dy && mouse.y < dy + SLOT_DOT_W) {
-                overIdx = idx;
-            }
-        });
-    }
-    if (overIdx !== hoveredDotSlot) {
-        hoveredDotSlot = overIdx;
-        hoverResolved = false;
-    }
-    // Guard: no new scan while a query is in flight or the disambiguation pane
-    // is up — prevents overlapping query boxes / breaking the workflow.
-    if (hoveredDotSlot !== null && !hoverResolved && !queryBusy && !disambigOpen && hoverAnimation === null) {
-        startHoverFlow(hoveredDotSlot);
-    }
-
-    // Redraw with a fresh duration every tick so dots never expire mid-frame
-    // (no clear on steady state = no flicker). Only clear when the set changed,
-    // so removed slots' dots vanish promptly.
-    const same = indices.size === drawnNonUnlockedSlots.size
-        && Array.from(indices).every(i => drawnNonUnlockedSlots.has(i));
-    alt1.overLaySetGroup(NON_UNLOCKED_DOT_GROUP);
-    if (!same) {
-        alt1.overLayClearGroup(NON_UNLOCKED_DOT_GROUP);
-        drawnNonUnlockedSlots = new Set(indices);
-    }
-    indices.forEach(idx => {
-        const slot = inventory.getSlot(idx);
-        if (!slot) return;
-        alt1.overLayImage(slot.x + SLOT_DOT_X, slot.y + SLOT_DOT_Y, nonUnlockedDotEncoded, SLOT_DOT_W, SLOT_DOT_DURATION_MS);
-    });
-}
-
-export function startNonUnlockedDotRefresh(): void {
-    void loadGoldDotEncoded().then(encoded => {
-        nonUnlockedDotEncoded = encoded;
-        if (!nonUnlockedDotTimer) {
-            nonUnlockedDotTimer = setInterval(drawNonUnlockedDots, 250);
-        }
-    });
-}
-
-export function stopNonUnlockedDotRefresh(): void {
-    if (nonUnlockedDotTimer) { clearInterval(nonUnlockedDotTimer); nonUnlockedDotTimer = null; }
-    nonUnlockedDotEncoded = null;
-    drawnNonUnlockedSlots = new Set();
-    hoveredDotSlot = null;
-    hoverResolved = false;
-    queryBusy = false;
-    disambigOpen = false;
-    closeDisambiguation();
-    if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
-    try {
-        alt1.overLaySetGroup(NON_UNLOCKED_DOT_GROUP);
-        alt1.overLayClearGroup(NON_UNLOCKED_DOT_GROUP);
-    } catch { /* group already gone */ }
 }
 
 // ============================================================

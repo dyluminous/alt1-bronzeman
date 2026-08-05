@@ -42,8 +42,6 @@ function ensureAlt1(): boolean {
 // ============================================================
 
 export const LS_KEYS = {
-    unlockedItems: "Bronzeman/unlockedItems",
-    unlockedItemData: "Bronzeman/unlockedItemData",
     unlockedHashes: "Bronzeman/unlockedHashes", // legacy — migrated to IndexedDB on first boot
 } as const;
 

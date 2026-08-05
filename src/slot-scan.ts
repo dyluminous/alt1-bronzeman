@@ -9,37 +9,11 @@ import { captureFullRs, log, lightness } from "./core";
 import type { ImgRef } from "alt1/base";
 import { InventorySlot } from "./inventory-slot";
 import { isHashUnlocked, isLowerHalfUnlocked } from "./data";
+import { hashInterior, LOWER_HALF_OFFSET } from "./hash";
 
 const SCAN_MS = 500;
 /** Sentinel previousHash for an empty slot. */
 const EMPTY_HASH = "empty";
-
-/** Noted-item marker, relative to the slot TL border corner (0,0): a #95865e
- *  pixel at (12,1) beside a #000002 shadow pixel at (13,1). Both must match. */
-const NOTED_MARK: [number, number, number] = [0x95, 0x86, 0x5e];
-const NOTED_SHADOW: [number, number, number] = [0x00, 0x00, 0x02];
-const NOTED_MARK_X = 12;
-const NOTED_MARK_Y = 1;
-const NOTED_SHADOW_X = 13;
-
-/** The two guaranteed-yellow quantity-digit pixels, INTERIOR-relative (the
- *  stellar captures are interior-only, 36×32). Converted to game coords via
- *  slot.interiorX/interiorY, which include the 1px border offset. Every
- *  stack-count digit 1–9 renders #ffff00 at (4,1) or (3,3) — verified
- *  against stellar (1)–(9) captures. */
-const STACKABLE_PIXELS: readonly (readonly [number, number])[] = [[4, 1], [3, 3]];
-
-let scanHandle: ReturnType<typeof setInterval> | null = null;
-
-/** Slots whose current interior hash is not in the unlocked set. */
-let nonUnlockedSlots: Set<number> = new Set();
-/** Slots that were in Use state in the previous tick — re‑added to the dot
- *  set on exit so the dot reappears instantly even while the mouse is nearby. */
-let prevUseSlots: Set<number> = new Set();
-
-export function getNonUnlockedSlotIndices(): Set<number> {
-    return nonUnlockedSlots;
-}
 
 // ============================================================
 // Low-level reads from a captured image
@@ -69,381 +43,279 @@ function interiorLightness(data: Uint8ClampedArray): number {
 }
 
 // ============================================================
-// Baseline — fill cornerRefs from a fresh capture (once per calibrate)
+// SlotScanner — the per-tick scan + the gold-dot slot set
 // ============================================================
 
-export function captureCornerRefs(img: ImgRef): void {
-    for (const slot of inventory.slots) {
-        slot.cornerRefs = slot.corners.map(c => readPixel(img, c.x, c.y) ?? [0, 0, 0]);
-        slot.previousHash = null;
-        slot.lastValidPixels = null;
+class SlotScanner {
+    private handle: ReturnType<typeof setInterval> | null = null;
+
+    /** Slots whose current interior hash is not in the unlocked set. */
+    private nonUnlockedSlots: Set<number> = new Set();
+    /** Slots that were in Use state in the previous tick — re‑added to the dot
+     *  set on exit so the dot reappears instantly even while the mouse is
+     *  nearby. */
+    private prevUseSlots: Set<number> = new Set();
+
+    /** Slots whose current interior hash is not in the unlocked set. */
+    getNonUnlockedSlotIndices(): Set<number> {
+        return this.nonUnlockedSlots;
     }
-}
 
-// ============================================================
-// Per-slot checks
-// ============================================================
-
-/** True when the corner pixel exactly matches its calibration ref. */
-function cornerMatches(corner: [number, number, number], ref: [number, number, number]): boolean {
-    return corner[0] === ref[0] && corner[1] === ref[1] && corner[2] === ref[2];
-}
-
-/** True when the slot holds a noted item — the #95865e mark + #000002 shadow
- *  beside it. Noted items are ignored completely (no gold dot, no tracking). */
-export function isNotedItem(slot: InventorySlot, img: ImgRef): boolean {
-    const mark = readPixel(img, slot.x + NOTED_MARK_X, slot.y + NOTED_MARK_Y);
-    const shadow = readPixel(img, slot.x + NOTED_SHADOW_X, slot.y + NOTED_MARK_Y);
-    return !!mark && !!shadow
-        && mark[0] === NOTED_MARK[0] && mark[1] === NOTED_MARK[1] && mark[2] === NOTED_MARK[2]
-        && shadow[0] === NOTED_SHADOW[0] && shadow[1] === NOTED_SHADOW[1] && shadow[2] === NOTED_SHADOW[2];
-}
-
-/** True when the slot shows a stack-quantity digit — the item is stackable.
- *  Any stack-count digit (1–9 verified) hits at least one of the two
- *  guaranteed-yellow pixels. */
-export function isStackableItem(slot: InventorySlot, img: ImgRef): boolean {
-    for (const [dx, dy] of STACKABLE_PIXELS) {
-        const c = readPixel(img, slot.interiorX + dx, slot.interiorY + dy);
-        if (c && c[0] === 0xff && c[1] === 0xff && c[2] === 0x00) return true;
-    }
-    return false;
-}
-
-/** True when the item is in "Use" state — the white outline replaces the
- *  item shadow. Captures the 38×34 cell once, then scans the buffer BR→BL
- *  upward for a #FFFFFF pixel surrounded on all 4 sides by shadow. */
-export function isInUseState(slot: InventorySlot, img: ImgRef): boolean {
-    const W = InventorySlot.CELL_W;
-    const H = InventorySlot.CELL_H;
-    const buf = img.toData(slot.x, slot.y, W, H);
-    if (!buf) return false;
-    const d = buf.data;
-    const stride = W * 4;
-    const shadow = (i: number): boolean =>
-        d[i] === 0 && d[i + 1] === 0 && (d[i + 2] === 1 || d[i + 2] === 2);
-    for (let y = H - 1; y >= 0; y--) {
-        const row = y * stride;
-        for (let x = W - 1; x >= 0; x--) {
-            const i = row + x * 4;
-            if (d[i] !== 255 || d[i + 1] !== 255 || d[i + 2] !== 255) continue;
-            if (y > 0 && shadow(i - stride)
-                && y < H - 1 && shadow(i + stride)
-                && x > 0 && shadow(i - 4)
-                && x < W - 1 && shadow(i + 4)) {
-                return true;
-            }
+    /** Fill cornerRefs from a fresh capture (once per calibrate). */
+    captureCornerRefs(img: ImgRef): void {
+        for (const slot of inventory.slots) {
+            slot.cornerRefs = slot.corners.map(c => readPixel(img, c.x, c.y) ?? [0, 0, 0]);
+            slot.previousHash = null;
+            slot.lastValidPixels = null;
         }
     }
-    return false;
-}
 
-/** True when any corner no longer matches its calibration ref (slot is covered). */
-function isCovered(slot: InventorySlot, img: ImgRef): boolean {
-    if (slot.cornerRefs.length !== 4) return true;
-    return slot.corners.some((c, i) => {
-        const live = readPixel(img, c.x, c.y);
-        return !live || !cornerMatches(live, slot.cornerRefs[i]);
-    });
-}
-
-/** True when the interior has no item shadow pixels (#000001 or #000002).
- *  Every RS item has a 1px drop shadow; empty brown slots never do. */
-function isSlotEmpty(data: Uint8ClampedArray): boolean {
-    for (let i = 0; i < data.length; i += 4) {
-        if (data[i] === 0 && data[i + 1] === 0 && (data[i + 2] === 1 || data[i + 2] === 2)) return false;
+    start(): void {
+        if (this.handle) return;
+        this.handle = setInterval(() => this.tick(), SCAN_MS);
     }
-    return true;
-}
 
-/** The 52 grain colors of the empty inventory-slot background (extracted from
- *  assets/testing/inner-slots.png). Excluded from the item hash: the grain is
- *  spatially different in every slot, so including it makes the same item hash
- *  differently in different slots. */
-const BG_PALETTE_COLORS: readonly number[] = [
-    0x181410, 0x191410, 0x1a1511, 0x1a1512, 0x1b1511, 0x1b1612, 0x1b1613, 0x1b1712,
-    0x1b1713, 0x1c1713, 0x1c1714, 0x1c1813, 0x1c1814, 0x1d1814, 0x1d1815, 0x1e1814,
-    0x1d1915, 0x1e1916, 0x1e1a15, 0x1e1a16, 0x1f1a16, 0x1f1a17, 0x1f1b17, 0x201b17,
-    0x201b18, 0x1f1c17, 0x201c18, 0x211c18, 0x211c19, 0x211d19, 0x211d1a, 0x221d19,
-    0x221d1a, 0x231d19, 0x221e1a, 0x231e1b, 0x231f1b, 0x241f1b, 0x241f1c, 0x23201b,
-    0x251f1b, 0x24201c, 0x25201c, 0x24211c, 0x26201c, 0x25211d, 0x26211e, 0x26221f,
-    0x28221e, 0x282320, 0x282520, 0x2a2722,
-];
+    stop(): void {
+        if (this.handle) { clearInterval(this.handle); this.handle = null; }
+    }
 
-/** The palette expanded to ±1 per channel (tol 1): every packed RGB within one
- *  channel-step of a grain color. Covers live grain shades that land one step
- *  off the captured palette (interface scaling/AA) while still never touching
- *  item pixels — verified black dragonhide's nearest item color is ≥4
- *  channel-delta from any palette entry. 52 colors × 27 neighbors = 1404. */
-const BG_PALETTE_TOL1: ReadonlySet<number> = (() => {
-    const out = new Set<number>();
-    for (const packed of BG_PALETTE_COLORS) {
-        const r = (packed >> 16) & 0xff, g = (packed >> 8) & 0xff, b = packed & 0xff;
-        for (let dr = -1; dr <= 1; dr++) {
-            for (let dg = -1; dg <= 1; dg++) {
-                for (let db = -1; db <= 1; db++) {
-                    out.add(((r + dr) << 16) | ((g + dg) << 8) | (b + db));
+    // ----------------------------------------------------------
+    // Gate helpers
+    // ----------------------------------------------------------
+
+    /** Slots the scan must not read: covered (corner mismatch) or under/adjacent
+     *  to the cursor. Their previousHash is left untouched so no false change is
+     *  recorded. */
+    getObscuredSlotIndices(img: ImgRef): Set<number> {
+        const obscured = new Set<number>();
+        const hovered = inventory.getHoveredSlotIndex();
+        if (hovered !== null) {
+            obscured.add(hovered);
+            for (const a of inventory.getAdjacentSlotIndices(hovered)) obscured.add(a);
+        }
+        for (const slot of inventory.slots) {
+            if (slot.isCovered(img)) obscured.add(slot.index);
+        }
+        return obscured;
+    }
+
+    /** Slots with a corner pixel mismatch — a tooltip or context menu is covering
+     *  them. STRICT set: used to gate interior reads so no tooltip-polluted hash
+     *  is ever stored. */
+    private getCoveredSlotIndices(img: ImgRef): Set<number> {
+        const covered = new Set<number>();
+        for (const slot of inventory.slots) {
+            if (slot.isCovered(img)) covered.add(slot.index);
+        }
+        return covered;
+    }
+
+    /** Covered slots for DOT HIDING: the strict set minus the hovered row, which
+     *  keeps dots visible across the row the player is inspecting. */
+    private getCoveredForDots(img: ImgRef): Set<number> {
+        const covered = this.getCoveredSlotIndices(img);
+        const hovered = inventory.getHoveredSlotIndex();
+        // The entire row of the hovered slot should keep dots visible — the
+        // player's tooltip often extends across the row when inspecting an item.
+        if (hovered !== null) {
+            const hSlot = inventory.getSlot(hovered);
+            if (hSlot) {
+                for (const s of inventory.slots) {
+                    if (s.row === hSlot.row) covered.delete(s.index);
                 }
             }
         }
+        return covered;
     }
-    return out;
-})();
 
-/** 8×8 cells → 3 hex nibbles per cell (R, G, B channel averages, each 4-bit)
- *  → 192-char hash. Hashing the channels separately preserves hue, so items
- *  that differ only in colour (e.g. red vs green ticket: lightness 89.5 vs
- *  90.5) no longer collide. Background-grain pixels (within tol 1 of the
- *  palette) are skipped — the grain differs per slot, the item renders
- *  identically. Cells with no non-background pixels hash as '000'. */
-function hashInterior(data: Uint8ClampedArray): string {
-    const W = InventorySlot.INTERIOR_W, H = InventorySlot.INTERIOR_H;
-    const cw = Math.max(1, Math.floor(W / 8));
-    const ch = Math.max(1, Math.floor(H / 8));
-    let h = "";
-    for (let cy = 0; cy < 8; cy++) {
-        for (let cx = 0; cx < 8; cx++) {
-            let rSum = 0, gSum = 0, bSum = 0, cnt = 0;
-            for (let dy = 0; dy < ch; dy++) {
-                for (let dx = 0; dx < cw; dx++) {
-                    const px = cx * cw + dx, py = cy * ch + dy;
-                    if (px >= W || py >= H) continue;
-                    const i = (py * W + px) * 4;
-                    const packed = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
-                    if (BG_PALETTE_TOL1.has(packed)) continue; // grain — differs per slot
-                    rSum += data[i]; gSum += data[i + 1]; bSum += data[i + 2];
-                    cnt++;
+    // ----------------------------------------------------------
+    // Diagnostics
+    // ----------------------------------------------------------
+
+    /** Why a slot is not being baselined right now — for diagnostics. */
+    private skipReason(slot: InventorySlot, img: ImgRef, obscured: Set<number>): string {
+        if (obscured.has(slot.index)) {
+            const bad: string[] = [];
+            slot.corners.forEach((c, i) => {
+                const live = readPixel(img, c.x, c.y);
+                const ref = slot.cornerRefs[i];
+                const ok = !!live && !!ref && InventorySlot.cornerMatches(live, ref);
+                if (!ok) {
+                    bad.push(`${InventorySlot.CORNER_NAMES[i]} ref=(${ref?.join(",")}) live=(${live?.join(",") ?? "null"})`);
                 }
-            }
-            if (cnt === 0) { h += "000"; continue; }
-            const nib = (v: number): string => Math.min(15, Math.round(v / cnt / 17)).toString(16);
-            h += nib(rSum) + nib(gSum) + nib(bSum);
+            });
+            if (bad.length > 0) return "covered: " + bad.join(" ");
+            return "excluded: cursor/adjacent";
+        }
+        const data = readInterior(slot, img);
+        const light = interiorLightness(data);
+        const empty = data ? InventorySlot.isEmpty(data) : false;
+        return `baseline-pending light=${light} empty=${empty}`;
+    }
+
+    /** One-shot full report of every slot's scan state — call from console:
+     *  Bronzeman.diagnoseSlotScan(). */
+    diagnose(): void {
+        if (!inventory.isCalibrated) { log("[diag] inventory not calibrated"); return; }
+        const img = captureFullRs();
+        if (!img) { log("[diag] capture failed"); return; }
+        const m = a1lib.getMousePosition();
+        const hovered = m ? inventory.getSlotIndexAt(m.x, m.y) : null;
+        const obscured = this.getObscuredSlotIndices(img);
+        log(`[diag] mouse=(${m?.x},${m?.y}) hoveredSlot=${hovered} cols=${inventory.cols} rows=${inventory.rows}`);
+        for (const slot of inventory.slots) {
+            log(`[diag] slot ${slot.index}: prevHash=${slot.previousHash ?? "null"} → ${this.skipReason(slot, img, obscured)}`);
         }
     }
-    return h;
-}
 
-/** Slots the scan must not read: covered (corner mismatch) or under/adjacent to the
- *  cursor. Their previousHash is left untouched so no false change is recorded. */
-export function getObscuredSlotIndices(img: ImgRef): Set<number> {
-    const obscured = new Set<number>();
-    const hovered = inventory.getHoveredSlotIndex();
-    if (hovered !== null) {
-        obscured.add(hovered);
-        for (const a of inventory.getAdjacentSlotIndices(hovered)) obscured.add(a);
+    /** Dump the raw 192-char interior hash of one slot — call from console:
+     *  Bronzeman.dumpSlotHash(27)  (slot 27 = your "slot 28", last slot). */
+    dumpSlotHash(index: number): void {
+        if (!inventory.isCalibrated) { log("[diag] inventory not calibrated"); return; }
+        const slot = inventory.getSlot(index);
+        if (!slot) { log(`[diag] slot ${index} does not exist`); return; }
+        const img = captureFullRs();
+        if (!img) { log("[diag] capture failed"); return; }
+        const data = readInterior(slot, img);
+        if (!data) { log("[diag] interior unreadable"); return; }
+        const h = hashInterior(data);
+        log(`[diag] slot ${index}: rawHash=${h} empty=${InventorySlot.isEmpty(data)}`);
     }
-    for (const slot of inventory.slots) {
-        if (isCovered(slot, img)) obscured.add(slot.index);
-    }
-    return obscured;
-}
 
-/** Slots with a corner pixel mismatch — a tooltip or context menu is covering
- *  them. STRICT set: used to gate interior reads so no tooltip-polluted hash
- *  is ever stored. */
-function getCoveredSlotIndices(img: ImgRef): Set<number> {
-    const covered = new Set<number>();
-    for (const slot of inventory.slots) {
-        if (isCovered(slot, img)) covered.add(slot.index);
-    }
-    return covered;
-}
-
-/** Covered slots for DOT HIDING: the strict set minus the hovered row, which
- *  keeps dots visible across the row the player is inspecting. */
-function getCoveredForDots(img: ImgRef): Set<number> {
-    const covered = getCoveredSlotIndices(img);
-    const hovered = inventory.getHoveredSlotIndex();
-    // The entire row of the hovered slot should keep dots visible — the
-    // player's tooltip often extends across the row when inspecting an item.
-    if (hovered !== null) {
-        const hSlot = inventory.getSlot(hovered);
-        if (hSlot) {
-            for (const s of inventory.slots) {
-                if (s.row === hSlot.row) covered.delete(s.index);
-            }
-        }
-    }
-    return covered;
-}
-
-// ============================================================
-// Scan loop
-// ============================================================
-
-/** Why a slot is not being baselined right now — for diagnostics. */
-function skipReason(slot: InventorySlot, img: ImgRef, obscured: Set<number>): string {
-    if (obscured.has(slot.index)) {
-        const bad: string[] = [];
+    /** Debug one slot's corner gate — call while a menu covers the slot:
+     *  Bronzeman.debugCorners(10). Prints each corner's coordinate, ref colour,
+     *  live colour, and whether the gate flags it as covered. */
+    debugCorners(index: number): void {
+        if (!inventory.isCalibrated) { log("[diag] inventory not calibrated"); return; }
+        const slot = inventory.getSlot(index);
+        if (!slot) { log(`[diag] slot ${index} does not exist`); return; }
+        const img = captureFullRs();
+        if (!img) { log("[diag] capture failed"); return; }
+        const refs = slot.cornerRefs;
+        log(`[diag] slot ${index}: x=${slot.x} y=${slot.y} cornerRefsLen=${refs.length}`);
         slot.corners.forEach((c, i) => {
             const live = readPixel(img, c.x, c.y);
-            const ref = slot.cornerRefs[i];
-            const ok = !!live && !!ref && cornerMatches(live, ref);
-            if (!ok) {
-                bad.push(`${InventorySlot.CORNER_NAMES[i]} ref=(${ref?.join(",")}) live=(${live?.join(",") ?? "null"})`);
-            }
+            const ref = refs[i];
+            const ok = !!live && !!ref && InventorySlot.cornerMatches(live, ref);
+            log(`[diag]   ${InventorySlot.CORNER_NAMES[i]} (${c.x},${c.y}): ref=(${ref?.join(",")}) live=(${live?.join(",") ?? "null"}) ${ok ? "MATCH" : "COVERED"}`);
         });
-        if (bad.length > 0) return "covered: " + bad.join(" ");
-        return "excluded: cursor/adjacent";
     }
-    const data = readInterior(slot, img);
-    const light = interiorLightness(data);
-    const empty = data ? isSlotEmpty(data) : false;
-    return `baseline-pending light=${light} empty=${empty}`;
-}
 
-/** One-shot full report of every slot's scan state — call from console: Bronzeman.diagnoseSlotScan(). */
-export function diagnoseSlotScan(): void {
-    if (!inventory.isCalibrated) { log("[diag] inventory not calibrated"); return; }
-    const img = captureFullRs();
-    if (!img) { log("[diag] capture failed"); return; }
-    const m = a1lib.getMousePosition();
-    const hovered = m ? inventory.getSlotIndexAt(m.x, m.y) : null;
-    const obscured = getObscuredSlotIndices(img);
-    log(`[diag] mouse=(${m?.x},${m?.y}) hoveredSlot=${hovered} cols=${inventory.cols} rows=${inventory.rows}`);
-    for (const slot of inventory.slots) {
-        log(`[diag] slot ${slot.index}: prevHash=${slot.previousHash ?? "null"} → ${skipReason(slot, img, obscured)}`);
-    }
-}
+    // ----------------------------------------------------------
+    // Scan loop
+    // ----------------------------------------------------------
 
-/** Dump the raw 64-char interior hash of one slot — call from console:
- *  Bronzeman.dumpSlotHash(27)  (slot 27 = your "slot 28", last slot). */
-export function dumpSlotHash(index: number): void {
-    if (!inventory.isCalibrated) { log("[diag] inventory not calibrated"); return; }
-    const slot = inventory.getSlot(index);
-    if (!slot) { log(`[diag] slot ${index} does not exist`); return; }
-    const img = captureFullRs();
-    if (!img) { log("[diag] capture failed"); return; }
-    const data = readInterior(slot, img);
-    if (!data) { log("[diag] interior unreadable"); return; }
-    const h = hashInterior(data);
-    log(`[diag] slot ${index}: rawHash=${h} empty=${isSlotEmpty(data)}`);
-}
+    private tick(): void {
+        if (!inventory.isCalibrated) { this.stop(); return; }
+        const img = captureFullRs();
+        if (!img) return;
 
-/** Debug one slot's corner gate — call while a menu covers the slot:
- *  Bronzeman.debugCorners(10). Prints each corner's coordinate, ref colour,
- *  live colour, and whether the gate flags it as covered. */
-export function debugCorners(index: number): void {
-    if (!inventory.isCalibrated) { log("[diag] inventory not calibrated"); return; }
-    const slot = inventory.getSlot(index);
-    if (!slot) { log(`[diag] slot ${index} does not exist`); return; }
-    const img = captureFullRs();
-    if (!img) { log("[diag] capture failed"); return; }
-    const refs = slot.cornerRefs;
-    log(`[diag] slot ${index}: x=${slot.x} y=${slot.y} cornerRefsLen=${refs.length}`);
-    slot.corners.forEach((c, i) => {
-        const live = readPixel(img, c.x, c.y);
-        const ref = refs[i];
-        const ok = !!live && !!ref && cornerMatches(live, ref);
-        log(`[diag]   ${InventorySlot.CORNER_NAMES[i]} (${c.x},${c.y}): ref=(${ref?.join(",")}) live=(${live?.join(",") ?? "null"}) ${ok ? "MATCH" : "COVERED"}`);
-    });
-}
+        // Strict covered set gates interior reads (no tooltip-polluted hashes);
+        // the row-excepted set is used only for hiding dots. (Cursor-adjacent
+        // slots are intentionally NOT excluded from reads — see getCoveredForDots.)
+        const covered = this.getCoveredSlotIndices(img);
+        const coveredForDots = this.getCoveredForDots(img);
 
-function scanTick(): void {
-    if (!inventory.isCalibrated) { stopSlotScan(); return; }
-    const img = captureFullRs();
-    if (!img) return;
+        const appeared: { index: number; hash: string }[] = [];
+        const removed: { index: number; hash: string }[] = [];
+        const changed: { index: number }[] = [];
 
-    // Slots under/adjacent to the cursor or with covered corners are obscured —
-    // their previousHash is left untouched so no false change is recorded.
-    const obscured = getObscuredSlotIndices(img);
-    // Strict covered set gates interior reads (no tooltip-polluted hashes);
-    // the row-excepted set is used only for hiding dots.
-    const covered = getCoveredSlotIndices(img);
-    const coveredForDots = getCoveredForDots(img);
+        // Track which slots are in Use state this tick.  When a slot exits Use
+        // state, the dot must reappear instantly — if the slot is still obscured
+        // the normal scan won't touch it, so we re‑add it here.
+        const useSlotsThisTick = new Set<number>();
 
-    const appeared: { index: number; hash: string }[] = [];
-    const removed: { index: number; hash: string }[] = [];
-    const changed: { index: number }[] = [];
+        for (const slot of inventory.slots) {
+            // Stackable check runs for every slot (cheap, 2 px) — the digit is
+            // visible regardless of the noted/use-state gates below.
+            slot.isStackable = slot.isStackableItem(img);
+            // Noted and "Use"‑state items are ignored regardless of occlusion —
+            // the mouse is often over the slot when Use is clicked, so these
+            // checks must run before the obscured gate.
+            if (slot.isNoted(img)) {
+                this.nonUnlockedSlots.delete(slot.index);
+                continue;
+            }
+            if (slot.isInUseState(img)) {
+                this.nonUnlockedSlots.delete(slot.index);
+                useSlotsThisTick.add(slot.index);
+                continue;
+            }
 
-    // Track which slots are in Use state this tick.  When a slot exits Use
-    // state, the dot must reappear instantly — if the slot is still obscured
-    // the normal scan won't touch it, so we re‑add it here.
-    const useSlotsThisTick = new Set<number>();
+            // Re‑add slots that were in Use state last tick but aren't now —
+            // this is the instant‑reappear path (Use state cleared).
+            if (this.prevUseSlots.has(slot.index)) {
+                this.prevUseSlots.delete(slot.index);
+                this.nonUnlockedSlots.add(slot.index);
+            }
 
-    for (const slot of inventory.slots) {
-        // Stackable check runs for every slot (cheap, 2 px) — the digit is
-        // visible regardless of the noted/use-state gates below.
-        slot.isStackable = isStackableItem(slot, img);
-        // Noted and "Use"‑state items are ignored regardless of occlusion —
-        // the mouse is often over the slot when Use is clicked, so these
-        // checks must run before the obscured gate.
-        if (isNotedItem(slot, img)) {
-            nonUnlockedSlots.delete(slot.index);
-            continue;
-        }
-        if (isInUseState(slot, img)) {
-            nonUnlockedSlots.delete(slot.index);
-            useSlotsThisTick.add(slot.index);
-            continue;
-        }
+            if (covered.has(slot.index)) continue;
 
-        // Re‑add slots that were in Use state last tick but aren't now —
-        // this is the instant‑reappear path (Use state cleared).
-        if (prevUseSlots.has(slot.index)) {
-            prevUseSlots.delete(slot.index);
-            nonUnlockedSlots.add(slot.index);
-        }
+            // Read the interior once per tick; feed the empty check, the hash and
+            // the last-valid pixels from the same buffer.
+            const data = readInterior(slot, img);
+            if (!data) continue;
+            slot.lastValidPixels = data;
+            const cur = InventorySlot.isEmpty(data) ? EMPTY_HASH : hashInterior(data);
 
-        if (covered.has(slot.index)) continue;
+            // Non-unlocked tracking — always update every tick so the gold dot
+            // appears immediately after baseline and persists across steady-state.
+            // A stackable slot whose lower-half slice matches an unlocked item is
+            // a quantity-variant of it → treated as unlocked (no dot, no wiki).
+            if (cur === EMPTY_HASH || isHashUnlocked(cur)
+                || (slot.isStackable && isLowerHalfUnlocked(cur.slice(LOWER_HALF_OFFSET)))) {
+                this.nonUnlockedSlots.delete(slot.index);
+            } else {
+                this.nonUnlockedSlots.add(slot.index);
+            }
 
-        // Read the interior once per tick; feed the empty check, the hash and
-        // the last-valid pixels from the same buffer.
-        const data = readInterior(slot, img);
-        if (!data) continue;
-        slot.lastValidPixels = data;
-        const cur = isSlotEmpty(data) ? EMPTY_HASH : hashInterior(data);
+            const prev = slot.previousHash;
+            if (prev === null) {
+                // First clean sighting since calibrate — record the baseline, no event.
+                slot.previousHash = cur;
+                continue;
+            }
+            if (cur === prev) continue;
 
-        // Non-unlocked tracking — always update every tick so the gold dot
-        // appears immediately after baseline and persists across steady-state.
-        // A stackable slot whose lower-half slice matches an unlocked item is
-        // a quantity-variant of it → treated as unlocked (no dot, no wiki).
-        if (cur === EMPTY_HASH || isHashUnlocked(cur)
-            || (slot.isStackable && isLowerHalfUnlocked(cur.slice(72)))) {
-            nonUnlockedSlots.delete(slot.index);
-        } else {
-            nonUnlockedSlots.add(slot.index);
-        }
-
-        const prev = slot.previousHash;
-        if (prev === null) {
-            // First clean sighting since calibrate — record the baseline, no event.
+            if (cur === EMPTY_HASH) removed.push({ index: slot.index, hash: prev });
+            else if (prev === EMPTY_HASH) appeared.push({ index: slot.index, hash: cur });
+            else changed.push({ index: slot.index });
             slot.previousHash = cur;
-            continue;
         }
-        if (cur === prev) continue;
 
-        if (cur === EMPTY_HASH) removed.push({ index: slot.index, hash: prev });
-        else if (prev === EMPTY_HASH) appeared.push({ index: slot.index, hash: cur });
-        else changed.push({ index: slot.index });
-        slot.previousHash = cur;
-    }
-
-    // Pair same-tick removals + appearances by matching hash → "moved".
-    for (const a of appeared) {
-        const rIdx = removed.findIndex(r => r.hash === a.hash);
-        if (rIdx >= 0) {
-            log(`Slot ${removed[rIdx].index} → ${a.index}: item moved`);
-            removed.splice(rIdx, 1);
-            appeared.splice(appeared.indexOf(a), 1);
+        // Pair same-tick removals + appearances by matching hash → "moved".
+        for (const a of appeared) {
+            const rIdx = removed.findIndex(r => r.hash === a.hash);
+            if (rIdx >= 0) {
+                log(`Slot ${removed[rIdx].index} → ${a.index}: item moved`);
+                removed.splice(rIdx, 1);
+                appeared.splice(appeared.indexOf(a), 1);
+            }
         }
+        for (const r of removed) log(`Slot ${r.index}: item removed`);
+        for (const a of appeared) log(`Slot ${a.index}: item appeared`);
+        for (const c of changed) log(`Slot ${c.index}: item changed`);
+
+        // Slots covered by a tooltip/context menu shouldn't show dots —
+        // the player may be inspecting or manipulating them.
+        coveredForDots.forEach(idx => this.nonUnlockedSlots.delete(idx));
+
+        this.prevUseSlots = useSlotsThisTick;
     }
-    for (const r of removed) log(`Slot ${r.index}: item removed`);
-    for (const a of appeared) log(`Slot ${a.index}: item appeared`);
-    for (const c of changed) log(`Slot ${c.index}: item changed`);
-
-    // Slots covered by a tooltip/context menu shouldn't show dots —
-    // the player may be inspecting or manipulating them.
-    coveredForDots.forEach(idx => nonUnlockedSlots.delete(idx));
-
-    prevUseSlots = useSlotsThisTick;
 }
 
-export function startSlotScan(): void {
-    if (scanHandle) return;
-    scanHandle = setInterval(scanTick, SCAN_MS);
-}
+/** Module-wide singleton. */
+const slotScanner = new SlotScanner();
 
-export function stopSlotScan(): void {
-    if (scanHandle) { clearInterval(scanHandle); scanHandle = null; }
-}
+// ============================================================
+// Re-exports — stable public API for importers + console
+// ============================================================
+
+export const getNonUnlockedSlotIndices = (): Set<number> => slotScanner.getNonUnlockedSlotIndices();
+export const captureCornerRefs = (img: ImgRef): void => slotScanner.captureCornerRefs(img);
+export const getObscuredSlotIndices = (img: ImgRef): Set<number> => slotScanner.getObscuredSlotIndices(img);
+export const diagnoseSlotScan = (): void => slotScanner.diagnose();
+export const dumpSlotHash = (index: number): void => slotScanner.dumpSlotHash(index);
+export const debugCorners = (index: number): void => slotScanner.debugCorners(index);
+export const startSlotScan = (): void => slotScanner.start();
+export const stopSlotScan = (): void => slotScanner.stop();

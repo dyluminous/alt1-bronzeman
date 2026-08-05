@@ -169,9 +169,23 @@ function ocrItemName(img: ImgRef, x: number, y: number, w: number, h: number): s
     }
 }
 
-/** Capture the screen, locate the tooltip at the cursor, and OCR the item name.
- *  Returns the item name or null when the tooltip can't be found/read. */
-export function readTooltipItemName(): string | null {
+/** Everything measured about the tooltip at the cursor: the raw scan hits plus
+ *  the derived outer box, inner (inset) box, and the item-name section. */
+interface TooltipMeasure {
+    img: ImgRef;
+    hit: Hit;
+    run: Run;
+    vrun: VerticalRun;
+    boxX: number; boxY: number; boxW: number; boxH: number;
+    inX: number; inY: number; inW: number; inH: number;
+    midX: number; midY: number;
+    itemSectionH: number;
+}
+
+/** Capture the screen and run the full tooltip measurement pipeline: walk to
+ *  the border, measure width + height, compute the boxes and the item-name
+ *  section height. Returns null when no tooltip is found. */
+function measureTooltip(): TooltipMeasure | null {
     const img = captureFullRs();
     if (!img) return null;
     const hit = walkToColor(img);
@@ -188,10 +202,19 @@ export function readTooltipItemName(): string | null {
     const inX = boxX + BOX_INSET;
     const inY = boxY + BOX_INSET;
     const inW = boxW - 2 * BOX_INSET;
+    const inH = boxH - 2 * BOX_INSET;
     const midX = inX + Math.floor(inW / 2);
     const midY = inY;
     const itemSectionH = measureItemSection(img, midX, midY, vrun.height);
-    const name = ocrItemName(img, inX, inY, inW, itemSectionH);
+    return { img, hit, run, vrun, boxX, boxY, boxW, boxH, inX, inY, inW, inH, midX, midY, itemSectionH };
+}
+
+/** Capture the screen, locate the tooltip at the cursor, and OCR the item name.
+ *  Returns the item name or null when the tooltip can't be found/read. */
+export function readTooltipItemName(): string | null {
+    const m = measureTooltip();
+    if (!m) return null;
+    const name = ocrItemName(m.img, m.inX, m.inY, m.inW, m.itemSectionH);
     return name || null;
 }
 
@@ -235,30 +258,10 @@ export class TooltipScanner {
         const itemName = readTooltipItemName();
         if (!itemName) return;
 
-        // Draw debug overlays. Re-read the tooltip bounds by capturing again
-        // (the scan functions above use captureFullRs internally, but we
-        // need the bounds for drawing — re-run the measurement from a fresh
-        // capture so we have img + hit + run + vrun available).
-        const img = captureFullRs();
-        if (!img) return;
-        const hit = walkToColor(img);
-        if (!hit) return;
-        const run = measureRun(img, hit.x, hit.y);
-        const vrun = measureHeight(img, run.leftX, hit.y, hit.dir);
-        if (vrun.height === 0) return;
-        const boxX = vrun.startX;
-        const boxY = hit.dir === "down"
-            ? vrun.startY - BOX_OFFSET
-            : vrun.startY - vrun.height + 1 - BOX_OFFSET;
-        const boxW = run.width + 2 * BOX_OFFSET;
-        const boxH = vrun.height + 2 * BOX_OFFSET;
-        const inX = boxX + BOX_INSET;
-        const inY = boxY + BOX_INSET;
-        const inW = boxW - 2 * BOX_INSET;
-        const inH = boxH - 2 * BOX_INSET;
-        const midX = inX + Math.floor(inW / 2);
-        const midY = inY;
-        const itemSectionH = measureItemSection(img, midX, midY, vrun.height);
+        // Re-measure from a fresh capture for the drawing bounds (the same
+        // pipeline readTooltipItemName used, just keeping the geometry).
+        const m = measureTooltip();
+        if (!m) return;
 
         const gold = a1lib.mixColor(212, 168, 75);
         const green = a1lib.mixColor(28, 228, 1);
@@ -266,22 +269,12 @@ export class TooltipScanner {
 
         alt1.overLaySetGroup(TooltipScanner.GROUP);
         alt1.overLayClearGroup(TooltipScanner.GROUP);
-        drawBox(gold, inX, inY, inW, inH, BOX_DURATION_MS);
-        drawBox(green, inX, inY, inW, itemSectionH, BOX_DURATION_MS);
-        alt1.overLayRect(magenta, midX, midY, 1, 1, BOX_DURATION_MS, 1);
+        drawBox(gold, m.inX, m.inY, m.inW, m.inH, BOX_DURATION_MS);
+        drawBox(green, m.inX, m.inY, m.inW, m.itemSectionH, BOX_DURATION_MS);
+        alt1.overLayRect(magenta, m.midX, m.midY, 1, 1, BOX_DURATION_MS, 1);
 
-        log(`Tooltip debug: #2e251a ${hit.dist}px ${hit.dir} of cursor, tooltip width ${run.width}px, tooltip height ${vrun.height}px, item name section height ${itemSectionH}px, item name "${itemName}"`);
+        log(`Tooltip debug: #2e251a ${m.hit.dist}px ${m.hit.dir} of cursor, tooltip width ${m.run.width}px, tooltip height ${m.vrun.height}px, item name section height ${m.itemSectionH}px, item name "${itemName}"`);
 
         this.nextScanAt = Date.now() + COOLDOWN_MS;
     }
-
-    // ----------------------------------------------------------
-    // Measurement steps (forward to the standalone functions above)
-    // ----------------------------------------------------------
-
-    private walkToColor(img: ImgRef): Hit | null { return walkToColor(img); }
-    private measureRun(img: ImgRef, x: number, y: number): Run { return measureRun(img, x, y); }
-    private measureHeight(img: ImgRef, runLeftX: number, y: number, dir: "down" | "up"): VerticalRun { return measureHeight(img, runLeftX, y, dir); }
-    private measureItemSection(img: ImgRef, x: number, y: number, limit: number): number { return measureItemSection(img, x, y, limit); }
-    private ocrItemName(img: ImgRef, x: number, y: number, w: number, h: number): string { return ocrItemName(img, x, y, w, h); }
 }

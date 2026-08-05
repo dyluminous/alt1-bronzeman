@@ -3,7 +3,7 @@
 // lives in domain modules: capture, overlay, ui, modal, data, inventory, core.
 import { state, log } from "./core";
 import { updateAlt1Status, updateUI } from "./ui";
-import { loadState, initUnlockDB } from "./data";
+import { initUnlockDB } from "./data";
 import { calibrateGrid } from "./capture";
 
 import "./index.html";
@@ -22,7 +22,6 @@ function initOnLoad() {
     log(`inAlt1=${state.inAlt1}`);
 
     updateAlt1Status();
-    loadState();
     initUnlockDB().then(() => updateUI());
 
     if (state.inAlt1) {
