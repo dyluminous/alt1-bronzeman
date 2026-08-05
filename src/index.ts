@@ -8,7 +8,7 @@ import {
     captureFullRs, showNotification, NotificationHandle, log, POLL_INTERVAL_MS, setShowSlotOverlays, showSlotOverlays,
 } from "./core";
 import {
-    updateAlt1Status, updateScanStatus, updateUI, updateDebugGrid,
+    updateAlt1Status, updateScanStatus, updateUI, updateDebugGrid, updateAnchorDot,
     drawDetectDebug, drawSlotOverlaysFor, isCursorInInventory,
     showScanPickup,
 } from "./ui";
@@ -414,7 +414,7 @@ function doScan(): void {
             updatePickupGrid();
             for (const idx of newPickups) state.prevOccupied.add(idx);
         } else {
-            updateScanStatus(`Polling #${state.scanCount}`);
+            updateAnchorDot();
         }
     } catch (e: any) {
         if (e instanceof a1lib.NoAlt1Error) {

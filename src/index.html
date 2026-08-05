@@ -215,6 +215,26 @@
 
         #anchor_info { font-size: 8px; color: #666; font-family: monospace; margin-top: 2px; }
 
+        .anchor-dot {
+            display: inline-flex;
+            align-self: center;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #d4a84b;
+            vertical-align: middle;
+            margin-right: 4px;
+            transition: opacity 0.3s;
+        }
+        .anchor-dot.hidden { opacity: 0; }
+        .anchor-dot.pulse {
+            animation: anchor-pulse 1s ease-in-out infinite;
+        }
+        @keyframes anchor-pulse {
+            0%, 100% { background: #d4a84b; }
+            50% { background: #e8c97a; }
+        }
+
         /* ---- scan tab pickup ---- */
         .pickup-grid {
             display: flex; flex-wrap: wrap; gap: 4px;
@@ -506,7 +526,7 @@
     <div class="tab-panel" id="panel_debug">
         <div class="status-bar" style="margin-top:6px;">
             <span><span id="alt1_status_dot" class="status-dot red"></span><span id="alt1_status_text" style="font-size:10px;"></span></span>
-            <span id="scan_status">Idle</span>
+            <span id="anchor_dot" class="anchor-dot hidden"></span>
         </div>
         <div class="section-title">Overlays</div>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;">
