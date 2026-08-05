@@ -1,5 +1,5 @@
 // data.ts — persistence and Bronzeman unlock logic
-import * as Inventory from "./inventory";
+import { inventory } from "./inventory";
 import { state, LS_KEYS, log, showNotification } from "./core";
 
 // ============================================================
@@ -85,7 +85,7 @@ export function resetData(): void {
     localStorage.removeItem(LS_KEYS.unlockedItemData);
     localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
     localStorage.setItem(LS_KEYS.unlockedItemData, JSON.stringify([]));
-    Inventory.clearAnchor();
+    inventory.clear();
     log("All reset.");
 }
 

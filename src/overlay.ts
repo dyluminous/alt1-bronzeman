@@ -1,6 +1,7 @@
 // overlay.ts — RS overlay drawing for Bronzeman Mode
 import * as a1lib from "alt1";
-import * as Inventory from "./inventory";
+import type { BackpackAnchor } from "./inventory";
+import * as Detect from "./inventory-detect";
 import { InventorySlot } from "./inventory-slot";
 import { state, captureFullRs, log, showNotification } from "./core";
 
@@ -8,7 +9,7 @@ import { state, captureFullRs, log, showNotification } from "./core";
 // Detection debug — corner brackets on all slots
 // ============================================================
 
-export function drawDetectDebug(anc: Inventory.BackpackAnchor, isError: boolean = false): void {
+export function drawDetectDebug(anc: BackpackAnchor, isError: boolean = false): void {
     if (!state.inAlt1) return;
     alt1.overLayClearGroup("bronzeman_detect");
     alt1.overLaySetGroup("bronzeman_detect");
@@ -57,7 +58,7 @@ export function debugFindSlot(): void {
     if (!img) { log("Failed to capture"); return; }
 
     const t0 = Date.now();
-    const anc = Inventory.detectInventoryGrid(img);
+    const anc = Detect.detectInventoryGrid(img);
     const ms = Date.now() - t0;
 
     if (anc && anc.scrollbar) {
@@ -125,7 +126,7 @@ let lastHoverIndex: number | null = null;
 let hoverFrozen = false;
 
 export function drawSlotHover(
-    anc: Inventory.BackpackAnchor,
+    anc: BackpackAnchor,
     slotIndex: number,
 ): void {
     if (!state.inAlt1 || !showGridBoundary) return;
@@ -156,7 +157,7 @@ export function clearSlotHover(): void {
 const CORNERS_GROUP = "bronzeman_corners";
 
 export function drawSlotCornersDebug(
-    anc: Inventory.BackpackAnchor,
+    anc: BackpackAnchor,
     slots: InventorySlot[],
 ): void {
     if (!state.inAlt1) return;
