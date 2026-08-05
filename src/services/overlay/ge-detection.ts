@@ -10,9 +10,9 @@ const tooltipFont = require("alt1/fonts/chatbox/14pt");
 const geSearchFont = require("alt1/fonts/chatbox/12pt");
 import { log, captureFullRs, geSuppressGroup } from "../../core";
 import { isNameUnlocked } from "../unlock/unlock-store";
-import geItemUnlockedUrl from "../../assets/images/ge_item_unlocked_button.png";
-import geItemNotUnlockedUrl from "../../assets/images/ge_item_not_unlocked_button.png";
-import needleUrl from "../../assets/images/ge_identifier.png";
+import geItemUnlockedUrl from "../../assets/images/ui_game/ge_item_unlocked_button.png";
+import geItemNotUnlockedUrl from "../../assets/images/ui_game/ge_item_not_unlocked_button.png";
+import needleUrl from "../../assets/images/ui_game/ge_identifier.png";
 
 // ----------------------------------------------------------------
 // Toggle — always-on detection; debug overlays gated separately
