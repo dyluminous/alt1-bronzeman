@@ -1137,22 +1137,38 @@ export function debugFindSlot(): void {
 
     if (hit) {
         log(`Fingerprint slot found at (${hit.x},${hit.y}) [fp #${hit.fingerIndex + 1}] in ${ms}ms`);
-        // Draw yellow 1px box around the slot (38×34 including borders)
-        // BL corner is at (hit.x, hit.y), TL = (hit.x, hit.y - 33)
+
+        // Measure gap to slot 2 to get col stride
+        const gap = Inventory.measureGapToSlot2(img, { x: hit.x, y: hit.y });
+        let colStride = 0;
+        if (gap) {
+            colStride = gap.slot2X - hit.x;
+            log(`Gap: ${gap.gapWidth}px, colStride=${colStride}px`);
+        } else {
+            log(`Could not find slot 2`);
+        }
+
+        // Count total columns
+        let cols = 0;
+        if (colStride > 0) {
+            cols = Inventory.countColumns(img, { x: hit.x, y: hit.y }, colStride);
+            log(`Columns: ${cols}`);
+        }
+
+        // Draw boxes for all found columns
         const yc = a1lib.mixColor(255, 255, 0);
         const dur = 5000;
-        const sx = hit.x, sy = hit.y - 33;
-        const w = 38, h = 34;
+        const sh = 34, sw = 38;
         alt1.overLaySetGroup("bronzeman_fingerprint");
         alt1.overLayClearGroup("bronzeman_fingerprint");
-        // Top border
-        alt1.overLayRect(yc, sx, sy, w, 1, dur, 1);
-        // Bottom border
-        alt1.overLayRect(yc, sx, sy + h - 1, w, 1, dur, 1);
-        // Left border
-        alt1.overLayRect(yc, sx, sy, 1, h, dur, 1);
-        // Right border
-        alt1.overLayRect(yc, sx + w - 1, sy, 1, h, dur, 1);
+        for (let c = 0; c < cols; c++) {
+            const sx = hit.x + c * colStride;
+            const sy = hit.y - 33;
+            alt1.overLayRect(yc, sx, sy, sw, 1, dur, 1);
+            alt1.overLayRect(yc, sx, sy + sh - 1, sw, 1, dur, 1);
+            alt1.overLayRect(yc, sx, sy, 1, sh, dur, 1);
+            alt1.overLayRect(yc, sx + sw - 1, sy, 1, sh, dur, 1);
+        }
     } else {
         log(`No fingerprint slot found (scanned in ${ms}ms)`);
     }
