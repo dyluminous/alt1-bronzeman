@@ -1,6 +1,6 @@
 {
     "appName": "Bronzeman",
-    "description": "Bronzeman Mode tracker — earn items before you can buy them on the GE",
+    "description": "Bronzeman Mode tracker - earn items before you can buy them on the GE",
     "appUrl": "./index.html",
     "configUrl": "./appconfig.json",
     "iconUrl": "./icon.png",
