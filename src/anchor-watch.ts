@@ -27,6 +27,9 @@ let stableSnapshot: [number, number, number][] | null = null;
 let stableCount = 0;
 /** Ticks (500ms each) a new snapshot must hold before we recapture — a settled resize. */
 const STABLE_TICKS = 3; // ~1.5s
+/** Tooltip background colour (#0F0E0C). When a watched pixel matches this,
+ *  it's a tooltip covering the corner, not a resize — ignore it. */
+const TOOLTIP_BG: [number, number, number] = [0x0F, 0x0E, 0x0C];
 
 function samePixel(a: [number, number, number], b: [number, number, number]): boolean {
     return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
@@ -59,7 +62,7 @@ export function startAnchorWatch(onChange: () => void, onTick?: () => void): voi
             vals.push(c);
         }
 
-        const changed = vals.some((v, i) => !samePixel(v, refs[i]));
+        const changed = vals.some((v, i) => !samePixel(v, refs[i]) && !samePixel(v, TOOLTIP_BG));
         if (!changed) {
             stableSnapshot = null;
             stableCount = 0;
