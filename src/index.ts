@@ -12,7 +12,7 @@ import {
     drawDetectDebug, drawSlotOverlaysFor, isCursorInInventory,
     showScanPickup,
 } from "./ui";
-import { loadState, unlockItem, resetUnlocks as dataResetUnlocks, isIgnored, ignoreItem, getIgnoredItems, getIgnoredCount, clearIgnoredItems, removeIgnoredItem, fillTestIgnores as dataFillTestIgnores, initIgnoreDB } from "./data";
+import { loadState, unlockItem, resetUnlocks as dataResetUnlocks, isIgnored, ignoreItem, getIgnoredItems, getIgnoredCount, clearIgnoredItems, removeIgnoredItem, initIgnoreDB } from "./data";
 import TooltipReader from "alt1/tooltip";
 import * as OCR from "alt1/ocr";
 
@@ -59,9 +59,6 @@ import "./appconfig.json";
 import "./icon.png";
 
 
-export function testNotification(): void {
-    showNotification("Test notification from Bronzeman", 2000);
-}
 // ============================================================
 // Initialization
 // ============================================================
@@ -576,13 +573,6 @@ export function removeIgnore(hash: string): void {
 export function toggleIgnoreLog(checked: boolean): void {
     state.debugLogIgnores = checked;
     log(`Ignore logging: ${checked ? "ON" : "OFF"}`);
-}
-
-export function fillTestIgnores(): void {
-    const before = getIgnoredCount();
-    dataFillTestIgnores();
-    updateUI();
-    log(`Test ignores: ${before} → ${getIgnoredCount()} entries.`);
 }
 
 // Ignore list tooltip handlers
@@ -1137,53 +1127,6 @@ function updatePickupGrid(): void {
             <div class="pickup-label" style="color:${p.noted ? '#f44336' : '#4caf50'}">#${p.slotIndex + 1}</div>
         </div>`
     ).join("");
-}
-
-export function savePickupImages(): void {
-    if (recentPickups.length === 0) { log("No pickup images to save"); return; }
-    log(`Saving ${recentPickups.length} pickup image(s)...`);
-    for (const p of recentPickups) {
-        const link = document.createElement('a');
-        link.download = `pickup_slot${p.slotIndex + 1}_${p.time}.png`;
-        link.href = p.imageUrl;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-    log(`Triggered download for ${recentPickups.length} image(s)`);
-}
-
-export function debugPickupPixels(): void {
-    if (recentPickups.length === 0) { log("No pickups to debug"); return; }
-    const p = recentPickups[0];
-    const anc = Inventory.loadAnchor();
-    if (!anc) { log("No anchor saved"); return; }
-    if (!state.inAlt1) { log("Not in Alt1"); return; }
-    const img = captureFullRs();
-    if (!img) { log("Failed to capture RS"); return; }
-    const row = Math.floor(p.slotIndex / Inventory.COLS);
-    const col = p.slotIndex % Inventory.COLS;
-    const sx = anc.x + col * anc.colStride;
-    const sy = anc.y + row * anc.rowStride;
-
-    log(`=== Debug pickup slot #${p.slotIndex + 1} at (${sx},${sy}) ===`);
-    // Log several pixel positions
-    const positions: { name: string; ox: number; oy: number }[] = [
-        { name: "(11,0) noted ref1", ox: 11, oy: 0 },
-        { name: "(12,0) noted ref2", ox: 12, oy: 0 },
-        { name: "TL corner (1,1)", ox: 1, oy: 1 },
-        { name: "Center (18,16)", ox: 18, oy: 16 },
-        { name: "BR corner (34,30)", ox: 34, oy: 30 },
-    ];
-    for (const pos of positions) {
-        const d = img.toData(sx + pos.ox, sy + pos.oy, 1, 1);
-        if (d) {
-            const r = d.data[0], g = d.data[1], b = d.data[2];
-            const hex = `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
-            log(`  ${pos.name}: rgb(${r},${g},${b}) ${hex}`);
-        }
-    }
-    log(`=== End debug ===`);
 }
 
 export function debugFindSlot(): void {
