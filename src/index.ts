@@ -28,6 +28,7 @@ export {
     openSlotDebug, closeSlotDebug, refreshSlotDebug,
     showDisambiguation, selectDisambiguationOption, closeDisambiguation,
     openItemPngs, closeItemPngs,
+    openDbItemPngs, closeDbItemPngs, searchDbItemHash,
     toggleDeveloperMode,
     toggleSearchHideUntradable, toggleSearchGroupSimilar,
     setRecentUnlocksCount, stepRecentUnlocksCount, stepManualUnlockSlot,

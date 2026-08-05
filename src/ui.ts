@@ -3,7 +3,8 @@ import { inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, captureFullRs, LS_KEYS, log, showNotification } from "./core";
 import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount, getSearchIndex } from "./data";
-import { hashToPngDataUrl } from "./data";
+import { hashToPngDataUrl, getItemRecord } from "./data";
+import type { UnlockedItemRecord } from "./data";
 import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks, setRecentUnlocksLimit } from "./recent-unlocks";
 import { showModal } from "./modal";
 import { getObscuredSlotIndices } from "./slot-scan";
@@ -482,6 +483,64 @@ function renderInventoryPngs(body: HTMLElement): void {
 /** Close the item hash PNGs pane. */
 export function closeItemPngs(): void {
     hideInlinePanel("developer_content", "item_pngs_inline");
+}
+
+// ============================================================
+// DB Item Hash pane — debug: search a store entry and render its
+// recorded hashes as PNGs (supports multiple hashes per record)
+// ============================================================
+
+/** Open the DB item-hash pane. */
+export function openDbItemPngs(): void {
+    const body = document.getElementById("db_item_pngs_body");
+    if (!body) return;
+    body.innerHTML = '<div class="wiki-disambig-note">Type an item name and press Search.</div>';
+    showInlinePanel("developer_content", "db_item_pngs_inline");
+}
+
+/** Close the DB item-hash pane. */
+export function closeDbItemPngs(): void {
+    hideInlinePanel("developer_content", "db_item_pngs_inline");
+}
+
+/** Look up the typed name in both unlock stores and render its hash PNGs. */
+export async function searchDbItemHash(): Promise<void> {
+    const input = document.getElementById("db_item_hash_input") as HTMLInputElement | null;
+    const body = document.getElementById("db_item_pngs_body");
+    if (!input || !body) return;
+    const name = input.value.trim();
+    if (!name) { body.innerHTML = '<div class="wiki-disambig-note">Type an item name first.</div>'; return; }
+
+    body.innerHTML = '<div class="wiki-disambig-note">Searching…</div>';
+    const recs: { store: string; label: string; rec: UnlockedItemRecord }[] = [];
+    // Short store names — getItemRecord maps them via storeName() internally.
+    // Passing the raw store names ("unlocks_untradable") would fall through to
+    // the tradable store (storeName defaults to STORE_TRADABLE).
+    for (const [store, label] of [["tradable", "tradable"], ["untradable", "untradable"]] as const) {
+        const rec = await getItemRecord(store, name);
+        if (rec) recs.push({ store, label, rec });
+    }
+
+    if (recs.length === 0) {
+        body.innerHTML = `<div class="wiki-disambig-note">No record found for "${escHtml(name)}".</div>`;
+        return;
+    }
+
+    body.innerHTML = recs.map(({ label, rec }) => {
+        const tiles = rec.hashes.map((h, i) => {
+            const qty = h.stackableQuantity;
+            const qtyLabel = qty != null && qty > 1 ? ` [${qty}]` : "";
+            const url = hashToPngDataUrl(h.hash, 10);
+            return `<div style="text-align:center;border:1px solid #888;padding:2px;">` +
+                `<img src="${url}" title="${escHtml(h.hash)}" style="image-rendering:pixelated;width:80px;height:80px;display:block;">` +
+                `<div class="wiki-disambig-note">#${i + 1}${qtyLabel}</div>` +
+                `</div>`;
+        }).join("");
+        return `<div style="margin-bottom:10px;">` +
+            `<div class="wiki-disambig-msg">${escHtml(rec.name)} — ${label} (${rec.hashes.length} hash${rec.hashes.length === 1 ? "" : "es"})</div>` +
+            `<div style="display:flex;flex-wrap:wrap;gap:8px;">${tiles}</div>` +
+            `</div>`;
+    }).join("");
 }
 
 // ============================================================
