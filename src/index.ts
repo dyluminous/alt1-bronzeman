@@ -190,20 +190,32 @@ function doCaptureRef(): void {
     }
 }
 
-/** Draw near-transparent blue rectangles on all detected slots. */
+/** Draw yellow corner brackets on all detected slots. */
 function drawDetectDebug(anc: Inventory.BackpackAnchor): void {
     if (!inAlt1) return;
     alt1.overLayClearGroup("bronzeman_detect");
     alt1.overLaySetGroup("bronzeman_detect");
+    const LEN = 11;
+    const yc = a1lib.mixColor(255, 255, 0);
     for (let row = 0; row < Inventory.ROWS; row++) {
         for (let col = 0; col < Inventory.COLS; col++) {
             const sx = anc.x + col * anc.colStride;
             const sy = anc.y + row * anc.rowStride;
-            alt1.overLayRect(a1lib.mixColor(8, 16, 26), sx, sy, 36, 32, 5000, 1);
+            const r = sx + 35, b = sy + 31;
+            // TL: right + down
+            alt1.overLayRect(yc, sx,    sy,    LEN, 1,   5000, 1);
+            alt1.overLayRect(yc, sx,    sy,    1,   LEN, 5000, 1);
+            // TR: left + down
+            alt1.overLayRect(yc, r - LEN + 1, sy,    LEN, 1,   5000, 1);
+            alt1.overLayRect(yc, r,    sy,    1,   LEN, 5000, 1);
+            // BL: right + up
+            alt1.overLayRect(yc, sx,    b,    LEN, 1,   5000, 1);
+            alt1.overLayRect(yc, sx,    b - LEN + 1, 1, LEN, 5000, 1);
+            // BR: left + up
+            alt1.overLayRect(yc, r - LEN + 1, b,    LEN, 1,   5000, 1);
+            alt1.overLayRect(yc, r,    b - LEN + 1, 1,   LEN, 5000, 1);
         }
     }
-    // Yellow dot at slot 1's bottom-right corner
-    alt1.overLayRect(a1lib.mixColor(255, 255, 0), anc.x + 35, anc.y + 31, 1, 1, 5000, 1);
 }
 
 export function clearReference(): void {

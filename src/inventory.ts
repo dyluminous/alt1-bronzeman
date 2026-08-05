@@ -90,7 +90,7 @@ function distToColor(r: number, g: number, b: number, tr: number, tg: number, tb
 const TARGET_R = 53, TARGET_G = 50, TARGET_B = 45;   // #35322d border corner
 const NEIGHBOR_R = 55, NEIGHBOR_G = 51, NEIGHBOR_B = 46; // #37332e above + left
 const INTERIOR_R = 30, INTERIOR_G = 25, INTERIOR_B = 22; // #1e1916 slot interior
-const COLOR_TOL = 8;
+const COLOR_TOL = 12;
 
 /** Full 4-pixel corner pattern: #35322d at (x,y) with all 3 verified neighbors. */
 function matchCorner(buf: ImageData, x: number, y: number, w: number): boolean {
@@ -161,24 +161,70 @@ export function detectSlotBounds(img: ImgRef, cursorX: number, cursorY: number, 
         const slotTopLeftY = regionY + bestY - 32;
         debug(`detect: border corner at local (${bestX},${bestY}) → slot TL (${slotTopLeftX},${slotTopLeftY})`);
 
-        // Stride: scan right from bestX for slot 2's BR corner (full 4-pixel pattern)
+        // Column stride: capture a small region right of slot 1 and do a 2D scan
+        // for slot 2's BR corner — same technique as slot 1 detection.
         let colStride = 42;
-        for (let x = bestX + 30; x < regionW - 2; x++) {
-            if (matchCorner(buf, x, bestY, regionW)) {
-                colStride = x - bestX;
-                debug(`detect: colStride=${colStride} (slot 2 BR at local ${x})`);
-                break;
+        {
+            const ry = regionY + bestY - 5;
+            const rx = regionX + bestX + 6;  // just right of slot 1's border
+            const rw = Math.min(60, regionW - (bestX + 6));
+            const rh = Math.min(20, regionH - (bestY - 5));
+            if (rw > 4 && rh > 4) {
+                const rbuf = img.toData(rx, ry, rw, rh);
+                let foundX = -1;
+                for (let y = 3; y < rh - 2 && foundX < 0; y++) {
+                    for (let x = 3; x < rw - 2; x++) {
+                        if (matchCorner(rbuf, x, y, rw)) {
+                            const absCornerY = ry + y;
+                            const absBestY = regionY + bestY;
+                            if (Math.abs(absCornerY - absBestY) <= 3) {
+                                colStride = (rx + x) - (regionX + bestX);
+                                debug(`detect: colStride=${colStride} (slot 2 BR at abs (${rx + x},${absCornerY}))`);
+                                foundX = x;
+                            }
+                        }
+                    }
+                }
+                if (foundX < 0) debug(`detect: colStride 2D scan found no match`);
             }
         }
+        if (colStride === 42) debug(`detect: colStride not found, using default 42`);
 
+        // Row stride: scan the original buffer below slot 1's BR corner.
+        // Row 2's BR corner should be ~34-44px below.
         let rowStride = 38;
-        for (let y = bestY + 26; y < regionH - 2; y++) {
-            if (matchCorner(buf, bestX, y, regionW)) {
-                rowStride = y - bestY;
-                debug(`detect: rowStride=${rowStride} (row 2 slot 1 BR at local ${bestX},${y})`);
-                break;
+        {
+            let found = false;
+            for (let y = bestY + 28; y <= bestY + 65 && y < regionH - 2 && !found; y++) {
+                for (let x = bestX - 8; x <= bestX + 8 && x < regionW - 2; x++) {
+                    if (x < 1 || y < 1) continue;
+                    if (matchCorner(buf, x, y, regionW)) {
+                        rowStride = y - bestY;
+                        debug(`detect: rowStride=${rowStride} (row 2 BR at local ${x},${y} abs ${regionX+x},${regionY+y})`);
+                        found = true; break;
+                    }
+                }
+            }
+            if (!found) {
+                const dump: string[] = [];
+                for (let y = bestY + 28; y <= bestY + 65 && y < regionH; y++) {
+                    const i = (y * regionW + bestX) * 4;
+                    const r = buf.data[i], g = buf.data[i+1], b = buf.data[i+2];
+                    const dc = distToColor(r,g,b, TARGET_R,TARGET_G,TARGET_B);
+                    const nw = ((y-1)*regionW+(bestX-1))*4;
+                    const dnw = distToColor(buf.data[nw],buf.data[nw+1],buf.data[nw+2], INTERIOR_R,INTERIOR_G,INTERIOR_B);
+                    const ab = ((y-1)*regionW+bestX)*4;
+                    const dab = distToColor(buf.data[ab],buf.data[ab+1],buf.data[ab+2], NEIGHBOR_R,NEIGHBOR_G,NEIGHBOR_B);
+                    const le = (y*regionW+(bestX-1))*4;
+                    const dle = distToColor(buf.data[le],buf.data[le+1],buf.data[le+2], NEIGHBOR_R,NEIGHBOR_G,NEIGHBOR_B);
+                    const ok = dc<=8&&dnw<=8&&dab<=8&&dle<=8 ? " ✓" : "";
+                    dump.push(`dy${y-bestY} c=${r},${g},${b}(d${dc}) nw_d=${dnw} ab_d=${dab} le_d=${dle}${ok}`);
+                }
+                debug(`detect: row scan dump at x=${bestX}:\n${dump.join("\n")}`);
+                debug(`detect: rowStride 2D scan found no match`);
             }
         }
+        if (rowStride === 38) debug(`detect: rowStride not found, using default 38`);
 
         const anchor: BackpackAnchor = {
             x: slotTopLeftX, y: slotTopLeftY,
