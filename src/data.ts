@@ -109,7 +109,6 @@ export function resetData(): void {
 }
 
 export function resetUnlocks(): void {
-    if (!confirm("Delete all unlocked items and their rasters?")) return;
     unlockedItems.clear();
     unlockedItemDataList = [];
     localStorage.setItem(LS_KEYS.unlockedItems, JSON.stringify([]));
