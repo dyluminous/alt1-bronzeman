@@ -30,6 +30,7 @@ interface PickupEntry {
     imageUrl: string;
     time: number;
     noted: boolean;
+    hash: string;
 }
 
 const recentPickups: PickupEntry[] = [];
@@ -354,7 +355,19 @@ function doScan(): void {
                     id.data.set(pixelData.data);
                     ctx.putImageData(id, 0, 0);
                     const url = canvas.toDataURL();
-                    recentPickups.push({ slotIndex: slot.index, imageUrl: url, time: Date.now(), noted });
+                    // Skip if same item hash already in list (fuzzy diff)
+                    const dup = recentPickups.find(p => {
+                        let diff = 0;
+                        for (let i = 0; i < 64; i++) diff += Math.abs(parseInt(p.hash[i], 16) - parseInt(slot.hash[i], 16));
+                        return diff < 10;
+                    });
+                    if (dup) {
+                        let diff = 0;
+                        for (let i = 0; i < 64; i++) diff += Math.abs(parseInt(dup.hash[i], 16) - parseInt(slot.hash[i], 16));
+                        log(`  Skipped dup (diff=${diff}): ${slot.hash.slice(0,16)}...`);
+                        continue;
+                    }
+                    recentPickups.push({ slotIndex: slot.index, imageUrl: url, time: Date.now(), noted, hash: slot.hash });
                     if (recentPickups.length > MAX_PICKUPS) recentPickups.pop();
                 } catch { /* canvas not available */ }
             }
