@@ -8,7 +8,7 @@ import { state, captureFullRs, log, showNotification } from "./core";
 import { getAnchorWatchPoints } from "./anchor-watch";
 import { SlotLoadingAnimation } from "./slot-animation";
 import goldDot from "./assets/images/gold_dot.png";
-import { getNonUnlockedSlotIndices, removeNonUnlockedSlot } from "./slot-scan";
+import { getNonUnlockedSlotIndices } from "./slot-scan";
 import { TooltipScanner, readTooltipItemName } from "./tooltip-read";
 import { fetchItemTradeable } from "./wiki";
 import type { WikiQueryResult } from "./wiki";
@@ -295,15 +295,10 @@ let nonUnlockedDotTimer: ReturnType<typeof setInterval> | null = null;
 let nonUnlockedDotEncoded: string | null = null;
 /** The slots we've already drawn — redraw is skipped when nothing changed. */
 let drawnNonUnlockedSlots: Set<number> = new Set();
-/** Slots whose dot is force-hidden by an external control (e.g. the hover
- *  flow after it resolves) — rendered as natural set minus this. */
-let hiddenDots: Set<number> = new Set();
 
 /** Hover‑to‑animation: which slot's gold dot is being hovered. */
 let hoveredDotSlot: number | null = null;
 let hoverAnimation: SlotLoadingAnimation | null = null;
-/** The slot the active flow is resolving — hidden when the flow ends. */
-let flowSlot: number | null = null;
 /** True once the hover flow fully resolved (success or failure) — no restart
  *  while the mouse stays on the dot. Reset when the mouse leaves. */
 let hoverResolved = false;
@@ -314,23 +309,17 @@ let queryBusy = false;
 let disambigOpen = false;
 
 function finishHoverFlow(): void {
-    // Hide this slot's dot the moment the flow resolves (success or abandon) —
-    // it stays hidden until the mouse leaves, then the natural set decides.
-    if (flowSlot !== null) hiddenDots.add(flowSlot);
-    flowSlot = null;
     if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
     hoverResolved = true;
 }
 
-function handleWikiResult(result: WikiQueryResult, queriedName: string, slotHash: string | null, slotIndex: number): void {
+function handleWikiResult(result: WikiQueryResult, queriedName: string, slotHash: string | null): void {
     queryBusy = false;
     if (result.ok) {
         log(`Wiki: "${queriedName}" tradeable = ${result.tradeable} stackable = ${result.stackable ? "Yes" : "No"}`);
         // Store the unlock: name + tradeable/stackable flags + the slot's hash.
         if (slotHash) {
             addUnlockedItem(queriedName, result.tradeable?.toLowerCase() === "yes", result.stackable ?? false, slotHash);
-            // Drop the slot from the dot set for good — no re-appear on mouse-leave.
-            removeNonUnlockedSlot(slotIndex);
         } else {
             log(`No slot hash available — skipping unlock record for "${queriedName}"`);
         }
@@ -341,7 +330,7 @@ function handleWikiResult(result: WikiQueryResult, queriedName: string, slotHash
             const name = result.disambig[0].name;
             log(`Wiki disambiguation: only one item "${name}", continuing`);
             queryBusy = true;
-            void fetchItemTradeable(name).then(r => handleWikiResult(r, name, slotHash, slotIndex));
+            void fetchItemTradeable(name).then(r => handleWikiResult(r, name, slotHash));
             return;
         }
         // Ask the user which option is the right item — animation keeps running.
@@ -351,7 +340,7 @@ function handleWikiResult(result: WikiQueryResult, queriedName: string, slotHash
                 disambigOpen = false;
                 log(`Wiki disambiguation: selected "${name}"`);
                 queryBusy = true;
-                void fetchItemTradeable(name).then(r => handleWikiResult(r, name, slotHash, slotIndex));
+                void fetchItemTradeable(name).then(r => handleWikiResult(r, name, slotHash));
             },
             () => {
                 // ✕ or click-outside — abandoned, end the flow.
@@ -369,7 +358,6 @@ function handleWikiResult(result: WikiQueryResult, queriedName: string, slotHash
 }
 
 function startHoverFlow(slotIndex: number): void {
-    flowSlot = slotIndex;
     if (hoverAnimation === null) {
         const slot = inventory.getSlot(slotIndex);
         if (slot) {
@@ -383,32 +371,26 @@ function startHoverFlow(slotIndex: number): void {
     const itemName = readTooltipItemName();
     if (!itemName) {
         showNotification("Failed to read item name", 3000, "danger");
-        flowSlot = null;
         if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
-        // Resolve rather than reset — the mouse is still over the dot, so a
-        // null hoveredDotSlot would re-trigger the flow every tick.
-        hoverResolved = true;
+        hoveredDotSlot = null;
+        hoverResolved = false;
         return;
     }
     log(`Hovered item: "${itemName}" (slot ${slotIndex}) hash=${slotHash ? slotHash.slice(0, 12) + "…" : "n/a"}`);
     queryBusy = true;
-    void fetchItemTradeable(itemName).then(result => handleWikiResult(result, itemName, slotHash, slotIndex));
+    void fetchItemTradeable(itemName).then(result => handleWikiResult(result, itemName, slotHash));
 }
 
 function drawNonUnlockedDots(): void {
     if (!state.inAlt1 || !inventory.isCalibrated || !nonUnlockedDotEncoded) return;
-    // Render set = natural dot set minus externally-hidden slots.
-    const natural = getNonUnlockedSlotIndices();
-    const indices = new Set<number>();
-    natural.forEach(i => { if (!hiddenDots.has(i)) indices.add(i); });
+    const indices = getNonUnlockedSlotIndices();
 
-    // Hover detection — GEOMETRIC over the natural set, so hiding the dot can't
-    // fake a mouse-leave. The mouse is still over the dot position even when
-    // the flow hides the dot, so overIdx stays stable and the flow isn't reset.
+    // Hover detection over the gold dots. The animation is NOT stopped when the
+    // mouse leaves — it runs until the wiki pipeline resolves or is abandoned.
     const mouse = a1lib.getMousePosition();
     let overIdx: number | null = null;
     if (mouse) {
-        natural.forEach(idx => {
+        indices.forEach(idx => {
             if (overIdx !== null) return; // already found
             const s = inventory.getSlot(idx);
             if (!s) return;
@@ -419,15 +401,12 @@ function drawNonUnlockedDots(): void {
         });
     }
     if (overIdx !== hoveredDotSlot) {
-        // Genuinely left the dot area — release its forced hide so the natural
-        // set decides whether the dot returns.
-        if (hoveredDotSlot !== null) hiddenDots.delete(hoveredDotSlot);
         hoveredDotSlot = overIdx;
         hoverResolved = false;
     }
     // Guard: no new scan while a query is in flight or the disambiguation pane
     // is up — prevents overlapping query boxes / breaking the workflow.
-    if (hoveredDotSlot !== null && !hoverResolved && !queryBusy && !disambigOpen && hoverAnimation === null && !hiddenDots.has(hoveredDotSlot)) {
+    if (hoveredDotSlot !== null && !hoverResolved && !queryBusy && !disambigOpen && hoverAnimation === null) {
         startHoverFlow(hoveredDotSlot);
     }
 
@@ -461,7 +440,6 @@ export function stopNonUnlockedDotRefresh(): void {
     if (nonUnlockedDotTimer) { clearInterval(nonUnlockedDotTimer); nonUnlockedDotTimer = null; }
     nonUnlockedDotEncoded = null;
     drawnNonUnlockedSlots = new Set();
-    hiddenDots = new Set();
     hoveredDotSlot = null;
     hoverResolved = false;
     queryBusy = false;

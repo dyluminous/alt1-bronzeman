@@ -60,6 +60,7 @@
         <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;">
             <div class="btn btn-primary" onclick="Bronzeman.debugFindSlot()" style="width:100%;padding-top:6px;padding-bottom:6px;">Fingerprint Slot</div>
             <div class="btn btn-primary" onclick="Bronzeman.openSlotDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Slots interface</div>
+            <div class="btn btn-primary" onclick="Bronzeman.openItemPngs()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Item PNGs (Airut bones)</div>
         </div>
 
         <div id="log" style="display:none;"></div>
@@ -76,6 +77,15 @@
             <span class="slot-debug-close" onclick="event.stopPropagation(); Bronzeman.closeSlotDebug()">✕</span>
         </div>
         <div id="slot_debug_grid" class="slot-debug-grid" onclick="event.stopPropagation()"></div>
+    </div>
+
+    <!-- Item hash PNGs pane — covers the tab area; click outside to close -->
+    <div id="item_pngs_pane" class="slot-debug-pane" style="display:none;" onclick="Bronzeman.closeItemPngs()">
+        <div class="slot-debug-header">
+            <span>Item hash PNGs</span>
+            <span class="slot-debug-close" onclick="event.stopPropagation(); Bronzeman.closeItemPngs()">✕</span>
+        </div>
+        <div id="item_pngs_body" class="wiki-disambig-body" onclick="event.stopPropagation()"></div>
     </div>
 
     <!-- Wiki disambiguation pane — covers the tab area; pick an option or close -->
