@@ -21,6 +21,7 @@ const MAX_PICKUPS = 20;
 
 // Tooltip detection colors
 const TOOLTIP_BG_COLOR = [15, 14, 12] as const;
+const TOOLTIP_INNER_BORDER_COLOR = [46, 37, 26] as const;
 const TOOLTIP_ITEM_COLOR_MEMBERS = [248, 213, 107] as const;
 const TOOLTIP_ITEM_COLOR_F2P = [184, 209, 209] as const;
 
@@ -617,10 +618,16 @@ function pollScanningMouse(): void {
             const i = (py * wideW + px) * 4;
             return wideData.data[i] === bgR && wideData.data[i+1] === bgG && wideData.data[i+2] === bgB;
         };
+        const [borderR, borderG, borderB] = TOOLTIP_INNER_BORDER_COLOR;
+        const isBorder = (px: number, py: number): boolean => {
+            if (px < 0 || px >= wideW || py < 0 || py >= wideH) return false;
+            const i = (py * wideW + px) * 4;
+            return wideData.data[i] === borderR && wideData.data[i+1] === borderG && wideData.data[i+2] === borderB;
+        };
 
-        // 1. Go DOWN from step pixel until hitting non-bg (bottom border)
+        // 1. Go DOWN from step pixel until hitting TOOLTIP_INNER_BORDER_COLOR
         let botY = stepWY;
-        while (botY + 1 < wideH && isBg(stepWX, botY + 1)) botY++;
+        while (botY + 1 < wideH && !isBorder(stepWX, botY + 1)) botY++;
         // 2. From bottom edge, go RIGHT until hitting non-bg (right border)
         let rightX = stepWX;
         while (rightX + 1 < wideW && isBg(rightX + 1, botY)) rightX++;
@@ -637,8 +644,6 @@ function pollScanningMouse(): void {
         const minX = leftX, minY = topY;
         const tooltipW = rectW;
         const tooltipH = rectH;
-        const centerX = leftX;
-        const centerY = topY + Math.round(rectH / 3); // text in upper portion
 
         // Debug overlay: green=capture area, magenta=tooltip bounds, red=text pixel, cyan=wide scan area
         if (showTooltipDebug && state.inAlt1) {
@@ -691,22 +696,40 @@ function pollScanningMouse(): void {
         try {
             if (tooltipW > 20 && tooltipH > 10) {
                 const colors: OCR.ColortTriplet[] = [[248, 213, 107], [184, 209, 209]];
-                let found = "";
                 const fontTries = [
                     require("alt1/fonts/chatbox/16pt"),
                     require("alt1/fonts/chatbox/14pt"),
                     require("alt1/fonts/chatbox/12pt"),
                     require("alt1/fonts/chatbox/10pt"),
                 ];
-                for (const f of fontTries) {
-                    try {
-                        const result = OCR.findReadLine(wideData, f, colors, centerX, centerY, tooltipW, tooltipH);
-                        if (result?.text && result.text.length > 1) { found = result.text; break; }
-                    } catch {}
+
+                const ocrLine = (y: number, searchH?: number): string => {
+                    const h = searchH ?? tooltipH;
+                    for (const f of fontTries) {
+                        try {
+                            const result = OCR.findReadLine(wideData, f, colors, leftX, y, tooltipW, h);
+                            if (result?.text && result.text.length > 1) return result.text;
+                        } catch {}
+                    }
+                    return "";
+                };
+
+                const isMultiLine = tooltipH > 30;
+                let text: string;
+                if (isMultiLine) {
+                    const halfH = Math.round(tooltipH / 2);
+                    const line1 = ocrLine(topY + Math.round(tooltipH / 4), halfH);
+                    const line2 = ocrLine(topY + Math.round(tooltipH * 3 / 4), halfH);
+                    log(`  2-line → line1: "${line1}"`);
+                    log(`  2-line → line2: "${line2}"`);
+                    text = (line1 + " " + line2).trim();
+                } else {
+                    text = ocrLine(topY + Math.round(tooltipH / 2));
                 }
-                if (found) {
-                    log(`  OCR text: "${found}"`);
-                    const itemName = extractItemName(found);
+
+                if (text) {
+                    log(`  OCR text: "${text}"`);
+                    const itemName = extractItemName(text);
                     if (itemName) {
                         log(`  Name: "${itemName}"`);
                         if (unlockItem(itemName, scanning.imageUrl)) {
