@@ -6,6 +6,17 @@ import { inventory } from "./inventory";
 import { capturePixel } from "./core";
 import type { Point } from "./inventory-slot";
 
+/** The border pixels the watch monitors — overlay drawing must avoid these. */
+export function getAnchorWatchPoints(): Point[] {
+    const slots = inventory.slots;
+    if (slots.length === 0) return [];
+    return [
+        slots[inventory.getLastColumnFirstRowIndex()].tr,
+        slots[inventory.getLastSlotIndex()].br,
+        slots[inventory.getFirstColumnLastRowIndex()].bl,
+    ];
+}
+
 let watchHandle: ReturnType<typeof setInterval> | null = null;
 /** Watched border pixels (TR of top-right slot, BR of last slot, BL of bottom-left slot). */
 let points: Point[] = [];
