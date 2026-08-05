@@ -294,13 +294,24 @@ export function closeItemPngs(): void {
 }
 
 // ============================================================
-// Recent unlocks grid — last 8 items unlocked this session
+// Recent unlocks grid — last N items unlocked
 // ============================================================
+
+let lastRecentUnlocksSig = "";
 
 function renderRecentUnlocks(): void {
     const grid = document.getElementById("recent_unlocks_grid");
     if (!grid) return;
     const recent = getRecentUnlocks();
+
+    // Memoize: skip the DOM write entirely when nothing changed. updateUI()
+    // is called frequently (e.g. 1s grid search while the inventory is
+    // missing); rebuilding <img> tags every call forces re-decodes and
+    // flicker even though the data is identical.
+    const sig = recent.map(e => `${e.displayLabel}|${e.imageUrl}`).join("\n");
+    if (sig === lastRecentUnlocksSig) return;
+    lastRecentUnlocksSig = sig;
+
     if (recent.length === 0) {
         grid.innerHTML = "";
         return;
@@ -311,10 +322,7 @@ function renderRecentUnlocks(): void {
                 ? `<img src="${escHtml(entry.imageUrl)}" style="max-width:36px;max-height:32px;image-rendering:pixelated;display:block;" alt="">`
                 : ``;
             return `<div class="recent-unlock-cell">
-                <div style="width:36px;height:32px;display:flex;align-items:center;justify-content:center;">
-                    ${img}
-                </div>
-                <div class="wiki-disambig-note" style="font-size:11px;line-height:1.1;word-break:break-word;text-align:center;color:var(--rs-gold);">${escHtml(entry.displayLabel)}</div>
+                ${img}
             </div>`;
         }).join("") + `</div>`;
 }
