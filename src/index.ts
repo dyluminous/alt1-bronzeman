@@ -12,13 +12,14 @@ if (searchIcon) searchIcon.src = searchIconUrl;
 import "./style.css";
 
 import { initOnLoad } from "./bootstrap";
+import { initGeDetection } from "./ge-debug";
 
 // ============================================================
 // Bronzeman namespace — re-exports for HTML onclick handlers
 // ============================================================
 
 export { toggleAutoCapture, clearReference, stopAutoCapture, startAutoCapture } from "./capture";
-export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug, toggleGeDebug } from "./overlay";
+export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug, toggleGeDebugOverlays } from "./overlay";
 export { diagnoseSlotScan, dumpSlotHash, debugCorners, ocrStackableDebug, readStackableQuantity } from "./slot-scan";
 export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks, dumpItemHashes, getRecentRecords } from "./data";
 export { backupUnlocks, restoreUnlocks } from "./backup";
@@ -39,7 +40,13 @@ export { manualUnlock, openManualUnlock, closeManualUnlock } from "./manual-unlo
 // ============================================================
 
 if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initOnLoad);
+    document.addEventListener("DOMContentLoaded", () => {
+        initOnLoad();
+        // GE detection runs always — unlock icon is a production feature.
+        // The 100ms tick loop also handles search text sync.
+        initGeDetection();
+    });
 } else {
     initOnLoad();
+    initGeDetection();
 }

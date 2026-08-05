@@ -124,6 +124,10 @@
             <label for="show_tooltip_debug" style="font-size:12px;color:#ccc;">Show tooltip debug</label>
             <input type="checkbox" class="pixel-checkbox" id="show_tooltip_debug" onchange="Bronzeman.toggleTooltipDebug()">
         </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;">
+            <label for="ge_debug_overlays" style="font-size:12px;color:#ccc;">GE debugging</label>
+            <input type="checkbox" class="pixel-checkbox" id="ge_debug_overlays" onchange="Bronzeman.toggleGeDebugOverlays()">
+        </div>
         <div class="section-title">Progress</div>
         <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;">
             <div class="btn btn-primary" onclick="Bronzeman.resetUnlocks()" style="width:100%;padding-top:6px;padding-bottom:6px;">Reset unlocks</div>
@@ -134,7 +138,6 @@
             <div class="btn btn-primary" onclick="Bronzeman.openSlotDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Slots interface</div>
             <div class="btn btn-primary" onclick="Bronzeman.openItemPngs()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Item PNGs</div>
             <div class="btn btn-primary" onclick="Bronzeman.ocrStackableDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">OCR Stackable (Slot 27)</div>
-            <div class="btn btn-primary" id="ge_debug_btn" onclick="Bronzeman.toggleGeDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">Enable GE overlay</div>
         </div>
         </div>
         <div id="slot_debug_inline" style="display:none;flex:1;flex-direction:column;">
