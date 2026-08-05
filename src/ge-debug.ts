@@ -161,12 +161,21 @@ let _lastOcrW = -1;      // skip OCR when box width hasn't changed
 let _geSearchText = "";   // last OCR'd search text, cleared when text disappears
 let _tabBeforeSearch = ""; // tab to restore when GE closes
 
+let _lastHuntAt = 0;
+/** Hunt phase does a full-screen capture; that's expensive, so it only runs
+ *  once per second. Once the GE is located the tick runs at full 100ms rate
+ *  on the cheap region capture. */
+const HUNT_INTERVAL_MS = 1000;
+
 async function geDebugTick(): Promise<void> {
     try {
         let img: ImgRef | null;
 
         if (!_geLocated) {
-            // Hunt: full capture
+            // Hunt: full capture — throttled to once per second
+            const now = Date.now();
+            if (now - _lastHuntAt < HUNT_INTERVAL_MS) return;
+            _lastHuntAt = now;
             img = captureFull();
             if (!img) return;
             const needle = await getNeedle();
