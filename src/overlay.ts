@@ -157,15 +157,13 @@ const HOVER_GROUP = "bronzeman_hover";
 let lastHoverIndex: number | null = null;
 let hoverFrozen = false;
 
-export function drawSlotHover(
-    anc: BackpackAnchor,
-    slotIndex: number,
-): void {
+export function drawSlotHover(slotIndex: number): void {
     if (!state.inAlt1 || !showGridBoundary) return;
     if (lastHoverIndex === slotIndex) return;
     lastHoverIndex = slotIndex;
 
-    const slot = new InventorySlot(anc, anc.gridCols!, slotIndex);
+    const slot = inventory.getSlot(slotIndex);
+    if (!slot) return;
     const yellow = a1lib.mixColor(255, 255, 0);
 
     alt1.overLaySetGroup(HOVER_GROUP);

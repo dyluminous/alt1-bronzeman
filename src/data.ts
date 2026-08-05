@@ -6,7 +6,7 @@ import { state, LS_KEYS, log, showNotification } from "./core";
 // Types
 // ============================================================
 
-export interface UnlockedItemData {
+interface UnlockedItemData {
     name: string;
     base64: string;  // base64 data URL of the item raster
     time: number;     // Date.now() when unlocked
@@ -101,7 +101,7 @@ export function resetUnlocks(): void {
 // Ignore list
 // ============================================================
 
-export interface IgnoredItem {
+interface IgnoredItem {
     name: string | null;
     hash: string;
     base64?: string;
@@ -235,10 +235,6 @@ function saveIgnoredItems(): void {
 
 export function getIgnoredItems(): IgnoredItem[] {
     return ignoredItems.slice();
-}
-
-export function getIgnoredCount(): number {
-    return ignoredItems.length;
 }
 
 export function removeIgnoredItem(hash: string): void {

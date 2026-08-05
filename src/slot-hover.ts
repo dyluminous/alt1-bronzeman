@@ -24,20 +24,10 @@ export function startSlotHover(): void {
         const m = a1lib.getMousePosition();
         if (!m) { clearSlotHover(); return; }
 
-        const col = Math.floor((m.x - anc.x) / anc.colStride);
-        const row = Math.floor((m.y - anc.y) / anc.rowStride);
-        const cols = anc.gridCols;
-        const rows = anc.gridRows;
-        if (cols == null || rows == null) { clearSlotHover(); return; }
-        if (col < 0 || col >= cols || row < 0 || row >= rows) {
-            clearSlotHover();
-            return;
-        }
-        const slotIndex = row * cols + col;
-        // clamp to 28 slots (last row may be shorter)
-        if (slotIndex >= 28) { clearSlotHover(); return; }
+        const slotIndex = inventory.getSlotIndexAt(m.x, m.y);
+        if (slotIndex === null) { clearSlotHover(); return; }
 
-        drawSlotHover(anc, slotIndex);
+        drawSlotHover(slotIndex);
     }, POLL_MS);
 }
 

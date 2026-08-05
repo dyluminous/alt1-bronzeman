@@ -24,13 +24,13 @@ const FINGERPRINTS: number[][] = [
     [49,45,42,55,51,46,54,50,46,56,52,47,55,50,47],  // o15
 ];
 
-export interface FingerprintHit {
+interface FingerprintHit {
     x: number; y: number;  // BL-corner position
     fingerIndex: number;   // which fingerprint matched
 }
 
 /** Scan the image for an exact 5-pixel fingerprint match. Returns the first hit or null. */
-export function findSlotByFingerprint(img: ImgRef): FingerprintHit | null {
+function findSlotByFingerprint(img: ImgRef): FingerprintHit | null {
     try {
         const w = img.width, h = img.height;
         const buf = img.toData(0, 0, w, h);
@@ -56,7 +56,7 @@ export function findSlotByFingerprint(img: ImgRef): FingerprintHit | null {
 }
 
 /** Compute HSL lightness from RGB. Returns 0-100. */
-export function lightness(r: number, g: number, b: number): number {
+function lightness(r: number, g: number, b: number): number {
     const max = Math.max(r, g, b) / 255, min = Math.min(r, g, b) / 255;
     return Math.round(((max + min) / 2) * 100);
 }
@@ -64,7 +64,7 @@ export function lightness(r: number, g: number, b: number): number {
 /** Given a found slot1 BL corner, scan right to find slot2 BL corner and return gap width.
  *  Gap pixels are dark (L ≤ 15%), border pixels are bright (L ≥ 17%).
  *  Returns null if slot2 not found within search range. */
-export function measureGapToSlot2(
+function measureGapToSlot2(
     img: ImgRef,
     slot1BL: { x: number; y: number },
 ): { slot2X: number; gapWidth: number } | null {
@@ -98,7 +98,7 @@ export function measureGapToSlot2(
 /** Given slot1 BL and column stride, scan right to count total columns.
  *  Each hop checks the BL pixel: L ≥ 17% (same check as gap scan).
  *  Stops when no border pixel found. */
-export function countColumns(
+function countColumns(
     img: ImgRef,
     slot1BL: { x: number; y: number },
     colStride: number,

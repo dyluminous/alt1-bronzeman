@@ -6,10 +6,6 @@ import * as a1lib from "alt1";
 // Alt1 capture
 // ============================================================
 
-export function ensureAlt1(): boolean {
-    return typeof alt1 !== "undefined";
-}
-
 export function captureFullRs(): ImgRef | null {
     if (!ensureAlt1()) return null;
     try {
@@ -31,15 +27,18 @@ export function capturePixel(x: number, y: number): [number, number, number] | n
     return [img.data[0], img.data[1], img.data[2]];
 }
 
+function ensureAlt1(): boolean {
+    return typeof alt1 !== "undefined";
+}
+
 // ============================================================
 // Constants
 // ============================================================
 
-export const LS_PREFIX = "Bronzeman/";
 export const LS_KEYS = {
-    unlockedItems: LS_PREFIX + "unlockedItems",
-    unlockedItemData: LS_PREFIX + "unlockedItemData",
-    ignores: LS_PREFIX + "ignores",
+    unlockedItems: "Bronzeman/unlockedItems",
+    unlockedItemData: "Bronzeman/unlockedItemData",
+    ignores: "Bronzeman/ignores",
 } as const;
 
 // ============================================================
