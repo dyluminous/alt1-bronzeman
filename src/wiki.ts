@@ -65,6 +65,22 @@ function parseImageTokensFromField(wikitext: string, field: string): ItemImage[]
     return m ? parseImageTokens(m[1]) : [];
 }
 
+/** Collect the item's inventory images from wikitext. Stackable tiers live in
+ *  |image for most items but some (e.g. Coins) put them in |image1 — merge
+ *  both fields, deduped by filename. */
+function collectImages(wikitext: string): ItemImage[] {
+    const seen = new Set<string>();
+    const images: ItemImage[] = [];
+    for (const field of ["image", "image1"]) {
+        for (const img of parseImageTokensFromField(wikitext, field)) {
+            if (seen.has(img.filename)) continue;
+            seen.add(img.filename);
+            images.push(img);
+        }
+    }
+    return images;
+}
+
 /** Pick the best image for a given stackable quantity: the one with the largest
  *  count ≤ qty. Returns null when no matching tier is found (< smallest count). */
 export function pickImageForQuantity(images: ItemImage[], qty: number): ItemImage | null {
@@ -200,7 +216,7 @@ export async function fetchItemTradeable(itemName: string): Promise<WikiQueryRes
             log(`Wiki API: no "tradeable" field found for "${page}"`);
             return { ok: false };
         }
-        const images = parseImageTokensFromField(r.wikitext, "image");
+        const images = collectImages(r.wikitext);
         return { ok: true, tradeable, images }; 
     }
     log(`Wiki API: too many redirects resolving "${itemName}"`);

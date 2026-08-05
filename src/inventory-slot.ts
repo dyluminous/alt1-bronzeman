@@ -40,11 +40,11 @@ export class InventorySlot {
 
     /** Stack-quantity digit colors, by magnitude:
      *  ≤99999 → yellow #ffff00; ≥100k → white #ffffff (xxxK);
-     *  ≥1M → green #00ff00 (xxxM); ≥1B → blue #6698ff (xxxB). */
+     *  ≥1M → green #1eff00 (xxxM); ≥1B → blue #6698ff (xxxB). */
     static readonly STACK_DIGIT_COLORS: readonly (readonly [number, number, number])[] = [
         [0xff, 0xff, 0x00],
         [0xff, 0xff, 0xff],
-        [0x00, 0xff, 0x00],
+        [0x1e, 0xff, 0x00],
         [0x66, 0x98, 0xff],
     ];
 
