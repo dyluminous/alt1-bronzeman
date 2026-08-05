@@ -179,19 +179,6 @@ export function clearReference(): void {
 
 export function clearCalibration(): void { clearReference(); }
 
-export function adjColStride(d: number): void {
-    if (Inventory.adjustStride(d, 0)) { updateUI(); doScan(); }
-}
-export function adjRowStride(d: number): void {
-    if (Inventory.adjustStride(0, d)) { updateUI(); doScan(); }
-}
-export function nudgeAnchorX(d: number): void {
-    if (Inventory.shiftAnchor(d, 0)) { updateUI(); doScan(); }
-}
-export function nudgeAnchorY(d: number): void {
-    if (Inventory.shiftAnchor(0, d)) { updateUI(); doScan(); }
-}
-
 // ============================================================
 // Core scan logic
 // ============================================================
@@ -292,14 +279,9 @@ function doScan(): void {
     }
 }
 
-export async function scanInventory(): Promise<void> {
-    if (!state.inAlt1) { log("Not in Alt1."); return; }
-    if (!alt1.permissionPixel) { log("No pixel permission."); return; }
-    doScan();
-}
 
 // Re-export data.ts functions for HTML onclick handlers
-export { unlockItem, isUnlocked, getUnlockedCount, getUnlockedItems, exportData, resetData } from "./data";
+export { unlockItem, isUnlocked, getUnlockedCount, getUnlockedItems, resetData } from "./data";
 
 // ============================================================
 // Bootstrap
