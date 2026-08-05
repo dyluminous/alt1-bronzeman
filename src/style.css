@@ -656,3 +656,219 @@
         text-shadow: 0 1px 1px var(--rs-text-shadow);
         pointer-events: none;
     }
+
+    /* ==== Extracted from index.html inline styles ==== */
+
+    /* Tab header container */
+    #tab-header {
+        height: 36px;
+        background: var(--rs-bg-dark);
+        width: 100%;
+        position: relative;
+    }
+
+    /* Tab button icons */
+    .tab-btn img {
+        width: 20px;
+        height: 20px;
+        display: block;
+        margin: 0 auto;
+    }
+
+    /* Tab content area */
+    #tab-content {
+        background: var(--rs-bg-mid);
+        width: 100%;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        overflow-y: auto;
+    }
+
+    /* Search field wrapper */
+    .search-field-wrapper {
+        position: relative;
+    }
+
+    /* Search input inside the wrapper */
+    .search-field {
+        padding-left: 28px;
+        padding-right: 24px;
+    }
+
+    /* Search icon (left side of the textbox) */
+    .search-field-icon {
+        position: absolute;
+        left: 6px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 20px;
+        height: 20px;
+        pointer-events: none;
+    }
+
+    /* Search clear button (right side of the textbox) */
+    .search-clear-btn {
+        position: absolute;
+        right: 6px;
+        top: 50%;
+        transform: translateY(-50%);
+        cursor: pointer;
+        color: #8a857e;
+        font-size: 14px;
+        display: none;
+    }
+
+    /* Setup / Developer label row text */
+    .settings-label {
+        font-size: 12px;
+        color: #ccc;
+    }
+
+    /* Settings toggle row (repeated flex pattern in setup & dev tabs) */
+    .settings-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 4px 0;
+    }
+
+    /* Section title with extra top margin */
+    .section-title-gap {
+        margin-top: 12px;
+    }
+
+    /* Setup progress column */
+    .settings-progress-col {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    /* Setup button row */
+    .settings-btn-row {
+        display: flex;
+        gap: 6px;
+    }
+
+    /* Full-width settings button */
+    .settings-btn-wide {
+        width: 100%;
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
+
+    /* Half-width settings button */
+    .settings-btn-half {
+        flex: 1;
+        min-width: 0;
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
+
+    /* Manual unlock inline panel (overrides inline style) */
+    #manual_unlock_inline {
+        display: none;
+        flex: 1;
+        flex-direction: column;
+    }
+
+    /* Manual unlock body row */
+    .manual-unlock-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 12px 0;
+    }
+
+    /* Manual unlock action row */
+    .manual-unlock-actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    /* Manual unlock CTA button */
+    .manual-unlock-btn {
+        padding: 6px 16px;
+        font-size: 12px;
+    }
+
+    /* Developer status bar (with margin-top) */
+    .dev-status-bar {
+        margin-top: 6px;
+    }
+
+    /* Developer inline panel (hidden by default) */
+    .dev-inline-panel {
+        display: none;
+        flex: 1;
+        flex-direction: column;
+    }
+
+    /* Developer button column */
+    .dev-btn-col {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 6px;
+    }
+
+    /* DB item search row */
+    .db-search-row {
+        display: flex;
+        gap: 6px;
+        padding: 8px 10px;
+    }
+
+    /* DB item search input */
+    .db-search-field {
+        flex: 1;
+    }
+
+    /* Small icon-only button */
+    .icon-btn {
+        min-width: 0;
+        width: 35px;
+        flex: 0 0 35px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .icon-btn img {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* Close button — larger size */
+    .close-btn-lg {
+        font-size: 16px;
+    }
+
+    /* Notification container */
+    #notification_container {
+        position: fixed;
+        bottom: 4px;
+        left: 4px;
+        right: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        z-index: 9999;
+        pointer-events: none;
+    }
+
+    /* Recent unlock tooltip container */
+    #recent_unlock_tooltip {
+        display: none;
+        position: fixed;
+        z-index: 10000;
+        pointer-events: none;
+    }
+
+    /* Alt1 status text (smaller than settings labels) */
+    #alt1_status_text {
+        font-size: 10px;
+    }
