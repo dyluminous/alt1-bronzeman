@@ -1,7 +1,7 @@
 // ui.ts — DOM rendering and RS overlay drawing for Bronzeman Mode
 import * as a1lib from "alt1";
 import * as Inventory from "./inventory";
-import { state, POLL_INTERVAL_MS, escHtml, showSlotOverlays } from "./core";
+import { state, POLL_INTERVAL_MS, escHtml } from "./core";
 import { getUnlockedCount, getUnlockedItems, getUnlockedItemData } from "./data";
 
 // ============================================================
@@ -173,7 +173,6 @@ export function drawDetectDebug(anc: Inventory.BackpackAnchor, isError: boolean 
 
 export function drawSlotOverlaysFor(slots: Inventory.SlotState[], color: { r: number; g: number; b: number }, clearFirst = true): void {
     if (!state.inAlt1) return;
-    if (!showSlotOverlays) return;
     if (clearFirst) {
         alt1.overLayClearGroup("bronzeman_slots");
         alt1.overLaySetGroup("bronzeman_slots");
