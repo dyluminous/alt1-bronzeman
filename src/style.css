@@ -101,7 +101,7 @@
         height: 29px;
         padding: 0 8px;
         background: #13100e;
-        border: 1px solid #28231f;
+        border: 1px solid var(--rs-border);
         border-radius: 3px;
         color: var(--rs-gold);
         font: 600 13px/1 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -109,7 +109,6 @@
         box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.9);
     }
     .text-input::placeholder { color: #8a857e; font-weight: 400; }
-    .text-input:focus { border-color: var(--rs-border); }
 
     .search-results {
         flex: 1;
