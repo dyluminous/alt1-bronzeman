@@ -5,8 +5,7 @@
 // disappears. The disambiguation pane blocks new scans until resolved.
 import * as a1lib from "alt1";
 import { inventory } from "./inventory";
-import { InventorySlot } from "./inventory-slot";
-import { state, captureFullRs, log, showNotification } from "./core";
+import { state, log, showNotification } from "./core";
 import { SlotLoadingAnimation } from "./slot-animation";
 import { SLOT_DOT_X, SLOT_DOT_Y, SLOT_DOT_W, loadGoldDotEncoded } from "./gold-dot";
 import { getNonUnlockedSlotIndices } from "./slot-scan";
@@ -15,8 +14,8 @@ import { readTooltipItemName } from "./tooltip-read";
 import { fetchItemTradeable, pickImageForQuantity } from "./wiki";
 import type { WikiQueryResult } from "./wiki";
 import { addUnlockedItem, isHashUnlocked } from "./data";
-import { recordUnlock } from "./recent-unlocks";
-import { showDisambiguation, closeDisambiguation, updateUI } from "./ui";
+import { recordUnlock, resolveImageUrl } from "./recent-unlocks";
+import { showDisambiguation, closeDisambiguation } from "./ui";
 
 const NON_UNLOCKED_DOT_GROUP = "bronzeman_nonunlock";
 /** Redraw cadence for the dots — Alt1 overlay elements have a finite lifetime
@@ -93,15 +92,10 @@ class UnlockHoverFlow {
             } else {
                 log(`No slot hash available — skipping unlock record for "${queriedName}"`);
             }
-            // Capture the slot interior for the recent-unlocks UI
-            const img = captureFullRs();
-            if (img) {
-                const slot = inventory.getSlot(slotIndex);
-                if (slot) {
-                    const d = img.toData(slot.interiorX, slot.interiorY, InventorySlot.INTERIOR_W, InventorySlot.INTERIOR_H);
-                    if (d) { recordUnlock(queriedName, new Uint8ClampedArray(d.data)); updateUI(); }
-                }
-            }
+            // Resolve the wiki image URL and record for the recent-unlocks UI
+            void resolveImageUrl(queriedName, qtyToStore).then(({ url, displayLabel }) => {
+                recordUnlock(queriedName, url, displayLabel).catch(() => {});
+            });
             this.finishHoverFlow();
         } else if (result.disambig && result.disambig.length > 0) {
             // Only one item option after filtering — continue without a dialog.

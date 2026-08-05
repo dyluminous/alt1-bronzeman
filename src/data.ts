@@ -173,6 +173,13 @@ class UnlockStore {
         }
     }
 
+    /** Return records sorted by lastUpdatedOn desc, limited to `limit`. */
+    async getRecentRecords(limit = 8): Promise<UnlockedItemRecord[]> {
+        if (!this.ready) return [];
+        const all = [...(await this.getAll(this.storeName("tradable"))), ...(await this.getAll(this.storeName("untradable")))];
+        return all.sort((a, b) => b.lastUpdatedOn - a.lastUpdatedOn).slice(0, limit);
+    }
+
     /** One unlock record by store ("tradable" | "untradable") and name. */
     async getRecord(store: string, name: string): Promise<UnlockedItemRecord | undefined> {
         if (!this.ready) return undefined;
@@ -293,6 +300,7 @@ const unlockStore = new UnlockStore();
 // ============================================================
 
 export const initUnlockDB = (): Promise<void> => unlockStore.init();
+export const getRecentRecords = (limit = 8): Promise<UnlockedItemRecord[]> => unlockStore.getRecentRecords(limit);
 export const getItemRecord = (store: string, name: string): Promise<UnlockedItemRecord | undefined> => unlockStore.getRecord(store, name);
 export const addUnlockedItem = (name: string, tradeable: boolean, hash: string, stackableQuantity: number | null = null): void => unlockStore.add(name, tradeable, hash, stackableQuantity);
 export const isHashUnlocked = (hash: string): boolean => unlockStore.isHashUnlocked(hash);

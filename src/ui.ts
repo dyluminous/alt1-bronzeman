@@ -293,22 +293,17 @@ function renderRecentUnlocks(): void {
     if (!grid) return;
     const recent = getRecentUnlocks();
     if (recent.length === 0) {
-        grid.innerHTML = '<div class="wiki-disambig-note">No items unlocked yet this session.</div>';
+        grid.innerHTML = '<div class="wiki-disambig-note">No items unlocked yet.</div>';
         return;
     }
     grid.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;">` +
-        recent.map((entry, i) =>
-            `<div style="text-align:center;width:76px;">
-                <canvas class="slot-debug-canvas" width="36" height="32" data-idx="${i}" style="width:72px;height:64px;"></canvas>
-                <div class="wiki-disambig-note" style="font-size:9px;line-height:1.1;word-break:break-word;">${escHtml(entry.name)}</div>
-            </div>`
-        ).join("") + `</div>`;
-    recent.forEach((entry, i) => {
-        const canvas = grid.querySelector(`canvas[data-idx="${i}"]`) as HTMLCanvasElement | null;
-        const ctx = canvas?.getContext("2d");
-        if (!canvas || !ctx) return;
-        const id = ctx.createImageData(InventorySlot.INTERIOR_W, InventorySlot.INTERIOR_H);
-        id.data.set(entry.pixels);
-        ctx.putImageData(id, 0, 0);
-    });
+        recent.map(entry => {
+            const img = entry.imageUrl
+                ? `<img src="${escHtml(entry.imageUrl)}" style="width:36px;height:32px;image-rendering:pixelated;display:block;margin:0 auto;" alt="">`
+                : `<div style="width:36px;height:32px;background:#1a1a1a;margin:0 auto;"></div>`;
+            return `<div style="text-align:center;width:60px;">
+                ${img}
+                <div class="wiki-disambig-note" style="font-size:9px;line-height:1.1;word-break:break-word;">${escHtml(entry.displayLabel)}</div>
+            </div>`;
+        }).join("") + `</div>`;
 }

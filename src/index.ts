@@ -4,6 +4,7 @@
 import { state, log } from "./core";
 import { updateAlt1Status, updateUI } from "./ui";
 import { initUnlockDB } from "./data";
+import { initRecentUnlocks } from "./recent-unlocks";
 import { calibrateGrid } from "./capture";
 
 import "./index.html";
@@ -22,7 +23,7 @@ function initOnLoad() {
     log(`inAlt1=${state.inAlt1}`);
 
     updateAlt1Status();
-    initUnlockDB().then(() => updateUI());
+    initUnlockDB().then(() => { updateUI(); initRecentUnlocks().catch(() => {}); });
 
     if (state.inAlt1) {
         alt1.identifyAppUrl("./appconfig.json");
@@ -62,7 +63,7 @@ export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug
 export { diagnoseSlotScan, dumpSlotHash, debugCorners, ocrStackableDebug, readStackableQuantity } from "./slot-scan";
 
 // Data
-export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks, dumpItemHashes } from "./data";
+export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks, dumpItemHashes, getRecentRecords } from "./data";
 
 // Modal
 export { modalCancel, modalOk } from "./modal";
