@@ -248,6 +248,71 @@ class UnlockStore {
         }
         log("Unlocks cleared.");
     }
+
+    /** Serialize every unlock record in both stores to a JSON string with a
+     *  version header, ready to be written to a backup file. */
+    async exportUnlockData(): Promise<string> {
+        if (!this.ready) throw new Error("Unlock DB not ready");
+        const [tradable, untradable] = await Promise.all([
+            this.getAll(STORE_TRADABLE),
+            this.getAll(STORE_UNTRADABLE),
+        ]);
+        return JSON.stringify({
+            version: 1,
+            exportedOn: Date.now(),
+            stores: {
+                tradable,
+                untradable,
+            },
+        }, null, 2);
+    }
+
+    /** Replace the entire unlock DB with the contents of a backup export.
+     *  Parses + validates the JSON, then clears both stores and writes every
+     *  record inside a single transaction, and rebuilds the in-memory indexes
+     *  (hashes / names / lowerHalfIndex) so lookups keep working. Throws on
+     *  malformed input — nothing is touched before validation passes. */
+    async importUnlockData(json: string): Promise<void> {
+        if (!this.ready) throw new Error("Unlock DB not ready");
+        let parsed: any;
+        try {
+            parsed = JSON.parse(json);
+        } catch {
+            throw new Error("Invalid backup file: not valid JSON");
+        }
+        if (parsed?.version !== 1) throw new Error("Unsupported backup version");
+        const tradable: UnlockedItemRecord[] = Array.isArray(parsed?.stores?.tradable) ? parsed.stores.tradable : [];
+        const untradable: UnlockedItemRecord[] = Array.isArray(parsed?.stores?.untradable) ? parsed.stores.untradable : [];
+        const isRecord = (r: any): r is UnlockedItemRecord =>
+            !!r && typeof r.name === "string" && Array.isArray(r.hashes);
+        if (!tradable.every(isRecord) || !untradable.every(isRecord)) {
+            throw new Error("Invalid backup file: malformed records");
+        }
+
+        // Single readwrite transaction across both stores: clear + rewrite.
+        await new Promise<void>((resolve, reject) => {
+            const tx = this._db!.transaction([STORE_TRADABLE, STORE_UNTRADABLE], "readwrite");
+            tx.objectStore(STORE_TRADABLE).clear();
+            tx.objectStore(STORE_UNTRADABLE).clear();
+            for (const r of tradable) tx.objectStore(STORE_TRADABLE).put(r);
+            for (const r of untradable) tx.objectStore(STORE_UNTRADABLE).put(r);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+
+        // Rebuild the in-memory indexes from the restored records.
+        this.hashes.clear();
+        this.names.clear();
+        this.lowerHalfIndex.clear();
+        for (const r of [...tradable, ...untradable]) {
+            for (const h of r.hashes) {
+                this.hashes.add(h.hash);
+                this.lowerHalfIndex.set(lowerHalfOf(h.hash), r.name);
+            }
+            this.names.add(r.name);
+        }
+        log(`Unlock DB restored: ${tradable.length} tradable, ${untradable.length} untradable, ${this.hashes.size} hashes.`);
+    }
 }
 
 /** Module-wide singleton. */
@@ -268,6 +333,8 @@ export const dumpTradableUnlocks = (): Promise<void> => unlockStore.dumpTradable
 export const dumpUntradableUnlocks = (): Promise<void> => unlockStore.dumpUntradable();
 export const dumpItemHashes = (store: string, name: string): Promise<void> => unlockStore.dumpItemHashes(store, name);
 export const resetUnlocks = (): void => unlockStore.resetUnlocks();
+export const exportUnlockData = (): Promise<string> => unlockStore.exportUnlockData();
+export const importUnlockData = (json: string): Promise<void> => unlockStore.importUnlockData(json);
 
 // ============================================================
 // Debug rendering — hash → colour-grid PNG for the debug panes
