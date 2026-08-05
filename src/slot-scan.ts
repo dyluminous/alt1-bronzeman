@@ -8,7 +8,7 @@ import { inventory } from "./inventory";
 import { captureFullRs, log, lightness } from "./core";
 import type { ImgRef } from "alt1/base";
 import { InventorySlot } from "./inventory-slot";
-import { isHashUnlocked } from "./data";
+import { isHashUnlocked, isLowerHalfUnlocked } from "./data";
 
 const SCAN_MS = 500;
 /** Sentinel previousHash for an empty slot. */
@@ -21,6 +21,13 @@ const NOTED_SHADOW: [number, number, number] = [0x00, 0x00, 0x02];
 const NOTED_MARK_X = 12;
 const NOTED_MARK_Y = 1;
 const NOTED_SHADOW_X = 13;
+
+/** The two guaranteed-yellow quantity-digit pixels, INTERIOR-relative (the
+ *  stellar captures are interior-only, 36×32). Converted to game coords via
+ *  slot.interiorX/interiorY, which include the 1px border offset. Every
+ *  stack-count digit 1–9 renders #ffff00 at (4,1) or (3,3) — verified
+ *  against stellar (1)–(9) captures. */
+const STACKABLE_PIXELS: readonly (readonly [number, number])[] = [[4, 1], [3, 3]];
 
 let scanHandle: ReturnType<typeof setInterval> | null = null;
 
@@ -90,6 +97,17 @@ export function isNotedItem(slot: InventorySlot, img: ImgRef): boolean {
     return !!mark && !!shadow
         && mark[0] === NOTED_MARK[0] && mark[1] === NOTED_MARK[1] && mark[2] === NOTED_MARK[2]
         && shadow[0] === NOTED_SHADOW[0] && shadow[1] === NOTED_SHADOW[1] && shadow[2] === NOTED_SHADOW[2];
+}
+
+/** True when the slot shows a stack-quantity digit — the item is stackable.
+ *  Any stack-count digit (1–9 verified) hits at least one of the two
+ *  guaranteed-yellow pixels. */
+export function isStackableItem(slot: InventorySlot, img: ImgRef): boolean {
+    for (const [dx, dy] of STACKABLE_PIXELS) {
+        const c = readPixel(img, slot.interiorX + dx, slot.interiorY + dy);
+        if (c && c[0] === 0xff && c[1] === 0xff && c[2] === 0x00) return true;
+    }
+    return false;
 }
 
 /** True when the item is in "Use" state — the white outline replaces the
@@ -344,6 +362,9 @@ function scanTick(): void {
     const useSlotsThisTick = new Set<number>();
 
     for (const slot of inventory.slots) {
+        // Stackable check runs for every slot (cheap, 2 px) — the digit is
+        // visible regardless of the noted/use-state gates below.
+        slot.isStackable = isStackableItem(slot, img);
         // Noted and "Use"‑state items are ignored regardless of occlusion —
         // the mouse is often over the slot when Use is clicked, so these
         // checks must run before the obscured gate.
@@ -375,7 +396,10 @@ function scanTick(): void {
 
         // Non-unlocked tracking — always update every tick so the gold dot
         // appears immediately after baseline and persists across steady-state.
-        if (cur === EMPTY_HASH || isHashUnlocked(cur)) {
+        // A stackable slot whose lower-half slice matches an unlocked item is
+        // a quantity-variant of it → treated as unlocked (no dot, no wiki).
+        if (cur === EMPTY_HASH || isHashUnlocked(cur)
+            || (slot.isStackable && isLowerHalfUnlocked(cur.slice(72)))) {
             nonUnlockedSlots.delete(slot.index);
         } else {
             nonUnlockedSlots.add(slot.index);

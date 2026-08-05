@@ -316,10 +316,10 @@ function finishHoverFlow(): void {
 function handleWikiResult(result: WikiQueryResult, queriedName: string, slotHash: string | null): void {
     queryBusy = false;
     if (result.ok) {
-        log(`Wiki: "${queriedName}" tradeable = ${result.tradeable} stackable = ${result.stackable ? "Yes" : "No"}`);
-        // Store the unlock: name + tradeable/stackable flags + the slot's hash.
+        log(`Wiki: "${queriedName}" tradeable = ${result.tradeable}`);
+        // Store the unlock: name + tradeable flag + the slot's hash.
         if (slotHash) {
-            addUnlockedItem(queriedName, result.tradeable?.toLowerCase() === "yes", result.stackable ?? false, slotHash);
+            addUnlockedItem(queriedName, result.tradeable?.toLowerCase() === "yes", slotHash);
         } else {
             log(`No slot hash available — skipping unlock record for "${queriedName}"`);
         }
