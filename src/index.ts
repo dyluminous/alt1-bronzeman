@@ -148,6 +148,15 @@ export function captureReference(): void {
     if (!state.inAlt1) { log("Not in Alt1."); return; }
     if (!alt1.permissionPixel) { log("No pixel permission."); return; }
 
+    // Toggle: if anchor exists, clear it
+    const anc = Inventory.loadAnchor();
+    if (anc) {
+        Inventory.saveAnchor(null);
+        showOverlay("Calibration cleared", a1lib.mixColor(200, 150, 50), 2000);
+        updateUI();
+        return;
+    }
+
     refCountdownValue = 3;
     showOverlay("Move mouse inside slot 1 — detecting in 3...", a1lib.mixColor(100, 200, 255), 5000);
 
