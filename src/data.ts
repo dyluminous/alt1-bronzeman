@@ -197,9 +197,9 @@ class UnlockStore {
      *  stackable quantity variants share one record. Idempotent by name — a
      *  name already in the DB appends silently (no notification), only
      *  genuinely new names notify. */
-    add(name: string, tradeable: boolean, hash: string, stackableQuantity: number | null = null): void {
+    add(name: string, tradeable: boolean, hash: string, stackableQuantity: number | null = null, force = false): void {
         const store = this.storeName(tradeable ? "tradable" : "untradable");
-        if (this.hashes.has(hash)) {
+        if (!force && this.hashes.has(hash)) {
             log(`Hash already unlocked for "${name}" — skipped.`);
             return;
         }
@@ -377,7 +377,7 @@ export const getItemRecord = (store: string, name: string): Promise<UnlockedItem
 export const getUnlockCount = (): Promise<number> => unlockStore.countAll();
 export const getTradableUnlockCount = (): Promise<number> => unlockStore.countTradable();
 export const getSearchIndex = (): ReadonlyArray<SearchEntry> => unlockStore.getSearchIndex();
-export const addUnlockedItem = (name: string, tradeable: boolean, hash: string, stackableQuantity: number | null = null): void => unlockStore.add(name, tradeable, hash, stackableQuantity);
+export const addUnlockedItem = (name: string, tradeable: boolean, hash: string, stackableQuantity: number | null = null, force = false): void => unlockStore.add(name, tradeable, hash, stackableQuantity, force);
 export const isHashUnlocked = (hash: string): boolean => unlockStore.isHashUnlocked(hash);
 export const isLowerHalfUnlocked = (lowerHalf: string): boolean => unlockStore.isLowerHalfUnlocked(lowerHalf);
 export const dumpTradableUnlocks = (): Promise<void> => unlockStore.dumpTradable();

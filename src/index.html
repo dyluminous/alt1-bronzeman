@@ -67,6 +67,13 @@
                 <div class="btn btn-primary" onclick="Bronzeman.backupUnlocks()" style="flex:1;min-width:0;padding-top:6px;padding-bottom:6px;">Backup</div>
                 <div class="btn btn-primary" id="restore_btn" onclick="Bronzeman.restoreUnlocks()" style="flex:1;min-width:0;padding-top:6px;padding-bottom:6px;">Restore</div>
             </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;">
+                <label for="manual_unlock_slot" style="font-size:12px;color:#ccc;">Manual item unlock</label>
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <input type="number" id="manual_unlock_slot" class="spinner-input" min="1" max="28" step="1" value="1" style="width:52px;">
+                    <div class="btn btn-primary" id="manual_unlock_btn" onclick="Bronzeman.manualUnlock()" style="padding:4px 10px;font-size:12px;">Unlock</div>
+                </div>
+            </div>
             <div class="btn btn-primary" onclick="Bronzeman.resetUnlocks()" style="width:100%;padding-top:6px;padding-bottom:6px;">Reset unlocks</div>
         </div>
     </div>

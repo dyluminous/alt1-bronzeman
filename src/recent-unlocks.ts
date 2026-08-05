@@ -66,7 +66,7 @@ export async function initRecentUnlocks(): Promise<void> {
     for (let i = 0; i < flat.length && entries.length < MAX_STORED; i++) {
         const { rec, entry: h } = flat[i];
         const qty = h.stackableQuantity;
-        const displayLabel = qty != null ? `${rec.name} [${qty}]` : rec.name;
+        const displayLabel = qty != null && qty > 1 ? `${rec.name} [${qty}]` : rec.name;
         const { url } = await resolveImageUrl(rec.name, qty);
         entries.push({ name: rec.name, imageUrl: url, displayLabel });
     }
@@ -104,7 +104,7 @@ async function probeUrl(url: string): Promise<string> {
 /** Build a filename from item name + optional stackable tier, e.g.
  *  "Radiant energy", 500 → "Radiant energy 500.png". */
 function buildFilename(name: string, qtyTier?: number | null): string {
-    const base = qtyTier != null ? `${name} ${qtyTier}` : name;
+    const base = qtyTier != null && qtyTier > 1 ? `${name} ${qtyTier}` : name;
     return `${base}.png`;
 }
 
@@ -112,7 +112,7 @@ function buildFilename(name: string, qtyTier?: number | null): string {
  *  on 404 strips a trailing parenthesised suffix (e.g. "(empty)") and retries
  *  once. Returns the resolved URL or empty string. */
 export async function resolveImageUrl(name: string, qtyTier?: number | null): Promise<{ url: string; displayLabel: string }> {
-    const label = qtyTier != null ? `${name} [${qtyTier}]` : name;
+    const label = qtyTier != null && qtyTier > 1 ? `${name} [${qtyTier}]` : name;
     const filename = buildFilename(name, qtyTier);
     const url = imageUrlFor(filename);
     const ok = await probeUrl(url);
