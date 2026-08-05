@@ -164,44 +164,26 @@ export function captureReference(): void {
     // Toggle: if anchor exists, clear it
     const anc = Inventory.loadAnchor();
     if (anc) {
-        Inventory.saveAnchor(null);
+        Inventory.clearAnchor();
+        Inventory.clearOuterPerm();
+        Inventory.clearEmptySlotData();
+        Inventory.resetHashes();
+        state.scanCount = 0;
+        if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
         showNotification("Calibration cleared", 2000, "warning");
         updateUI();
         return;
     }
 
-    refCountdownValue = 3;
-    state.calibrating = true;
-    updateUI();
-    calibrateHandle = showNotification("Move mouse into slot 1 (3s)", 5000);
-    if (calibrateHandle) calibrateHandle.update("Move mouse into slot 1 (3s)");
-
-    refCountdown = setInterval(() => {
-        refCountdownValue--;
-        if (refCountdownValue <= 0) {
-            if (refCountdown) { clearInterval(refCountdown); refCountdown = null; }
-            doCaptureRef();
-        } else {
-            if (calibrateHandle) calibrateHandle.update(`Detecting in ${refCountdownValue}...`);
-        }
-    }, 1000);
+    // Run fingerprint detection immediately — no cursor required
+    doCaptureRef();
 }
 
 function doCaptureRef(): void {
     try {
-        const pos = a1lib.getMousePosition();
-        if (!pos || pos.x <= 0) {
-                    if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
-            log("No RS cursor — is RS the active window?");
-            state.calibrating = false;
-            updateUI();
-            showNotification("RS Unfocused", 3000, "danger");
-            return;
-        }
-
         const img = captureFullRs();
         if (!img) {
-                    if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
+            if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
             log("Capture failed — could not read RS screen.");
             state.calibrating = false;
             updateUI();
@@ -209,45 +191,30 @@ function doCaptureRef(): void {
             return;
         }
 
-        const anc = Inventory.detectSlotBounds(img, pos.x, pos.y, (msg) => log("  [detect] " + msg));
+        const anc = Inventory.detectInventoryGrid(img);
         if (anc) {
             Inventory.resetHashes();
             updateScanStatus(`Detected at (${anc.x},${anc.y})`);
-            log(`Grid found at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
-            if (anc.centerMismatch) {
-                state.calibrating = false;
-                updateUI();
-                showNotification("Calibration failed", 6000, "danger");
-                                if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
-                log("Grid rejected — center pixel mismatch. Recapture.");
-                Inventory.clearAnchor();
-                Inventory.clearOuterPerm();
-                Inventory.clearEmptySlotData();
-                Inventory.resetHashes();
-                drawDetectDebug(anc, true);
-                return;
-            } else {
-                // Capture outer perimeter for border verification
-                Inventory.captureOuterPerm(img, anc, (msg) => log("  [outer] " + msg));
-                // Capture empty slot data from slot 28 (assumed empty)
-                                if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
-                Inventory.captureEmptySlotData(img, anc, (msg) => log("  [empty] " + msg));
-                state.calibrating = false;
-                showNotification("Inventory calibrated", 3000, "success");
-                drawDetectDebug(anc, false);
-                updateGridBoundary();
-                updateUI();
-                startPolling();
-            }
+            log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
+            Inventory.saveAnchor(anc);
+            Inventory.captureOuterPerm(img, anc, (msg) => log("  [outer] " + msg));
+            Inventory.captureEmptySlotData(img, anc, (msg) => log("  [empty] " + msg));
+            if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
+            state.calibrating = false;
+            showNotification("Inventory calibrated", 3000, "success");
+            drawDetectDebug(anc, false);
+            updateGridBoundary();
+            updateUI();
+            startPolling();
         } else {
-                    if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
-            log("Detection failed. Is your mouse inside slot 1?");
+            if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
+            log("Detection failed — no inventory found on screen.");
             state.calibrating = false;
             updateUI();
-            showNotification("Calibration failed - Mouse in slot?", 3000, "danger");
+            showNotification("Calibration failed", 3000, "danger");
         }
     } catch (e) {
-                if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
+        if (calibrateHandle) { calibrateHandle.remove(); calibrateHandle = null; }
         log("Capture error: " + e);
         state.calibrating = false;
         updateUI();
@@ -1132,50 +1099,21 @@ export function debugFindSlot(): void {
     if (!img) { log("Failed to capture"); return; }
 
     const t0 = Date.now();
-    const hit = Inventory.findSlotByFingerprint(img);
+    const anc = Inventory.detectInventoryGrid(img);
     const ms = Date.now() - t0;
 
-    if (hit) {
-        log(`Fingerprint slot found at (${hit.x},${hit.y}) [fp #${hit.fingerIndex + 1}] in ${ms}ms`);
+    if (anc) {
+        log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride} in ${ms}ms`);
 
-        // Measure gap to slot 2 to get col stride
-        const gap = Inventory.measureGapToSlot2(img, { x: hit.x, y: hit.y });
-        let colStride = 0;
-        if (gap) {
-            colStride = gap.slot2X - hit.x;
-            log(`Gap: ${gap.gapWidth}px, colStride=${colStride}px`);
-        } else {
-            log(`Could not find slot 2`);
-        }
-
-        // Count total columns
-        let cols = 0;
-        if (colStride > 0) {
-            cols = Inventory.countColumns(img, { x: hit.x, y: hit.y }, colStride);
-            log(`Columns: ${cols}`);
-        }
-
-        // Count rows downward: 2px gap → next BL at y + 36
-        const rowStride = 36;
-        let rows = 0;
-        if (colStride > 0) {
-            for (let r = 0; r < 10; r++) {
-                const sy = hit.y + r * rowStride;
-                if (sy >= img.height) break;
-                const d = img.toData(hit.x, sy, 1, 1);
-                if (!d) break;
-                if (Inventory.lightness(d.data[0], d.data[1], d.data[2]) >= 17) rows++; else break;
-            }
-        }
-        const total = cols * rows;
-        let lastRowCols = cols;
-        if (total > 28) lastRowCols = cols - (total - 28);
-        log(`Grid: ${cols}×${rows}=${total} slots, last row has ${lastRowCols} columns, colStride=${colStride} rowStride=${rowStride}`);
+        const total = (anc.gridCols ?? 4) * (anc.gridRows ?? 7);
+        const lastRowCols = total > 28 ? (anc.gridCols ?? 4) - (total - 28) : (anc.gridCols ?? 4);
 
         // Draw full grid with numbers
         const yc = a1lib.mixColor(255, 255, 0);
         const white = a1lib.mixColor(255, 255, 255);
         const dur = 5000, sh = 34, sw = 38;
+        const hitX = anc.x - 1, hitY = anc.y + 32; // BL corner from anchor
+        const cols = anc.gridCols ?? 4, rows = anc.gridRows ?? 7;
         alt1.overLaySetGroup("bronzeman_fingerprint");
         alt1.overLayClearGroup("bronzeman_fingerprint");
         let slotNum = 0;
@@ -1183,32 +1121,19 @@ export function debugFindSlot(): void {
             const slotCols = (r === rows - 1) ? lastRowCols : cols;
             for (let c = 0; c < slotCols; c++) {
                 slotNum++;
-                const sx = hit.x + c * colStride;
-                const sy = hit.y - 33 + r * rowStride;
-                // Box outline
+                const sx = hitX + c * anc.colStride;
+                const sy = hitY - 33 + r * anc.rowStride;
                 alt1.overLayRect(yc, sx, sy, sw, 1, dur, 1);
                 alt1.overLayRect(yc, sx, sy + sh - 1, sw, 1, dur, 1);
                 alt1.overLayRect(yc, sx, sy, 1, sh, dur, 1);
                 alt1.overLayRect(yc, sx + sw - 1, sy, 1, sh, dur, 1);
-                // Slot number in center
                 alt1.overLayText(String(slotNum), white, 10, sx + sw / 2 - 6, sy + sh / 2 - 5, dur);
             }
         }
         const totalMs = Date.now() - t0;
-        log(`Total: ${totalMs}ms (fingerprint: ${ms}ms, gap/cols/rows: ${totalMs - ms}ms)`);
-
-        // Save anchor so boundary overlay and other features can use it
-        Inventory.saveAnchor({
-            x: hit.x + 1,
-            y: hit.y - 32,
-            method: "auto",
-            colStride,
-            rowStride,
-            gridCols: cols,
-            gridRows: rows,
-        });
+        log(`Total: ${totalMs}ms`);
     } else {
-        log(`No fingerprint slot found (scanned in ${ms}ms)`);
+        log(`No inventory found in ${ms}ms`);
     }
 }
 
