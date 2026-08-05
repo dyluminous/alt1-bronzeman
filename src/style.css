@@ -110,6 +110,33 @@
     }
     .text-input::placeholder { color: #8a857e; font-weight: 400; }
 
+    .search-results {
+        flex: 1;
+        overflow-y: auto;
+        margin-top: 4px;
+    }
+    .search-result-row {
+        height: 28px;
+        line-height: 28px;
+        padding: 0 10px;
+        font-size: 12px;
+        color: #ccc;
+        cursor: pointer;
+        user-select: none;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .search-result-row:nth-child(odd) { background: #161412; }
+    .search-result-row:nth-child(even) { background: #1b1815; }
+    .search-result-row:hover { background: #292520; }
+    .search-results-empty {
+        padding: 12px 8px;
+        font-size: 12px;
+        color: #6b6560;
+        font-style: italic;
+    }
+
     /* ---- buttons (always visible) ---- */
     .btn-row { display: flex; gap: 5px; margin-bottom: 5px; }
     .btn {

@@ -2,7 +2,7 @@
 // Bootstrap + Bronzeman namespace for HTML onclick handlers. All feature code
 // lives in domain modules: capture, overlay, ui, modal, data, inventory, core.
 import { state, log } from "./core";
-import { updateAlt1Status, updateUI, applyDeveloperMode, applySearchSettings } from "./ui";
+import { updateAlt1Status, updateUI, applyDeveloperMode, applySearchSettings, setupSearchHandler } from "./ui";
 import { initUnlockDB } from "./data";
 import { initRecentUnlocks, setRecentUnlocksLimit, getRecentUnlocksLimit } from "./recent-unlocks";
 import { calibrateGrid } from "./capture";
@@ -25,6 +25,7 @@ function initOnLoad() {
     updateAlt1Status();
     applyDeveloperMode();
     applySearchSettings();
+    setupSearchHandler();
     initUnlockDB().then(() => { updateUI(); initRecentUnlocks().catch(() => {}); });
     syncRecentUnlocksSpinner();
 

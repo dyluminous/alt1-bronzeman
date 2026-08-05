@@ -18,6 +18,13 @@ export interface UnlockedItemRecord {
     lastUpdatedOn: number;
 }
 
+/** Lightweight in-memory entry for the search index — strips every field
+ *  except the name and tradable flag. ~100B / entry; cheap at 30k items. */
+export interface SearchEntry {
+    name: string;
+    tradeable: boolean;
+}
+
 // ============================================================
 // UnlockStore — IndexedDB (tradable + untradable stores) plus the
 // in-memory Sets that back the scan tick's O(1) lookups
@@ -40,6 +47,11 @@ class UnlockStore {
      *  digit-color check (slot.isStackable), so a lower-half hit means
      *  "stackable variant of an already-unlocked item" → no dot. */
     private lowerHalfIndex: Map<string, string> = new Map();
+
+    /** In-memory search index — light array of {name, tradeable} rebuilt at
+     *  init and kept in sync on add / reset / restore. Read-only consumers
+     *  use the exported accessor; mutations go through this cache directly. */
+    private searchIndex: SearchEntry[] = [];
 
     private get ready(): boolean { return this._db !== null; }
 
@@ -79,6 +91,7 @@ class UnlockStore {
 
     /** Total number of unlock records across both stores. */
     countAll(): Promise<number> {
+        if (!this.ready) return Promise.resolve(0);
         return Promise.all([
             this.count(STORE_TRADABLE),
             this.count(STORE_UNTRADABLE),
@@ -87,6 +100,7 @@ class UnlockStore {
 
     /** Number of tradable unlock records. */
     countTradable(): Promise<number> {
+        if (!this.ready) return Promise.resolve(0);
         return this.count(STORE_TRADABLE);
     }
 
@@ -154,12 +168,14 @@ class UnlockStore {
         this.hashes.clear();
         this.names.clear();
         this.lowerHalfIndex.clear();
+        this.searchIndex.length = 0;
         for (const r of records) {
             for (const h of r.hashes) {
                 this.hashes.add(h.hash);
                 this.lowerHalfIndex.set(lowerHalfOf(h.hash), r.name);
             }
             this.names.add(r.name);
+            this.searchIndex.push({ name: r.name, tradeable: r.tradeable });
         }
     }
 
@@ -191,7 +207,10 @@ class UnlockStore {
         this.lowerHalfIndex.set(lowerHalfOf(hash), name);
         const entry: HashEntry = { hash, stackableQuantity, addedOn: Date.now() };
         const isNewName = !this.names.has(name);
-        if (isNewName) this.names.add(name);
+        if (isNewName) {
+            this.names.add(name);
+            this.searchIndex.push({ name, tradeable });
+        }
 
         // Load the record, append the hash, persist. If the DB isn't ready
         // yet, the hash is in memory and the record is lost on reload —
@@ -221,6 +240,12 @@ class UnlockStore {
 
     isHashUnlocked(hash: string): boolean {
         return this.hashes.has(hash);
+    }
+
+    /** Return a read-only snapshot of the in-memory search index. The array
+     *  is defensively copied so consumers can't mutate the canonical cache. */
+    getSearchIndex(): ReadonlyArray<SearchEntry> {
+        return this.searchIndex.slice();
     }
 
     /** True when the hash's lower-half slice matches an already-unlocked item's
@@ -273,6 +298,7 @@ class UnlockStore {
         this.hashes.clear();
         this.names.clear();
         this.lowerHalfIndex.clear();
+        this.searchIndex.length = 0;
         if (this.ready) {
             void this.clear(STORE_TRADABLE).catch(() => {});
             void this.clear(STORE_UNTRADABLE).catch(() => {});
@@ -350,6 +376,7 @@ export const getRecentRecords = (limit = 8): Promise<UnlockedItemRecord[]> => un
 export const getItemRecord = (store: string, name: string): Promise<UnlockedItemRecord | undefined> => unlockStore.getRecord(store, name);
 export const getUnlockCount = (): Promise<number> => unlockStore.countAll();
 export const getTradableUnlockCount = (): Promise<number> => unlockStore.countTradable();
+export const getSearchIndex = (): ReadonlyArray<SearchEntry> => unlockStore.getSearchIndex();
 export const addUnlockedItem = (name: string, tradeable: boolean, hash: string, stackableQuantity: number | null = null): void => unlockStore.add(name, tradeable, hash, stackableQuantity);
 export const isHashUnlocked = (hash: string): boolean => unlockStore.isHashUnlocked(hash);
 export const isLowerHalfUnlocked = (lowerHalf: string): boolean => unlockStore.isLowerHalfUnlocked(lowerHalf);
