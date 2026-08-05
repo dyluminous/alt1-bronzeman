@@ -2,7 +2,7 @@
 // Used by both the slot-27 debug dot (overlay.ts) and the non-unlocked dot
 // refresh (dot-hover.ts), so the encoded asset and position live here once.
 import * as a1lib from "alt1";
-import goldDot from "../assets/images/gold_dot.png";
+import goldDot from "../assets/images/ui_game/gold_dot.png";
 
 /** Dot position on the slot, relative to the TL border pixel (0,0). */
 export const SLOT_DOT_X = 26;
