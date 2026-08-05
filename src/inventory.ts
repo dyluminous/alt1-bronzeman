@@ -58,6 +58,287 @@ export function shiftAnchor(dx: number, dy: number): BackpackAnchor | null {
 }
 
 // ============================================================
+// Corner baseline — 4 corner pixels per slot, captured at grid time.
+// Used to verify real item changes (corners match) vs overlays (corners obscured).
+// ============================================================
+
+const CORNER_KEY = "Bronzeman/cornerBaseline";
+const BRACKET_KEY = "Bronzeman/cornerBrackets";
+const EMPTY_HASH_KEY = "Bronzeman/emptyHash";
+const PERIMETER_KEY = "Bronzeman/perimeterBaseline";
+
+export type CornerBaseline = [number,number,number][][];
+
+function readCornerPixel(img: ImgRef, x: number, y: number): [number,number,number] | null {
+    if (x < 0 || y < 0 || x >= img.width || y >= img.height) return null;
+    const d = img.toData(x, y, 1, 1);
+    return [d.data[0], d.data[1], d.data[2]];
+}
+
+export function captureCornerBaseline(img: ImgRef, anc: BackpackAnchor, debug: DebugLog): CornerBaseline | null {
+    const baseline: CornerBaseline = [];
+    for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+            const sx = anc.x + col * anc.colStride;
+            const sy = anc.y + row * anc.rowStride;
+            const tl = readCornerPixel(img, sx + 1, sy + 1);
+            const tr = readCornerPixel(img, sx + 34, sy + 1);
+            const bl = readCornerPixel(img, sx + 1, sy + 30);
+            const br = readCornerPixel(img, sx + 34, sy + 30);
+            if (!tl || !tr || !bl || !br) {
+                debug(`corner baseline: slot [${row},${col}] out of bounds`);
+                return null;
+            }
+            baseline.push([tl, tr, bl, br]);
+        }
+    }
+    localStorage.setItem(CORNER_KEY, JSON.stringify(baseline));
+    debug(`corner baseline: saved 28×4 corners`);
+    return baseline;
+}
+
+export function loadCornerBaseline(): CornerBaseline | null {
+    try {
+        const raw = localStorage.getItem(CORNER_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+}
+
+export function hasCornerBaseline(): boolean { return !!localStorage.getItem(CORNER_KEY); }
+
+export function clearCornerBaseline(): void { localStorage.removeItem(CORNER_KEY); }
+
+export function cornersMatchBaseline(img: ImgRef, anc: BackpackAnchor, slotIndex: number, baseline: CornerBaseline): boolean {
+    if (!baseline || slotIndex >= baseline.length) return false;
+    const row = Math.floor(slotIndex / COLS);
+    const col = slotIndex % COLS;
+    const sx = anc.x + col * anc.colStride;
+    const sy = anc.y + row * anc.rowStride;
+    const saved = baseline[slotIndex];
+    const current = [
+        readCornerPixel(img, sx + 1, sy + 1),
+        readCornerPixel(img, sx + 34, sy + 1),
+        readCornerPixel(img, sx + 1, sy + 30),
+        readCornerPixel(img, sx + 34, sy + 30),
+    ];
+    let totalDiff = 0;
+    for (let i = 0; i < 4; i++) {
+        const c = current[i];
+        if (!c) return false;
+        totalDiff += Math.abs(c[0] - saved[i][0]) + Math.abs(c[1] - saved[i][1]) + Math.abs(c[2] - saved[i][2]);
+    }
+    return totalDiff <= 60;
+}
+
+// ============================================================
+// Empty slot detection via saved empty-hash comparison.
+// At grid capture time, slot 28's hash is saved as the "empty
+// fingerprint". Each scan compares every slot's hash against it
+// using the hashDiff function. Diff ≤ CHANGE_THRESHOLD → empty.
+// ============================================================
+
+export function captureEmptyHash(hash: string): void {
+    localStorage.setItem(EMPTY_HASH_KEY, hash);
+}
+
+export function loadEmptyHash(): string | null {
+    try { return localStorage.getItem(EMPTY_HASH_KEY); }
+    catch { return null; }
+}
+
+export function clearEmptyHash(): void {
+    localStorage.removeItem(EMPTY_HASH_KEY);
+}
+
+/** Given all 28 slot hashes and the saved empty hash, return
+ *  a Set of slot indices that are occupied. */
+export function classifyOccupied(slotHashes: string[], emptyHash: string): Set<number> {
+    const occupied = new Set<number>();
+    for (let i = 0; i < slotHashes.length; i++) {
+        // Compare hex strings char-by-char (each char = 4-bit brightness)
+        const a = slotHashes[i], b = emptyHash;
+        let diff = 0;
+        const len = Math.min(a.length, b.length);
+        for (let j = 0; j < len; j++) {
+            diff += Math.abs(parseInt(a[j], 16) - parseInt(b[j], 16));
+        }
+        if (diff > 40) occupied.add(i); // higher threshold for saved-ref comparison
+    }
+    return occupied;
+}
+
+// ============================================================
+// Corner brackets — tiny L-shapes (1+1px) at each of the 4 interior
+// corners of every slot. Saved at capture time, checked each scan.
+// An interface covering a slot will disturb these bracket pixels.
+// ============================================================
+
+const BRACKET_OFFSETS: [number,number][][] = [
+    [[1,1],[2,1],[1,2]],  // TL: corner, right, down
+    [[34,1],[33,1],[34,2]], // TR: corner, left, down
+    [[1,30],[2,30],[1,29]], // BL: corner, right, up
+    [[34,30],[33,30],[34,29]], // BR: corner, left, up
+];
+
+export function captureCornerBrackets(img: ImgRef, anc: BackpackAnchor, debug: DebugLog): number[] | null {
+    const pixels: number[] = [];
+    for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+            const sx = anc.x + col * anc.colStride;
+            const sy = anc.y + row * anc.rowStride;
+            for (const corner of BRACKET_OFFSETS) {
+                for (const [dx, dy] of corner) {
+                    const ax = sx + dx, ay = sy + dy;
+                    if (ax < 0 || ay < 0 || ax >= img.width || ay >= img.height) {
+                        debug(`corner brackets: slot [${row},${col}] pixel (${ax},${ay}) out of bounds`);
+                        return null;
+                    }
+                    const d = img.toData(ax, ay, 1, 1);
+                    pixels.push(d.data[0], d.data[1], d.data[2]);
+                }
+            }
+        }
+    }
+    localStorage.setItem(BRACKET_KEY, JSON.stringify(pixels));
+    debug(`corner brackets: saved ${pixels.length / 3} pixels (${pixels.length} bytes)`);
+    return pixels;
+}
+
+export function loadCornerBrackets(): number[] | null {
+    try { const raw = localStorage.getItem(BRACKET_KEY); return raw ? JSON.parse(raw) : null; }
+    catch { return null; }
+}
+
+export function clearCornerBrackets(): void {
+    localStorage.removeItem(BRACKET_KEY);
+}
+
+export function cornerBracketsMatch(img: ImgRef, anc: BackpackAnchor, slotIndex: number, baseline: number[]): boolean {
+    const row = Math.floor(slotIndex / COLS);
+    const col = slotIndex % COLS;
+    const sx = anc.x + col * anc.colStride;
+    const sy = anc.y + row * anc.rowStride;
+    const baseOff = slotIndex * 36; // 4 corners × 3 pixels × 3 channels = 36 per slot
+    if (baseOff + 35 >= baseline.length) return false;
+    let totalDiff = 0;
+    let pixIdx = 0;
+    for (const corner of BRACKET_OFFSETS) {
+        for (const [dx, dy] of corner) {
+            const ax = sx + dx, ay = sy + dy;
+            if (ax < 0 || ay < 0 || ax >= img.width || ay >= img.height) return false;
+            const d = img.toData(ax, ay, 1, 1);
+            const bo = baseOff + pixIdx * 3;
+            totalDiff += Math.abs(d.data[0] - baseline[bo])
+                      + Math.abs(d.data[1] - baseline[bo + 1])
+                      + Math.abs(d.data[2] - baseline[bo + 2]);
+            pixIdx++;
+        }
+    }
+    return totalDiff <= 40; // 12 pixels × ~3.3 per channel tolerance
+}
+
+// ============================================================
+// Perimeter baseline — 1px border around each slot interior (36×32).
+// An interface covering a slot will disturb these perimeter pixels
+// even if the 4 corners happen to survive. 16-hex-char hash per slot.
+// ============================================================
+
+/** Hash the 1px perimeter of a 36×32 slot into a 32-char string (6-bit per sample, base64url charset). */
+function hashPerimeter(data: Uint8ClampedArray, stride: number): string {
+    const W = 36, H = 32;
+    const samplesPerSide = 8; // 8 per side = 32 total
+    const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
+    function encode6(v: number): string { return B64[Math.min(63, Math.max(0, v))]; }
+    const chars: string[] = [];
+    // Top edge
+    for (let i = 0; i < samplesPerSide; i++) {
+        const segStart = Math.floor(i * W / samplesPerSide);
+        const segEnd = Math.floor((i + 1) * W / samplesPerSide);
+        let sum = 0, count = 0;
+        for (let x = segStart; x < segEnd; x++) {
+            const idx = x * 4;
+            sum += (data[idx] + data[idx + 1] + data[idx + 2]) / 3; count++;
+        }
+        chars.push(encode6(Math.floor((sum / count) / 4)));
+    }
+    // Bottom edge
+    for (let i = 0; i < samplesPerSide; i++) {
+        const segStart = Math.floor(i * W / samplesPerSide);
+        const segEnd = Math.floor((i + 1) * W / samplesPerSide);
+        let sum = 0, count = 0;
+        for (let x = segStart; x < segEnd; x++) {
+            const idx = ((H - 1) * stride + x) * 4;
+            sum += (data[idx] + data[idx + 1] + data[idx + 2]) / 3; count++;
+        }
+        chars.push(encode6(Math.floor((sum / count) / 4)));
+    }
+    // Left edge (skip corners)
+    for (let i = 0; i < samplesPerSide; i++) {
+        const segStart = 1 + Math.floor(i * (H - 2) / samplesPerSide);
+        const segEnd = 1 + Math.floor((i + 1) * (H - 2) / samplesPerSide);
+        let sum = 0, count = 0;
+        for (let y = segStart; y < segEnd; y++) {
+            const idx = (y * stride) * 4;
+            sum += (data[idx] + data[idx + 1] + data[idx + 2]) / 3; count++;
+        }
+        chars.push(encode6(Math.floor((sum / count) / 4)));
+    }
+    // Right edge
+    for (let i = 0; i < samplesPerSide; i++) {
+        const segStart = 1 + Math.floor(i * (H - 2) / samplesPerSide);
+        const segEnd = 1 + Math.floor((i + 1) * (H - 2) / samplesPerSide);
+        let sum = 0, count = 0;
+        for (let y = segStart; y < segEnd; y++) {
+            const idx = (y * stride + W - 1) * 4;
+            sum += (data[idx] + data[idx + 1] + data[idx + 2]) / 3; count++;
+        }
+        chars.push(encode6(Math.floor((sum / count) / 4)));
+    }
+    return chars.join("");
+}
+
+export function capturePerimeterBaseline(img: ImgRef, anc: BackpackAnchor, debug: DebugLog): string[] | null {
+    const hashes: string[] = [];
+    for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+            const sx = anc.x + col * anc.colStride;
+            const sy = anc.y + row * anc.rowStride;
+            const W = 36, H = 32;
+            if (sx + W > img.width || sy + H > img.height || sx < 0 || sy < 0) {
+                debug(`perimeter baseline: slot [${row},${col}] out of bounds`);
+                return null;
+            }
+            const d = img.toData(sx, sy, W, H);
+            hashes.push(hashPerimeter(d.data, W));
+        }
+    }
+    localStorage.setItem(PERIMETER_KEY, JSON.stringify(hashes));
+    debug(`perimeter baseline: saved 28 hashes`);
+    return hashes;
+}
+
+export function loadPerimeterBaseline(): string[] | null {
+    try { const raw = localStorage.getItem(PERIMETER_KEY); return raw ? JSON.parse(raw) : null; }
+    catch { return null; }
+}
+
+export function clearPerimeterBaseline(): void {
+    localStorage.removeItem(PERIMETER_KEY);
+}
+
+export function perimeterMatchesBaseline(img: ImgRef, anc: BackpackAnchor, slotIndex: number, baseline: string[]): boolean {
+    if (!baseline || slotIndex >= baseline.length) return false;
+    const row = Math.floor(slotIndex / COLS);
+    const col = slotIndex % COLS;
+    const sx = anc.x + col * anc.colStride;
+    const sy = anc.y + row * anc.rowStride;
+    const W = 36, H = 32;
+    if (sx + W > img.width || sy + H > img.height || sx < 0 || sy < 0) return false;
+    const d = img.toData(sx, sy, W, H);
+    return hashPerimeter(d.data, W) === baseline[slotIndex];
+}
+
+// ============================================================
 // Capture anchor at RS cursor position (after countdown)
 // ============================================================
 
