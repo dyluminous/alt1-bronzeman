@@ -40,6 +40,46 @@ export function loadAnchor(): BackpackAnchor | null {
 export function clearAnchor(): void { localStorage.removeItem(ANCHOR_KEY); }
 export function hasAnchor(): boolean { return !!localStorage.getItem(ANCHOR_KEY); }
 
+// ============================================================
+// Anchor pixel tracking — detect when inventory moves
+// ============================================================
+const ANCHOR_PIXEL_KEY = "Bronzeman/anchorPixel";
+
+export interface AnchorPixel {
+    x: number; y: number;  // BL corner position
+    r: number; g: number; b: number;
+}
+
+export function saveAnchorPixel(img: ImgRef, anc: BackpackAnchor): void {
+    const bx = anc.x - 1;  // BL corner x
+    const by = anc.y + 32; // BL corner y
+    const d = img.toData(bx, by, 1, 1);
+    if (!d) return;
+    const pixel: AnchorPixel = { x: bx, y: by, r: d.data[0], g: d.data[1], b: d.data[2] };
+    localStorage.setItem(ANCHOR_PIXEL_KEY, JSON.stringify(pixel));
+}
+
+export function loadAnchorPixel(): AnchorPixel | null {
+    try {
+        const raw = localStorage.getItem(ANCHOR_PIXEL_KEY);
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        if (p && typeof p.x === "number" && typeof p.r === "number") return p as AnchorPixel;
+    } catch { /* corrupt */ }
+    return null;
+}
+
+export function clearAnchorPixel(): void { localStorage.removeItem(ANCHOR_PIXEL_KEY); }
+
+/** Check if the saved BL corner pixel still matches the screen. Returns true if anchor is valid. */
+export function checkAnchorPixel(img: ImgRef): boolean {
+    const saved = loadAnchorPixel();
+    if (!saved) return true; // no saved pixel → assume valid
+    const d = img.toData(saved.x, saved.y, 1, 1);
+    if (!d) return false;
+    return d.data[0] === saved.r && d.data[1] === saved.g && d.data[2] === saved.b;
+}
+
 /** Adjust stride by +/- 1px, clamped to sane ranges. */
 export function adjustStride(dCol: number, dRow: number): BackpackAnchor | null {
     const a = loadAnchor();
@@ -408,6 +448,13 @@ const FINGERPRINTS: number[][] = [
     [53,50,45,52,48,44,54,48,45,55,50,47,56,52,47],  // o6
     [51,47,43,52,48,44,52,48,44,55,50,47,56,52,47],  // o7 — from fail_1 in-game render
     [49,45,42,54,49,45,54,48,45,56,52,47,55,50,47],  // o8
+    [51,47,43,55,51,46,54,50,46,54,49,46,55,50,47],  // o9
+    [53,50,45,55,51,46,52,48,44,55,50,47,56,52,47],  // o10
+    [51,47,43,54,49,45,54,50,46,56,52,47,54,49,46],  // o11
+    [53,50,45,52,48,44,54,48,45,56,52,47,54,49,46],  // o12
+    [49,45,42,54,49,45,54,50,46,54,49,46,56,52,47],  // o13
+    [51,47,43,55,51,46,52,48,44,56,52,47,56,52,47],  // o14
+    [49,45,42,55,51,46,54,50,46,56,52,47,55,50,47],  // o15
 ];
 
 export interface FingerprintHit {

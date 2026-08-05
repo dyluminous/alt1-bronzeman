@@ -51,6 +51,7 @@ export const state = {
     // Which slots had items on the previous scan (by slot index)
     prevOccupied: new Set<number>(),
     calibrating: false,
+    autocapture: false,
     debugLogIgnores: false,
 };
 
@@ -123,17 +124,21 @@ export function showNotification(msg: string, duration: number = 2000, style: "i
 let anchorWarningHandle: NotificationHandle | null = null;
 
 /** Show/hide a persistent danger notification when no anchor is set. */
+let _isRetryingCapture = false;
+export function isRetryingCapture(): boolean { return _isRetryingCapture; }
+export function setRetryingCapture(v: boolean): void { _isRetryingCapture = v; }
+
 export function updateAnchorWarning(): void {
     try {
         if (Inventory.loadAnchor()) {
             if (anchorWarningHandle) { anchorWarningHandle.remove(); anchorWarningHandle = null; }
         } else {
-            if (!anchorWarningHandle) {
+            if (!anchorWarningHandle && !_isRetryingCapture) {
                 anchorWarningHandle = showNotification("Inventory not captured", 0, "danger");
             }
         }
     } catch (e) {
-        if (!anchorWarningHandle) {
+        if (!anchorWarningHandle && !_isRetryingCapture) {
             anchorWarningHandle = showNotification("Inventory not captured", 0, "danger");
         }
     }
