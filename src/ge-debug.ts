@@ -142,8 +142,8 @@ async function geDebugTick(): Promise<void> {
 
         // Buy offer open?
         const px = img.read(ox + 36, oy + 128, 1, 1);
-        if (!px) return;
-        if (!(px.data[0] === 0xb3 && px.data[1] === 0xc6 && px.data[2] === 0x03)) return;
+        if (!px) { alt1.overLayClearGroup("bronzeman_ge"); return; }
+        if (!(px.data[0] === 0xb3 && px.data[1] === 0xc6 && px.data[2] === 0x03)) { alt1.overLayClearGroup("bronzeman_ge"); return; }
 
         let geItemName = "";
 
@@ -166,7 +166,7 @@ async function geDebugTick(): Promise<void> {
         }
         if (!starVisible) _geItemName = "";
 
-        // Small dropdown → draw icon (400ms duration bridges OCR timing gaps)
+        // Small dropdown → draw icon
         const sp = img.read(ox + 42, oy + 327, 1, 1);
         if (!sp) { alt1.overLayClearGroup("bronzeman_ge"); return; }
         const sr = sp.data[0], sg = sp.data[1], sb = sp.data[2];
