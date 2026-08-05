@@ -1,12 +1,12 @@
 // overlay.ts — RS overlay drawing for Bronzeman Mode
 import * as a1lib from "alt1";
 import { inventory } from "./inventory";
-import type { BackpackAnchor } from "./inventory";
 import * as Detect from "./inventory-detect";
 import { Inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
 import { state, captureFullRs, log, showNotification } from "./core";
 import { getAnchorWatchPoints } from "./anchor-watch";
+import { SlotBorderAnimation } from "./slot-animation";
 
 // ============================================================
 // Detection debug — corner brackets on all slots
@@ -180,87 +180,10 @@ export function clearSlotHover(): void {
 }
 
 // ============================================================
-// Test slot animation — gold "loading ring" on slot 27's border
+// Slot animation toggle — "Show slot animation" debug checkbox
 // ============================================================
 
-const TEST_ANIM_GROUP = "bronzeman_testanim";
-let animTimer: ReturnType<typeof setInterval> | null = null;
-let animStart = 0;
-/** Cumulative head distance (px) at the last frame — never modded, so the
- *  [prev, cur) tiling stays contiguous across the cycle wrap. */
-let animLastPos = 0;
-
-const ANIM_GOLD = (): number => a1lib.mixColor(212, 168, 75); // --rs-gold (#D4A84B)
-/** Frame interval — Alt1's practical overlay redraw ceiling is ~30fps. */
-const ANIM_STEP_MS = 33;
-/** Perimeter of the slot cell border (2×(38+34)). */
-const ANIM_PERIMETER = 2 * (InventorySlot.CELL_W + InventorySlot.CELL_H);
-/** One full loop: ~3px/frame → 48 frames. */
-const ANIM_CYCLE_MS = Math.ceil(ANIM_PERIMETER / 3) * ANIM_STEP_MS;
-/** Trail length — a 34px comet tail. */
-const ANIM_TAIL_PX = 34;
-/** How long a drawn pixel stays visible: the time the head takes to advance ANIM_TAIL_PX.
- *  Oldest pixels expire one-by-one in draw order, keeping the trail at a constant length. */
-const ANIM_TAIL_MS = Math.round(ANIM_TAIL_PX / ANIM_PERIMETER * ANIM_CYCLE_MS);
-/** The second comet launches when the first is this far in (half a lap), so the
- *  two comets are always 72px apart and circle the slot together. */
-const ANIM_COMET_OFFSET = ANIM_PERIMETER / 2;
-
-/** The border edge at perimeter-distance d from TL, going clockwise.
- *  Perimeter is 2×(W+H); corners are counted once at the start of each edge,
- *  so the four corner pixels get double-drawn (harmless overlap). */
-function borderEdgeAt(slot: InventorySlot, d: number): { x: number; y: number; dx: number; dy: number; end: number } {
-    const W = InventorySlot.CELL_W, H = InventorySlot.CELL_H;
-    if (d < W) return { x: slot.x + d, y: slot.y, dx: 1, dy: 0, end: W };                               // TL→TR
-    if (d < W + H) return { x: slot.x + W - 1, y: slot.y + d - W, dx: 0, dy: 1, end: W + H };           // TR→BR
-    if (d < 2 * W + H) return { x: slot.x + (2 * W + H - 1 - d), y: slot.y + H - 1, dx: -1, dy: 0, end: 2 * W + H }; // BR→BL
-    return { x: slot.x, y: slot.y + (ANIM_PERIMETER - 1 - d), dx: 0, dy: -1, end: ANIM_PERIMETER };      // BL→TL
-}
-
-/** Draw a 1px segment of length len starting at perimeter-distance d (wraps corners). */
-function drawBorderSegment(slot: InventorySlot, d: number, len: number, dur: number): void {
-    d = Math.round(d); // overLayRect requires int32 coords — keep all math integral
-    let remaining = len;
-    while (remaining > 0) {
-        const e = borderEdgeAt(slot, d);
-        const n = Math.min(remaining, e.end - d);
-        const color = ANIM_GOLD();
-        if (e.dx === 1) alt1.overLayRect(color, e.x, e.y, n, 1, dur, 1);
-        else if (e.dy === 1) alt1.overLayRect(color, e.x, e.y, 1, n, dur, 1);
-        else if (e.dx === -1) alt1.overLayRect(color, e.x - n + 1, e.y, n, 1, dur, 1);
-        else alt1.overLayRect(color, e.x, e.y - n + 1, 1, n, dur, 1);
-        d = (d + n) % ANIM_PERIMETER;
-        remaining -= n;
-    }
-}
-
-/** One frame: draw each comet's segment from its last head position to the current one.
- *  Tiling [prev, cur) keeps each trail contiguous — rounding the endpoints can't
- *  leave 1px gaps the way rounding a fixed 3px step per frame can. */
-function slotAnimTick(): void {
-    if (!inventory.isCalibrated) return;
-    const slot = inventory.getSlot(27);
-    if (!slot) return;
-    const pos = (Date.now() - animStart) / ANIM_CYCLE_MS * ANIM_PERIMETER;
-    const norm = (v: number): number => ((Math.round(v) % ANIM_PERIMETER) + ANIM_PERIMETER) % ANIM_PERIMETER;
-
-    // Comet 1 — always running.
-    const start1 = norm(animLastPos);
-    const end1 = norm(pos);
-    const len1 = (end1 - start1 + ANIM_PERIMETER) % ANIM_PERIMETER;
-    if (len1 > 0) drawBorderSegment(slot, start1, len1, ANIM_TAIL_MS);
-
-    // Comet 2 — launches when comet 1 is ANIM_COMET_OFFSET in, then stays exactly
-    // one offset behind it forever (clamped to 0 so nothing draws before launch).
-    const pos2 = Math.max(0, pos - ANIM_COMET_OFFSET);
-    const lastPos2 = Math.max(0, animLastPos - ANIM_COMET_OFFSET);
-    const start2 = norm(lastPos2);
-    const end2 = norm(pos2);
-    const len2 = (end2 - start2 + ANIM_PERIMETER) % ANIM_PERIMETER;
-    if (len2 > 0) drawBorderSegment(slot, start2, len2, ANIM_TAIL_MS);
-
-    animLastPos = pos;
-}
+let slotAnimation: SlotBorderAnimation | null = null;
 
 /** Start/stop the loading-ring animation on slot 27's border, driven by the
  *  "Show slot animation" debug checkbox. */
@@ -272,25 +195,19 @@ export function toggleSlotAnimation(): void {
         log("Not in Alt1");
         return;
     }
-    if (on) startSlotAnimation();
-    else stopSlotAnimation();
-}
-
-function startSlotAnimation(): void {
-    const slot = inventory.getSlot(27);
-    if (!slot) { log("Slot 27 not available (inventory not calibrated?)"); return; }
-    alt1.overLaySetGroup(TEST_ANIM_GROUP);
-    animStart = Date.now();
-    animLastPos = 0;
-    log(`Show slot animation: gold loading ring on slot 27 border from TL (${slot.tl.x},${slot.tl.y})`);
-    slotAnimTick();
-    animTimer = setInterval(slotAnimTick, ANIM_STEP_MS);
-}
-
-/** Stop the animation. Already-drawn segments are left to fade out naturally
- *  (they carry a finite duration), rather than force-clearing the group. */
-function stopSlotAnimation(): void {
-    if (animTimer) { clearInterval(animTimer); animTimer = null; }
+    if (on) {
+        const slot = inventory.getSlot(27);
+        if (!slot) {
+            if (cb) cb.checked = false;
+            log("Slot 27 not available (inventory not calibrated?)");
+            return;
+        }
+        slotAnimation ??= new SlotBorderAnimation(slot);
+        slotAnimation.start();
+        log(`Show slot animation: gold loading ring on slot 27 border from TL (${slot.tl.x},${slot.tl.y})`);
+    } else {
+        slotAnimation?.stop();
+    }
 }
 
 
