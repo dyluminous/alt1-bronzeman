@@ -87,12 +87,31 @@ function distToColor(r: number, g: number, b: number, tr: number, tg: number, tb
     return Math.abs(r - tr) + Math.abs(g - tg) + Math.abs(b - tb);
 }
 
+const TARGET_R = 53, TARGET_G = 50, TARGET_B = 45;   // #35322d border corner
+const NEIGHBOR_R = 55, NEIGHBOR_G = 51, NEIGHBOR_B = 46; // #37332e above + left
+const INTERIOR_R = 30, INTERIOR_G = 25, INTERIOR_B = 22; // #1e1916 slot interior
+const COLOR_TOL = 8;
+
+/** Full 4-pixel corner pattern: #35322d at (x,y) with all 3 verified neighbors. */
+function matchCorner(buf: ImageData, x: number, y: number, w: number): boolean {
+    if (x < 1 || y < 1 || x >= w - 1) return false;
+    const i = (y * w + x) * 4;
+    if (distToColor(buf.data[i], buf.data[i+1], buf.data[i+2], TARGET_R, TARGET_G, TARGET_B) > COLOR_TOL) return false;
+    const nw = ((y-1) * w + (x-1)) * 4;
+    if (distToColor(buf.data[nw], buf.data[nw+1], buf.data[nw+2], INTERIOR_R, INTERIOR_G, INTERIOR_B) > COLOR_TOL) return false;
+    const ab = ((y-1) * w + x) * 4;
+    if (distToColor(buf.data[ab], buf.data[ab+1], buf.data[ab+2], NEIGHBOR_R, NEIGHBOR_G, NEIGHBOR_B) > COLOR_TOL) return false;
+    const le = (y * w + (x-1)) * 4;
+    if (distToColor(buf.data[le], buf.data[le+1], buf.data[le+2], NEIGHBOR_R, NEIGHBOR_G, NEIGHBOR_B) > COLOR_TOL) return false;
+    return true;
+}
+
 export function detectSlotBounds(img: ImgRef, cursorX: number, cursorY: number, debug: DebugLog): BackpackAnchor | null {
     try {
-        const regionX = Math.max(img.x, cursorX - 4);
-        const regionY = Math.max(img.y, cursorY - 4);
-        const regionW = Math.min(100, img.width - regionX);
-        const regionH = Math.min(100, img.height - regionY);
+        const regionX = Math.max(img.x, cursorX - 10);
+        const regionY = Math.max(img.y, cursorY - 10);
+        const regionW = Math.min(250, img.width - regionX);
+        const regionH = Math.min(250, img.height - regionY);
 
         if (regionW < 4 || regionH < 4) {
             debug(`detect: region too small (${regionW}x${regionH})`);
@@ -121,25 +140,10 @@ export function detectSlotBounds(img: ImgRef, cursorX: number, cursorY: number, 
         debug(`detect: cursor at (${cursorX},${cursorY}) region(${regionX},${regionY})\n${lines.join("\n")}`);
 
         // Scan right+down from cursor to find bottom-right border corner
-        // Pattern:   #37332e  #37332e   (above + left of corner)
-        //            #1e1916  #35322d   (slot interior + border corner)
         let bestX = -1, bestY = -1, bestDist = Infinity;
         for (let y = Math.max(3, cy); y < regionH - 2; y++) {
             for (let x = Math.max(3, cx); x < regionW - 2; x++) {
-                const i = (y * regionW + x) * 4;
-                const r = buf.data[i], g = buf.data[i + 1], b = buf.data[i + 2];
-                // Match #35322d (border corner)
-                if (distToColor(r, g, b, 53, 50, 45) > 8) continue;
-                // Verify NW = #1e1916 (slot interior)
-                const nw = ((y - 1) * regionW + (x - 1)) * 4;
-                if (distToColor(buf.data[nw], buf.data[nw + 1], buf.data[nw + 2], 30, 25, 22) > 8) continue;
-                // Verify above = #37332e
-                const ab = ((y - 1) * regionW + x) * 4;
-                if (distToColor(buf.data[ab], buf.data[ab + 1], buf.data[ab + 2], 55, 51, 46) > 8) continue;
-                // Verify left = #37332e
-                const le = (y * regionW + (x - 1)) * 4;
-                if (distToColor(buf.data[le], buf.data[le + 1], buf.data[le + 2], 55, 51, 46) > 8) continue;
-
+                if (!matchCorner(buf, x, y, regionW)) continue;
                 const d = (x - cx) + (y - cy);
                 if (d < bestDist) { bestDist = d; bestX = x; bestY = y; }
             }
@@ -150,29 +154,28 @@ export function detectSlotBounds(img: ImgRef, cursorX: number, cursorY: number, 
             return null;
         }
 
-        // bestX,bestY = bottom-right BORDER corner
-        // Slot interior runs from (bx-35) to bx-1 horizontally, (by-31) to by-1 vertically
-        const slotTopLeftX = regionX + bestX - 35;
-        const slotTopLeftY = regionY + bestY - 31;
+        // bestX,bestY = bottom-right BORDER corner (#35322d)
+        // Slot interior is 36×32. Bottom-right interior pixel = NW of border corner.
+        // Top-left interior = bestX - 36, bestY - 32
+        const slotTopLeftX = regionX + bestX - 36;
+        const slotTopLeftY = regionY + bestY - 32;
         debug(`detect: border corner at local (${bestX},${bestY}) → slot TL (${slotTopLeftX},${slotTopLeftY})`);
 
-        // Stride: scan right from bestX for next #35322d
+        // Stride: scan right from bestX for slot 2's BR corner (full 4-pixel pattern)
         let colStride = 42;
-        for (let x = bestX + 32; x < regionW - 2; x++) {
-            const i = (bestY * regionW + x) * 4;
-            if (distToColor(buf.data[i], buf.data[i + 1], buf.data[i + 2], 53, 50, 45) <= 8) {
+        for (let x = bestX + 30; x < regionW - 2; x++) {
+            if (matchCorner(buf, x, bestY, regionW)) {
                 colStride = x - bestX;
-                debug(`detect: colStride=${colStride}`);
+                debug(`detect: colStride=${colStride} (slot 2 BR at local ${x})`);
                 break;
             }
         }
 
         let rowStride = 38;
-        for (let y = bestY + 28; y < regionH - 2; y++) {
-            const i = (y * regionW + bestX) * 4;
-            if (distToColor(buf.data[i], buf.data[i + 1], buf.data[i + 2], 53, 50, 45) <= 8) {
+        for (let y = bestY + 26; y < regionH - 2; y++) {
+            if (matchCorner(buf, bestX, y, regionW)) {
                 rowStride = y - bestY;
-                debug(`detect: rowStride=${rowStride}`);
+                debug(`detect: rowStride=${rowStride} (row 2 slot 1 BR at local ${bestX},${y})`);
                 break;
             }
         }
