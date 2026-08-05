@@ -85,13 +85,13 @@ export function initOnLoad() {
                     log(`[init] validateAnchor returned: ${ok}`);
                     if (ok) {
                         log("Anchor valid — grid online.");
-                        showOverlay("Grid anchoring successful", a1lib.mixColor(255, 255, 0), 2000);
+                        showOverlay("Inventory calibrated", a1lib.mixColor(255, 255, 0), 2000);
                         drawDetectDebug(saved, false);
                         updateGridBoundary();
                         startPolling();
                     } else {
                         log("Anchor INVALID — cleared. Recapture.");
-                        showOverlay("Anchor not saved - Bad grid rejected", a1lib.mixColor(255, 60, 60), 2000);
+                        showOverlay("Calibration failed", a1lib.mixColor(255, 60, 60), 2000);
                         drawDetectDebug(saved, true);
                         Inventory.clearAnchor();
                     }
@@ -158,7 +158,7 @@ export function captureReference(): void {
     }
 
     refCountdownValue = 3;
-    showOverlay("Move mouse inside slot 1 — detecting in 3...", a1lib.mixColor(100, 200, 255), 5000);
+    showOverlay("Move mouse into slot 1 (3s)", a1lib.mixColor(100, 200, 255), 5000);
 
     refCountdown = setInterval(() => {
         refCountdownValue--;
@@ -176,14 +176,14 @@ function doCaptureRef(): void {
         const pos = a1lib.getMousePosition();
         if (!pos || pos.x <= 0) {
             log("No RS cursor — is RS the active window?");
-            showOverlay("Make RS the active window!", a1lib.mixColor(255, 80, 80), 3000);
+            showOverlay("RS Unfocused", a1lib.mixColor(255, 80, 80), 3000);
             return;
         }
 
         const img = captureFullRs();
         if (!img) {
             log("Capture failed — could not read RS screen.");
-            showOverlay("Failed — RS linked?", a1lib.mixColor(255, 80, 80), 3000);
+            showOverlay("RS Unlinked", a1lib.mixColor(255, 80, 80), 3000);
             return;
         }
 
@@ -193,7 +193,7 @@ function doCaptureRef(): void {
             updateScanStatus(`Detected at (${anc.x},${anc.y})`);
             log(`Grid found at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
             if (anc.centerMismatch) {
-                showOverlay("Anchor not saved - Bad grid rejected", a1lib.mixColor(255, 60, 60), 6000);
+                showOverlay("Calibration failed", a1lib.mixColor(255, 60, 60), 6000);
                 log("Grid rejected — center pixel mismatch. Recapture.");
                 Inventory.clearAnchor();
                 Inventory.clearOuterPerm();
@@ -206,7 +206,7 @@ function doCaptureRef(): void {
                 Inventory.captureOuterPerm(img, anc, (msg) => log("  [outer] " + msg));
                 // Capture empty slot data from slot 28 (assumed empty)
                 Inventory.captureEmptySlotData(img, anc, (msg) => log("  [empty] " + msg));
-                showOverlay("Grid anchoring successful", a1lib.mixColor(255, 255, 0), 3000);
+                showOverlay("Inventory calibrated", a1lib.mixColor(255, 255, 0), 3000);
                 drawDetectDebug(anc, false);
                 updateGridBoundary();
                 updateUI();
@@ -214,11 +214,11 @@ function doCaptureRef(): void {
             }
         } else {
             log("Detection failed. Is your mouse inside slot 1?");
-            showOverlay("Detection failed — mouse in slot?", a1lib.mixColor(255, 80, 80), 3000);
+            showOverlay("Calibration failed - Mouse in slot?", a1lib.mixColor(255, 80, 80), 3000);
         }
     } catch (e) {
         log("Capture error: " + e);
-        showOverlay("Error — check log", a1lib.mixColor(255, 80, 80), 3000);
+        showOverlay("Error", a1lib.mixColor(255, 80, 80), 3000);
     }
 }
 
