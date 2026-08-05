@@ -819,11 +819,10 @@ function refreshPickupGrid(): void {
     }
     if (ph) ph.style.display = "none";
     grid.innerHTML = recentPickups.map((p, i) =>
-        `<div class="pickup-card">
-            <img src="${p.imageUrl}" alt="pickup">
-            <div class="pickup-actions">
-                <button class="btn-unlock-sm" onclick="Bronzeman.unlockPickup(${i})">🔓</button>
-                <button class="btn-ignore-sm" onclick="void(0)">✕</button>
+        `<div class="pickup-card" onclick="Bronzeman.unlockPickup(${i})">
+            <button class="btn-item-menu-overlay" onclick="event.stopPropagation();void(0)">✕</button>
+            <div class="pickup-img-wrap">
+                <img src="${p.imageUrl}" alt="pickup">
             </div>
         </div>`
     ).join("");
