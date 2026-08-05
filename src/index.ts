@@ -500,7 +500,7 @@ function pollScanningMouse(): void {
         const captW = 250;
         const captH = 100;
         const captX = Math.max(0, sx - 50);
-        const captY = sy;
+        const captY = Math.max(0, sy + 16); // slot center
 
         const img = a1lib.captureHold(captX, captY, captW, captH);
         if (!img) { log("  Failed to capture."); return; }
@@ -517,7 +517,7 @@ function pollScanningMouse(): void {
                 cursorInCaptY = mpos.y - captY;
             }
         } catch { /* ignore */ }
-        if (cursorInCaptX < 0 || cursorInCaptY < 0) { log("  No cursor pos."); return; }
+        if (cursorInCaptX < 0) { log("  No cursor pos."); return; }
 
         // Search downward from cursor for 0f0e0c pixels with ±3 tolerance
         const R_MIN = 12, R_MAX = 18;
@@ -525,7 +525,8 @@ function pollScanningMouse(): void {
         const B_MIN = 9, B_MAX = 15;
 
         let foundX = -1, foundY = -1;
-        for (let py = cursorInCaptY; py < captH; py++) {
+        const searchStartY = Math.max(0, cursorInCaptY);
+        for (let py = searchStartY; py < captH; py++) {
             for (let px = 0; px < captW; px++) {
                 const i = (py * captW + px) * 4;
                 const r = data.data[i], g = data.data[i + 1], b = data.data[i + 2];
