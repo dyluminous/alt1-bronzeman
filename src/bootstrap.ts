@@ -1,5 +1,5 @@
 // bootstrap.ts — app initialisation after DOM is ready
-import { state, log } from "./core";
+import { state, log, LS_KEYS } from "./core";
 import { updateAlt1Status, updateAnchorDot, updateUI, applyDeveloperMode, applySearchSettings, setupSearchHandler } from "./ui/ui";
 import { initUnlockDB } from "./services/unlock/unlock-store";
 import { initRecentUnlocks, getRecentUnlocksLimit } from "./ui/unlock-recent";
@@ -18,6 +18,9 @@ export function initOnLoad(): void {
     applyDeveloperMode();
     applySearchSettings();
     setupSearchHandler();
+    // Sync the "Hide scanning notification" checkbox from localStorage on load.
+    const hideScanCb = document.getElementById("hide_scanning_notification") as HTMLInputElement | null;
+    if (hideScanCb) hideScanCb.checked = localStorage.getItem(LS_KEYS.hideScanningNotification) === "1";
     initUnlockDB().then(() => { updateUI(); initRecentUnlocks().catch(() => {}); });
     syncRecentUnlocksSpinner();
 

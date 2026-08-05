@@ -47,6 +47,7 @@ export const LS_KEYS = {
     developerMode: "Bronzeman/developerMode", // user setting: show the Developer tab + console logs (default off)
     searchHideUntradable: "Bronzeman/searchHideUntradable", // search: hide untradable items (default off)
     searchGroupSimilar: "Bronzeman/searchGroupSimilar", // search: group similar items (default off)
+    hideScanningNotification: "Bronzeman/hideScanningNotification", // user setting: hide "Scanning for inventory" notification (default off)
 } as const;
 
 // ============================================================

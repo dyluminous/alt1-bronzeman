@@ -19,7 +19,7 @@ import { initOnLoad } from "./bootstrap";
 // Bronzeman namespace — re-exports for HTML onclick handlers
 // ============================================================
 
-export { toggleAutoCapture, clearReference, stopAutoCapture, startAutoCapture } from "./services/inventory/inventory-capture";
+export { toggleAutoCapture, clearReference, stopAutoCapture, startAutoCapture, toggleHideScanningNotification } from "./services/inventory/inventory-capture";
 export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug, toggleGeDebugOverlays } from "./services/overlay/overlay-draw";
 export { diagnoseSlotScan, dumpSlotHash, debugCorners, ocrStackableDebug, readStackableQuantity } from "./services/inventory/inventory-scan";
 export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks, dumpItemHashes, getRecentRecords } from "./services/unlock/unlock-store";
