@@ -5,6 +5,12 @@ import type { BackpackAnchor } from "./inventory";
 export interface Point { x: number; y: number }
 
 export class InventorySlot {
+    /** Interior cell size (36×32) — the slot cell minus its 1px border. */
+    static readonly INTERIOR_W = 36;
+    static readonly INTERIOR_H = 32;
+    /** Corner labels in the same order as corners/cornerRefs. */
+    static readonly CORNER_NAMES = ["TL", "TR", "BL", "BR"] as const;
+
     readonly index: number;
     readonly col: number;
     readonly row: number;
@@ -31,6 +37,11 @@ export class InventorySlot {
     get cx(): number { return this.x + 19; }
     /** Center pixel of the slot cell. */
     get cy(): number { return this.y + 17; }
+
+    /** Top-left X of the interior cell (inside the 1px border). */
+    get interiorX(): number { return this.x + 1; }
+    /** Top-left Y of the interior cell (inside the 1px border). */
+    get interiorY(): number { return this.y + 1; }
 
     /** Top-left corner of the slot border. */
     get tl(): Point { return { x: this.x, y: this.y }; }

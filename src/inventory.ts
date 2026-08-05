@@ -1,5 +1,6 @@
 // inventory.ts — Inventory class: calibrated grid state + slot access.
 // Detection (fingerprints, grid measurement) lives in detect.ts.
+import * as a1lib from "alt1";
 import { InventorySlot } from "./inventory-slot";
 
 export interface BackpackAnchor {
@@ -85,6 +86,12 @@ export class Inventory {
         if (col < 0 || col >= anc.gridCols || row < 0 || row >= anc.gridRows) return null;
         const idx = row * anc.gridCols + col;
         return idx < this._slots.length ? idx : null;
+    }
+
+    /** The slot index under the RS cursor, or null when outside the grid. */
+    getHoveredSlotIndex(): number | null {
+        const m = a1lib.getMousePosition();
+        return m ? this.getSlotIndexAt(m.x, m.y) : null;
     }
 
     /** The adjacent slot indices — orthogonal (up/down/left/right) plus diagonals

@@ -7,7 +7,7 @@ import * as a1lib from "alt1";
 import { inventory } from "./inventory";
 import { captureFullRs, log, lightness } from "./core";
 import type { ImgRef } from "alt1/base";
-import type { InventorySlot } from "./inventory-slot";
+import { InventorySlot } from "./inventory-slot";
 
 const SCAN_MS = 500;
 /** Sentinel previousHash for an empty slot. */
@@ -24,26 +24,47 @@ let scanHandle: ReturnType<typeof setInterval> | null = null;
 let emptyRef: Uint8ClampedArray | null = null;
 
 // ============================================================
+// Low-level reads from a captured image
+// ============================================================
+
+/** Read one RGB pixel from an image, or null when unavailable. */
+function readPixel(img: ImgRef, x: number, y: number): [number, number, number] | null {
+    const d = img.toData(x, y, 1, 1);
+    return d ? [d.data[0], d.data[1], d.data[2]] : null;
+}
+
+/** Read a slot's interior (36×32, inside the 1px border) from an image, or null. */
+function readInterior(slot: InventorySlot, img: ImgRef): Uint8ClampedArray | null {
+    const d = img.toData(slot.interiorX, slot.interiorY, InventorySlot.INTERIOR_W, InventorySlot.INTERIOR_H);
+    return d ? d.data : null;
+}
+
+/** Average lightness of a slot's interior, or -1 when unreadable. */
+function interiorLightness(slot: InventorySlot, img: ImgRef): number {
+    const data = readInterior(slot, img);
+    if (!data) return -1;
+    let sum = 0, cnt = 0;
+    for (let i = 0; i < data.length; i += 4) {
+        sum += lightness(data[i], data[i + 1], data[i + 2]);
+        cnt++;
+    }
+    return cnt > 0 ? Math.round((sum / cnt) * 10) / 10 : -1;
+}
+
+// ============================================================
 // Baseline — fill cornerRefs from a fresh capture (once per calibrate)
 // ============================================================
 
 export function captureCornerRefs(img: ImgRef): void {
     for (const slot of inventory.slots) {
-        slot.cornerRefs = slot.corners.map(c => {
-            const d = img.toData(c.x, c.y, 1, 1);
-            return d ? [d.data[0], d.data[1], d.data[2]] : [0, 0, 0];
-        });
+        slot.cornerRefs = slot.corners.map(c => readPixel(img, c.x, c.y) ?? [0, 0, 0]);
         slot.previousHash = null;
     }
     // Slot 27 is assumed always-empty (user-verified) — store its raw interior
     // as the empty reference. Any slot matching it exactly is empty.
     const emptySlot = inventory.getSlot(27);
-    if (emptySlot) {
-        const d = img.toData(emptySlot.x + 1, emptySlot.y + 1, 36, 32);
-        emptyRef = d ? new Uint8ClampedArray(d.data) : null;
-    } else {
-        emptyRef = null;
-    }
+    const data = emptySlot ? readInterior(emptySlot, img) : null;
+    emptyRef = data ? new Uint8ClampedArray(data) : null;
 }
 
 // ============================================================
@@ -59,22 +80,21 @@ function cornerMatches(corner: [number, number, number], ref: [number, number, n
 function isCovered(slot: InventorySlot, img: ImgRef): boolean {
     if (slot.cornerRefs.length !== 4) return true;
     return slot.corners.some((c, i) => {
-        const d = img.toData(c.x, c.y, 1, 1);
-        if (!d) return true;
-        return !cornerMatches([d.data[0], d.data[1], d.data[2]], slot.cornerRefs[i]);
+        const live = readPixel(img, c.x, c.y);
+        return !live || !cornerMatches(live, slot.cornerRefs[i]);
     });
 }
 
 /** Number of interior pixels differing from the empty reference beyond tolerance. */
 function emptyMismatchCount(slot: InventorySlot, img: ImgRef): number {
     if (!emptyRef) return Infinity;
-    const d = img.toData(slot.x + 1, slot.y + 1, 36, 32);
-    if (!d) return Infinity;
+    const data = readInterior(slot, img);
+    if (!data) return Infinity;
     let mismatched = 0;
     for (let i = 0; i < emptyRef.length; i += 4) {
-        if (Math.abs(d.data[i] - emptyRef[i]) > EMPTY_TOL
-            || Math.abs(d.data[i + 1] - emptyRef[i + 1]) > EMPTY_TOL
-            || Math.abs(d.data[i + 2] - emptyRef[i + 2]) > EMPTY_TOL) {
+        if (Math.abs(data[i] - emptyRef[i]) > EMPTY_TOL
+            || Math.abs(data[i + 1] - emptyRef[i + 1]) > EMPTY_TOL
+            || Math.abs(data[i + 2] - emptyRef[i + 2]) > EMPTY_TOL) {
             mismatched++;
         }
     }
@@ -88,9 +108,9 @@ function isEmptySlot(slot: InventorySlot, img: ImgRef): boolean {
 
 /** 8×8 cells, 4-bit brightness → 64-char hex. */
 function hashInterior(slot: InventorySlot, img: ImgRef): string {
-    const W = 36, H = 32;
-    const d = img.toData(slot.x + 1, slot.y + 1, W, H);
-    if (!d) return "";
+    const data = readInterior(slot, img);
+    if (!data) return "";
+    const W = InventorySlot.INTERIOR_W, H = InventorySlot.INTERIOR_H;
     const cw = Math.max(1, Math.floor(W / 8));
     const ch = Math.max(1, Math.floor(H / 8));
     let h = "";
@@ -102,7 +122,7 @@ function hashInterior(slot: InventorySlot, img: ImgRef): string {
                     const px = cx * cw + dx, py = cy * ch + dy;
                     if (px >= W || py >= H) continue;
                     const i = (py * W + px) * 4;
-                    sum += d.data[i] * 0.299 + d.data[i + 1] * 0.587 + d.data[i + 2] * 0.114;
+                    sum += data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
                     cnt++;
                 }
             }
@@ -116,8 +136,7 @@ function hashInterior(slot: InventorySlot, img: ImgRef): string {
  *  cursor. Their previousHash is left untouched so no false change is recorded. */
 export function getObscuredSlotIndices(img: ImgRef): Set<number> {
     const obscured = new Set<number>();
-    const m = a1lib.getMousePosition();
-    const hovered = m ? inventory.getSlotIndexAt(m.x, m.y) : null;
+    const hovered = inventory.getHoveredSlotIndex();
     if (hovered !== null) {
         obscured.add(hovered);
         for (const a of inventory.getAdjacentSlotIndices(hovered)) obscured.add(a);
@@ -133,36 +152,21 @@ export function getObscuredSlotIndices(img: ImgRef): Set<number> {
 // ============================================================
 
 /** Why a slot is not being baselined right now — for diagnostics. */
-function skipReason(
-    slot: InventorySlot,
-    img: ImgRef,
-    obscured: Set<number>,
-): string {
+function skipReason(slot: InventorySlot, img: ImgRef, obscured: Set<number>): string {
     if (obscured.has(slot.index)) {
-        const names = ["TL", "TR", "BL", "BR"];
         const bad: string[] = [];
         slot.corners.forEach((c, i) => {
-            const d = img.toData(c.x, c.y, 1, 1);
-            const live = d ? [d.data[0], d.data[1], d.data[2]] as [number, number, number] : null;
+            const live = readPixel(img, c.x, c.y);
             const ref = slot.cornerRefs[i];
             const ok = !!live && !!ref && cornerMatches(live, ref);
             if (!ok) {
-                bad.push(`${names[i]} ref=(${ref?.join(",")}) live=(${live?.join(",") ?? "null"})`);
+                bad.push(`${InventorySlot.CORNER_NAMES[i]} ref=(${ref?.join(",")}) live=(${live?.join(",") ?? "null"})`);
             }
         });
         if (bad.length > 0) return "covered: " + bad.join(" ");
         return "excluded: cursor/adjacent";
     }
-    const d = img.toData(slot.x + 1, slot.y + 1, 36, 32);
-    let sum = 0, cnt = 0;
-    if (d) {
-        for (let i = 0; i < d.data.length; i += 4) {
-            sum += lightness(d.data[i], d.data[i + 1], d.data[i + 2]);
-            cnt++;
-        }
-    }
-    const avg = cnt > 0 ? Math.round((sum / cnt) * 10) / 10 : -1;
-    return `baseline-pending light=${avg} emptyMismatch=${emptyMismatchCount(slot, img)}`;
+    return `baseline-pending light=${interiorLightness(slot, img)} emptyMismatch=${emptyMismatchCount(slot, img)}`;
 }
 
 /** One-shot full report of every slot's scan state — call from console: Bronzeman.diagnoseSlotScan(). */
@@ -200,15 +204,13 @@ export function debugCorners(index: number): void {
     if (!slot) { log(`[diag] slot ${index} does not exist`); return; }
     const img = captureFullRs();
     if (!img) { log("[diag] capture failed"); return; }
-    const names = ["TL", "TR", "BL", "BR"];
     const refs = slot.cornerRefs;
     log(`[diag] slot ${index}: x=${slot.x} y=${slot.y} cornerRefsLen=${refs.length}`);
     slot.corners.forEach((c, i) => {
-        const d = img.toData(c.x, c.y, 1, 1);
-        const live = d ? [d.data[0], d.data[1], d.data[2]] as [number, number, number] : null;
+        const live = readPixel(img, c.x, c.y);
         const ref = refs[i];
         const ok = !!live && !!ref && cornerMatches(live, ref);
-        log(`[diag]   ${names[i]} (${c.x},${c.y}): ref=(${ref?.join(",")}) live=(${live?.join(",") ?? "null"}) ${ok ? "MATCH" : "COVERED"}`);
+        log(`[diag]   ${InventorySlot.CORNER_NAMES[i]} (${c.x},${c.y}): ref=(${ref?.join(",")}) live=(${live?.join(",") ?? "null"}) ${ok ? "MATCH" : "COVERED"}`);
     });
 }
 
