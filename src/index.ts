@@ -89,7 +89,17 @@ function setRecentUnlocksCount(value: string | number): void {
     setRecentUnlocksLimit(Number(value));
 }
 
-export { setRecentUnlocksCount };
+/** Step the recent-unlocks spinner by ±1 from its current value. */
+// @ts-ignore — called from HTML onclick
+function stepRecentUnlocksCount(delta: number): void {
+    const input = document.getElementById("recent_unlocks_count") as HTMLInputElement | null;
+    const current = Number(input?.value ?? getRecentUnlocksLimit());
+    const next = current + delta;
+    setRecentUnlocksCount(next);
+    if (input) input.value = String(Math.min(28, Math.max(0, Math.round(next))));
+}
+
+export { setRecentUnlocksCount, stepRecentUnlocksCount };
 
 // ============================================================
 // Bootstrap

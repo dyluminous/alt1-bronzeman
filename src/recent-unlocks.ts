@@ -60,7 +60,7 @@ export async function initRecentUnlocks(): Promise<void> {
     for (let i = 0; i < flat.length && entries.length < MAX_STORED; i++) {
         const { rec, entry: h } = flat[i];
         const qty = h.stackableQuantity;
-        const displayLabel = qty != null ? `${rec.name} (${qty})` : rec.name;
+        const displayLabel = qty != null ? `${rec.name} [${qty}]` : rec.name;
         const { url } = await resolveImageUrl(rec.name, qty);
         entries.push({ name: rec.name, imageUrl: url, displayLabel });
     }
@@ -106,7 +106,7 @@ function buildFilename(name: string, qtyTier?: number | null): string {
  *  on 404 strips a trailing parenthesised suffix (e.g. "(empty)") and retries
  *  once. Returns the resolved URL or empty string. */
 export async function resolveImageUrl(name: string, qtyTier?: number | null): Promise<{ url: string; displayLabel: string }> {
-    const label = qtyTier != null ? `${name} (${qtyTier})` : name;
+    const label = qtyTier != null ? `${name} [${qtyTier}]` : name;
     const filename = buildFilename(name, qtyTier);
     const url = imageUrlFor(filename);
     const ok = await probeUrl(url);

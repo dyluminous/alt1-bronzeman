@@ -314,7 +314,7 @@ function renderRecentUnlocks(): void {
                 <div style="width:36px;height:32px;display:flex;align-items:center;justify-content:center;">
                     ${img}
                 </div>
-                <div class="wiki-disambig-note" style="font-size:10px;line-height:1.1;word-break:break-word;text-align:center;">${escHtml(entry.displayLabel)}</div>
+                <div class="wiki-disambig-note" style="font-size:11px;line-height:1.1;word-break:break-word;text-align:center;color:var(--rs-gold);">${escHtml(entry.displayLabel)}</div>
             </div>`;
         }).join("") + `</div>`;
 }
