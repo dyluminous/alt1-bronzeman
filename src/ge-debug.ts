@@ -8,7 +8,7 @@ import { log } from "./core";
 import { getItemRecord } from "./data";
 import geItemUnlockedUrl from "./assets/images/ge_item_unlocked_button.png";
 import geItemNotUnlockedUrl from "./assets/images/ge_item_not_unlocked_button.png";
-import needleUrl from "./assets/images/sub/grand.png";
+import needleUrl from "./assets/images/ge_identifier.png";
 
 // ----------------------------------------------------------------
 // Toggle
@@ -30,6 +30,8 @@ export function toggleGeDebug(): void {
             alt1.overLayClearGroup("bronzeman_subimg");
         } catch (_) {}
     }
+    const btn = document.getElementById("ge_debug_btn");
+    if (btn) btn.textContent = geDebugActive ? "Disable GE overlay" : "Enable GE overlay";
 }
 
 // ----------------------------------------------------------------
@@ -109,8 +111,8 @@ async function geDebugTick(): Promise<void> {
                 alt1.overLayClearGroup("bronzeman_subimg");
                 return;
             }
-            _bx = matches[0].x - 48;
-            _by = matches[0].y - 22;
+            _bx = matches[0].x - 26;
+            _by = matches[0].y - 26;
             _geLocated = true;
         } else {
             // Locked: region-only capture
