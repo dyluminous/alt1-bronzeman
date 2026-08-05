@@ -142,7 +142,7 @@ export function captureReference(): void {
     if (!alt1.permissionPixel) { log("No pixel permission."); return; }
 
     refCountdownValue = 3;
-    showOverlay("Move RS mouse to TOP-LEFT corner of inventory slot 1 — capturing in 3...", a1lib.mixColor(100, 200, 255), 5000);
+    showOverlay("Move mouse inside slot 1 — detecting in 3...", a1lib.mixColor(100, 200, 255), 5000);
 
     refCountdown = setInterval(() => {
         refCountdownValue--;
@@ -150,23 +150,57 @@ export function captureReference(): void {
             if (refCountdown) { clearInterval(refCountdown); refCountdown = null; }
             doCaptureRef();
         } else {
-            showOverlay(`Move mouse to top-left of slot 1 — ${refCountdownValue}...`, a1lib.mixColor(100, 200, 255), 2000);
+            showOverlay(`Detecting in ${refCountdownValue}...`, a1lib.mixColor(100, 200, 255), 2000);
         }
     }, 1000);
 }
 
 function doCaptureRef(): void {
-    const ok = Inventory.captureAnchorAtCursor(a1lib);
-    if (ok) {
-        Inventory.resetHashes();
-        updateScanStatus("Reference captured!");
-        log("Reference image saved. findSubimage will locate slot 1, rest derived by stride detection.");
-        showOverlay("Reference saved! Scanning...", a1lib.mixColor(100, 255, 100), 2000);
-        doScan();
-    } else {
-        log("Capture failed. Make sure RS is active and mouse is over slot 1 corner.");
-        showOverlay("Failed — RS active? Mouse over slot?", a1lib.mixColor(255, 80, 80), 3000);
+    try {
+        const pos = a1lib.getMousePosition();
+        if (!pos || pos.x <= 0) {
+            log("No RS cursor — is RS the active window?");
+            showOverlay("Make RS the active window!", a1lib.mixColor(255, 80, 80), 3000);
+            return;
+        }
+
+        const img = captureFullRs();
+        if (!img) {
+            log("Capture failed — could not read RS screen.");
+            showOverlay("Failed — RS linked?", a1lib.mixColor(255, 80, 80), 3000);
+            return;
+        }
+
+        const anc = Inventory.detectSlotBounds(img, pos.x, pos.y, (msg) => log("  [detect] " + msg));
+        if (anc) {
+            Inventory.resetHashes();
+            updateScanStatus(`Detected at (${anc.x},${anc.y})`);
+            log(`Grid found at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride}`);
+            showOverlay("Grid found! Check the blue outline.", a1lib.mixColor(80, 200, 80), 3000);
+            drawDetectDebug(anc);
+            updateUI();
+            doScan();
+        } else {
+            log("Detection failed. Is your mouse inside slot 1?");
+            showOverlay("Detection failed — mouse in slot?", a1lib.mixColor(255, 80, 80), 3000);
+        }
+    } catch (e) {
+        log("Capture error: " + e);
+        showOverlay("Error — check log", a1lib.mixColor(255, 80, 80), 3000);
     }
+}
+
+/** Draw a single near-transparent blue rectangle on slot 1 for debugging the detection. */
+function drawDetectDebug(anc: Inventory.BackpackAnchor): void {
+    if (!inAlt1) return;
+    alt1.overLayClearGroup("bronzeman_detect");
+    alt1.overLaySetGroup("bronzeman_detect");
+    // Blue outline — shifted -1,-1 to sit on actual slot interior
+    alt1.overLayRect(a1lib.mixColor(8, 16, 26), anc.x - 1, anc.y - 1, 36, 32, 5000, 1);
+    // Yellow dot at bottom-right corner, shifted -1,-1
+    const brx = anc.x + 34;
+    const bry = anc.y + 30;
+    alt1.overLayRect(a1lib.mixColor(255, 255, 0), brx, bry, 1, 1, 5000, 1);
 }
 
 export function clearReference(): void {
@@ -239,7 +273,7 @@ function drawMoveGrid(): void {
         alt1.overLayClearGroup("bronzeman_move");
         alt1.overLaySetGroup("bronzeman_move");
         for (const s of slots) {
-            alt1.overLayRect(blue, s.x, s.y, s.w, s.h, time, 1);
+            alt1.overLayRect(blue, s.x, s.y, s.w, s.h, time, 3);
         }
     } catch { /* overlay can fail if RS loses focus */ }
 }
