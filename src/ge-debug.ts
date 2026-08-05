@@ -27,10 +27,12 @@ export function toggleGeDebug(): void {
         });
     } else {
         _geLocated = false;
+        _lastCursorX = -1;
         if (_handle) { clearInterval(_handle); _handle = null; }
         try {
             alt1.overLayClearGroup("bronzeman_ge");
             alt1.overLayClearGroup("bronzeman_subimg");
+            alt1.overLayClearGroup("bronzeman_searchbox");
         } catch (_) {}
     }
     const btn = document.getElementById("ge_debug_btn");
@@ -109,6 +111,8 @@ let _lastStar = false;
 let _lastDropdownSmall = false;
 let _lastItemName = "";
 
+let _lastCursorX = -1;   // for OCR gating — only OCR when cursor moves
+
 async function geDebugTick(): Promise<void> {
     if (!geDebugActive) return;
     try {
@@ -146,8 +150,10 @@ async function geDebugTick(): Promise<void> {
             _geLocated = false;
             _lastBuying = _lastStar = _lastDropdownSmall = false;
             _lastItemName = "";
+            _lastCursorX = -1;
             alt1.overLayClearGroup("bronzeman_ge");
             alt1.overLayClearGroup("bronzeman_subimg");
+            alt1.overLayClearGroup("bronzeman_searchbox");
             return;
         }
 
@@ -165,6 +171,7 @@ async function geDebugTick(): Promise<void> {
                 _lastStar = false;
                 _lastItemName = "";
                 _lastDropdownSmall = false;
+                _lastCursorX = -1;
                 alt1.overLayClearGroup("bronzeman_ge");
                 return;
             }
@@ -225,6 +232,52 @@ async function geDebugTick(): Promise<void> {
         // —————— steady-state redraw (keep overlay alive, no IndexedDB) ——————
         if (buying && star && dropdownSmall && _lastItemName) {
             drawGeIcon(_lastItemName);
+        }
+
+        // —————— search box text ——————
+        // Only active when the GE search dropdown is LARGE (dropdownSmall=false).
+        //
+        // The GE search box background is #1b1d1d. When the user types,
+        // this background changes. Pixels (52,225) and (53,225) are sampled
+        // as probes — if either differs from #1b1d1d, text is present.
+        //
+        // To find the typed text we locate the typing cursor, which is either
+        // white (#ffffff, normal) or red (#ff0000, character limit reached).
+        // The cursor sits on a 1px-tall scan-line at y=217 between x=49 and
+        // x=217. We walk left → right; the first bright pixel marks the cursor.
+        //
+        //   • cursor at (49,217)  →  box focused but empty — skip
+        //   • cursor found at x>49 →  OCR box = (49,217) × (x−49, 16)
+        //   • no cursor found      →  do nothing
+        //
+        // OCR text colour is #f5f5f5 (off-white), chatbox 14pt font.
+        if (!dropdownSmall) {
+            const sb1 = img.read(ox + 52, oy + 225, 1, 1);
+            const sb2 = img.read(ox + 53, oy + 225, 1, 1);
+            const isBg = (d: Uint8ClampedArray) => d[0] === 0x1b && d[1] === 0x1d && d[2] === 0x1d;
+            const hasText = (sb1 && !isBg(sb1.data)) || (sb2 && !isBg(sb2.data));
+            if (hasText) {
+                let cursorX = -1;
+                for (let sx = 49; sx <= 217; sx++) {
+                    const cp = img.read(ox + sx, oy + 217, 1, 1);
+                    if (cp && ((cp.data[0] === 0xff && cp.data[1] === 0xff && cp.data[2] === 0xff) ||
+                               (cp.data[0] === 0xff && cp.data[1] === 0x00 && cp.data[2] === 0x00))) {
+                        cursorX = sx;
+                        break;
+                    }
+                }
+                if (cursorX >= 0 && cursorX > 49) {
+                    const ocrW = cursorX - 49;
+                    alt1.overLaySetGroup("bronzeman_searchbox");
+                    alt1.overLayRect(a1lib.mixColor(255, 255, 0), _bx + 49, _by + 217, ocrW, 16, dur, 1);
+                    if (cursorX !== _lastCursorX) {
+                        _lastCursorX = cursorX;
+                        // TODO: OCR the item name from the search box
+                    }
+                } else {
+                    _lastCursorX = -1;
+                }
+            }
         }
     } catch (_) {}
 }
