@@ -20,8 +20,11 @@ export function drawDetectDebug(anc: BackpackAnchor, isError: boolean = false): 
     const yellow = isError ? a1lib.mixColor(255, 60, 60) : a1lib.mixColor(255, 255, 0);
     // Pixels the anchor-watch monitors — we must not paint over them or the
     // watch's reference colors get polluted by the overlay (Alt1 captures
-    // include overlays), which would trigger a recalibrate loop.
+    // include overlays), which would trigger a recalibrate loop. Also skip the
+    // TL of the first slot (index 0).
     const watch = new Set(getAnchorWatchPoints().map(p => `${p.x},${p.y}`));
+    const first = new InventorySlot(anc, anc.gridCols!, 0);
+    watch.add(`${first.tl.x},${first.tl.y}`);
     const skip = (p: { x: number; y: number }): boolean => watch.has(`${p.x},${p.y}`);
     const rows = anc.gridRows!;
     const cols = anc.gridCols!;
