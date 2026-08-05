@@ -292,6 +292,8 @@ const NON_UNLOCKED_DOT_GROUP = "bronzeman_nonunlock";
 
 let nonUnlockedDotTimer: ReturnType<typeof setInterval> | null = null;
 let nonUnlockedDotEncoded: string | null = null;
+/** The slots we've already drawn — redraw is skipped when nothing changed. */
+let drawnNonUnlockedSlots: Set<number> = new Set();
 
 /** Hover‑to‑animation: which slot's gold dot is being hovered. */
 let hoveredDotSlot: number | null = null;
@@ -372,13 +374,6 @@ function startHoverFlow(slotIndex: number): void {
 function drawNonUnlockedDots(): void {
     if (!state.inAlt1 || !inventory.isCalibrated || !nonUnlockedDotEncoded) return;
     const indices = getNonUnlockedSlotIndices();
-    alt1.overLaySetGroup(NON_UNLOCKED_DOT_GROUP);
-    alt1.overLayClearGroup(NON_UNLOCKED_DOT_GROUP);
-    indices.forEach(idx => {
-        const slot = inventory.getSlot(idx);
-        if (!slot) return;
-        alt1.overLayImage(slot.x + SLOT_DOT_X, slot.y + SLOT_DOT_Y, nonUnlockedDotEncoded, SLOT_DOT_W, SLOT_DOT_DURATION_MS);
-    });
 
     // Hover detection over the gold dots. The animation is NOT stopped when the
     // mouse leaves — it runs until the wiki pipeline resolves or is abandoned.
@@ -404,6 +399,22 @@ function drawNonUnlockedDots(): void {
     if (hoveredDotSlot !== null && !hoverResolved && !queryBusy && !disambigOpen && hoverAnimation === null) {
         startHoverFlow(hoveredDotSlot);
     }
+
+    // Redraw with a fresh duration every tick so dots never expire mid-frame
+    // (no clear on steady state = no flicker). Only clear when the set changed,
+    // so removed slots' dots vanish promptly.
+    const same = indices.size === drawnNonUnlockedSlots.size
+        && Array.from(indices).every(i => drawnNonUnlockedSlots.has(i));
+    alt1.overLaySetGroup(NON_UNLOCKED_DOT_GROUP);
+    if (!same) {
+        alt1.overLayClearGroup(NON_UNLOCKED_DOT_GROUP);
+        drawnNonUnlockedSlots = new Set(indices);
+    }
+    indices.forEach(idx => {
+        const slot = inventory.getSlot(idx);
+        if (!slot) return;
+        alt1.overLayImage(slot.x + SLOT_DOT_X, slot.y + SLOT_DOT_Y, nonUnlockedDotEncoded, SLOT_DOT_W, SLOT_DOT_DURATION_MS);
+    });
 }
 
 export function startNonUnlockedDotRefresh(): void {
@@ -418,6 +429,7 @@ export function startNonUnlockedDotRefresh(): void {
 export function stopNonUnlockedDotRefresh(): void {
     if (nonUnlockedDotTimer) { clearInterval(nonUnlockedDotTimer); nonUnlockedDotTimer = null; }
     nonUnlockedDotEncoded = null;
+    drawnNonUnlockedSlots = new Set();
     hoveredDotSlot = null;
     hoverResolved = false;
     queryBusy = false;
