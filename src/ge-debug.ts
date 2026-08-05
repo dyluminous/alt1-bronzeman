@@ -29,6 +29,35 @@ export function initGeDetection(): void {
     });
 }
 
+export function stopGeDetection(): void {
+    if (_handle) { clearInterval(_handle); _handle = null; }
+    if (_geLocated) {
+        _geLocated = false;
+        _geStateHook?.();
+    }
+    _lastBuying = _lastStar = _lastDropdownSmall = false;
+    _lastItemName = "";
+    _lastCursorX = -1;
+    _lastOcrW = -1;
+    try {
+        alt1.overLayClearGroup("bronzeman_ge");
+        alt1.overLayClearGroup("bronzeman_subimg");
+        alt1.overLayClearGroup("bronzeman_searchbox");
+    } catch (_) {}
+}
+
+/** Whether the GE interface is currently detected as open. */
+export function geIsOpen(): boolean {
+    return _geLocated;
+}
+
+/** Called whenever the GE open/closed state transitions — lets the UI
+ *  (status dot) react without creating an import cycle. */
+let _geStateHook: (() => void) | null = null;
+export function setGeStateHook(hook: (() => void) | null): void {
+    _geStateHook = hook;
+}
+
 export function toggleGeDebugOverlays(): void {
     geDebugOverlays = !geDebugOverlays;
     if (!geDebugOverlays) {
@@ -150,6 +179,7 @@ async function geDebugTick(): Promise<void> {
             _bx = matches[0].x - 26;
             _by = matches[0].y - 26;
             _geLocated = true;
+            _geStateHook?.();
             _lastBuying = _lastStar = _lastDropdownSmall = false;
             _lastItemName = "";
         } else {
@@ -166,6 +196,7 @@ async function geDebugTick(): Promise<void> {
         const cp = img.read(ox + 35, oy + 31, 1, 1);
         if (!cp || cp.data[0] !== GE_SCALES_GEM_IDENTIFIER[0] || cp.data[1] !== GE_SCALES_GEM_IDENTIFIER[1] || cp.data[2] !== GE_SCALES_GEM_IDENTIFIER[2]) {
             _geLocated = false;
+            _geStateHook?.();
             _lastBuying = _lastStar = _lastDropdownSmall = false;
             _lastItemName = "";
             _lastCursorX = -1;

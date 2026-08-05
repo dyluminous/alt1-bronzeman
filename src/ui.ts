@@ -7,6 +7,7 @@ import { hashToPngDataUrl } from "./data";
 import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks, setRecentUnlocksLimit } from "./recent-unlocks";
 import { showModal } from "./modal";
 import { getObscuredSlotIndices } from "./slot-scan";
+import { geIsOpen } from "./ge-debug";
 import type { DisambiguationOption } from "./wiki";
 import type { SearchEntry } from "./data";
 import { BUILD_NUM } from "./version";
@@ -226,9 +227,17 @@ export function updateAlt1Status(): void {
 // Anchor dot + warning
 // ============================================================
 
-function updateAnchorDot(): void {
+/** Re-render the gold/magenta anchor status dot (called from updateUI and the
+ *  GE state hook — GE open flips it to magenta). */
+export function updateAnchorDot(): void {
     const el = document.getElementById("anchor_dot");
     if (!el) return;
+    // GE open → magenta (inventory is hidden behind the GE interface);
+    // anchor set → gold; otherwise hidden.
+    if (geIsOpen()) {
+        el.className = "anchor-dot magenta";
+        return;
+    }
     const anc = inventory.anchor;
     el.className = anc ? "anchor-dot" : "anchor-dot hidden";
 }
