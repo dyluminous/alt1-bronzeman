@@ -22,7 +22,7 @@ export class InventorySlot {
 
     /** Noted-item mark pixel (border-relative): #95865e at (12,1) beside a
      *  #000002 shadow pixel at (13,1). Both must match. */
-    private static readonly NOTED_MARK: [number, number, number] = [0x95, 0x86, 0x5e];
+    private static readonly NOTED_MARK = [0x95, 0x86, 0x5e] as const;
     private static readonly NOTED_MARK_X = 12;
     private static readonly NOTED_MARK_Y = 1;
     private static readonly NOTED_SHADOW_X = 13;
@@ -30,7 +30,7 @@ export class InventorySlot {
     /** Drag-indicator pixels (interior-relative, 36×32 interior): while the
      *  player is dragging an item, #f0be79 renders at (33,0) and (33,31) — the
      *  top and bottom of the right-edge indicator line. Both must match. */
-    private static readonly DRAG_MARK: [number, number, number] = [0xf0, 0xbe, 0x79];
+    private static readonly DRAG_MARK = [0xf0, 0xbe, 0x79] as const;
     private static readonly DRAG_MARK_X = 33;
     private static readonly DRAG_MARK_TOP_Y = 0;
     private static readonly DRAG_MARK_BOTTOM_Y = 31;
@@ -43,12 +43,12 @@ export class InventorySlot {
     /** Stack-quantity digit colors, by magnitude:
      *  ≤99999 → yellow #ffff00; ≥100k → white #ffffff (xxxK);
      *  ≥1M → green #1eff00 (xxxM); ≥1B → blue #6698ff (xxxB). */
-    static readonly STACK_DIGIT_COLORS: readonly (readonly [number, number, number])[] = [
+    static readonly STACK_DIGIT_COLORS = [
         [0xff, 0xff, 0x00],
         [0xff, 0xff, 0xff],
         [0x1e, 0xff, 0x00],
         [0x66, 0x98, 0xff],
-    ];
+    ] as const;
 
     /** Magnitude multiplier per STACK_DIGIT_COLORS entry. The screen shows
      *  truncated text ("105K" for 105000); OCR only reads the digits, so the

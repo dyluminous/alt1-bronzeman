@@ -1,4 +1,4 @@
-// manual-unlock.ts — user picks an inventory slot, hovers to OCR the tooltip,
+// unlock-manual.ts — user picks an inventory slot, hovers to OCR the tooltip,
 // queries the wiki, and adds the item to the unlock DB. Activated from the
 // Settings tab's "Manual item unlock" button.
 import { inventory } from "../classes/inventory";

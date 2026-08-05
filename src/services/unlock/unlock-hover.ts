@@ -1,4 +1,4 @@
-// dot-hover.ts — the gold-dot refresh + hover-to-unlock pipeline.
+// unlock-hover.ts — the gold-dot refresh + hover-to-unlock pipeline.
 // Every non-unlocked slot gets a gold dot (kept alive by redraw); hovering a
 // dot runs the slot loading animation while the tooltip name is OCR'd and the
 // wiki is queried for tradeability; success stores the unlock and the dot

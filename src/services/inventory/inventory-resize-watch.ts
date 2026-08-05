@@ -1,4 +1,4 @@
-// anchor-watch.ts — watches border pixels spread across the inventory grid.
+// inventory-resize-watch.ts — watches border pixels spread across the inventory grid.
 // When the grid is resized/moved, at least one watched pixel changes; once the
 // new values hold stable for a few ticks (resize settled), the callback fires.
 // Reference colors are kept in memory only (no localStorage).
@@ -30,7 +30,7 @@ let stableCount = 0;
 const STABLE_TICKS = 3; // ~1.5s
 /** Tooltip background colour (#0F0E0C). When a watched pixel matches this,
  *  it's a tooltip covering the corner, not a resize — ignore it. */
-const TOOLTIP_BG: [number, number, number] = [0x0F, 0x0E, 0x0C];
+const TOOLTIP_BG = [0x0F, 0x0E, 0x0C] as const;
 export function startAnchorWatch(onChange: () => void, onTick?: () => void): void {
     stopAnchorWatch();
     const slots = inventory.slots;

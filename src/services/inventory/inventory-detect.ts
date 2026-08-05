@@ -1,4 +1,4 @@
-// detect.ts — pure inventory grid detection. No state; feeds the Inventory class.
+// inventory-detect.ts — pure inventory grid detection. No state; feeds the Inventory class.
 import { ImgRef } from "alt1/base";
 import type { BackpackAnchor, FingerprintHit } from "../../types";
 import { lightness } from "../../core";
@@ -47,7 +47,7 @@ function findSlotByFingerprint(img: ImgRef): FingerprintHit | null {
                 }
             }
         }
-    } catch (e) { /* pass */ }
+    } catch { /* pass */ }
     return null;
 }
 
@@ -81,7 +81,7 @@ function measureGapToSlot2(
                 gapCount++;
             }
         }
-    } catch (e) { /* pass */ }
+    } catch { /* pass */ }
     return null;
 }
 

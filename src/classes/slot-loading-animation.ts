@@ -1,4 +1,4 @@
-// slot-animation.ts — gold comet-ring animation tracing an inventory slot border.
+// slot-loading-animation.ts — gold comet-ring animation tracing an inventory slot border.
 // A head draws along the border leaving a fading trail; a second comet launches
 // half a lap behind the first so the two circle the slot together.
 import { InventorySlot } from "./inventory-slot";

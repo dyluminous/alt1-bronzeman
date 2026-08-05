@@ -1,4 +1,4 @@
-// tooltip-read.ts — RS tooltip border scan + OCR for item names
+// tooltip-scanner.ts — RS tooltip border scan + OCR for item names
 import * as a1lib from "alt1";
 import type { ImgRef } from "alt1";
 import * as OCR from "alt1/ocr";
@@ -6,6 +6,7 @@ import { captureFullRs, log } from "../../core";
 import type { TooltipHit, TooltipRun, TooltipVerticalRun, TooltipMeasure } from "../../types";
 import { RS_GOLD, RS_GREEN, OVERLAY_MAGENTA } from "../../utils/colors";
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const tooltipFont = require("alt1/fonts/chatbox/14pt");
 
 // Patch the font: the 'l' glyph's AA pixel at (2,3) expects the dark tooltip
@@ -30,17 +31,17 @@ if (lGlyph) {
 
 /** Tooltip border outer edge colour (#2E251A). Also the first entry in
  *  BORDER_GRADIENT — both must agree. */
-const TOOLTIP_BORDER_OUTER: [number, number, number] = [0x2e, 0x25, 0x1a];
+const TOOLTIP_BORDER_OUTER = [0x2e, 0x25, 0x1a] as const;
 /** The tooltip border is a 4-pixel gradient, outer → inner:
  *  #2e251a, #665a3a, #59482e, #33281d (verified against tooltip_example.png).
  *  A lone #2e251a pixel could be any UI element — only the full sequence
  *  proves we're on the tooltip border. */
-const BORDER_GRADIENT: readonly (readonly [number, number, number])[] = [
+const BORDER_GRADIENT = [
     [0x2e, 0x25, 0x1a],
     [0x66, 0x5a, 0x3a],
     [0x59, 0x48, 0x2e],
     [0x33, 0x28, 0x1d],
-];
+] as const;
 /** Per-channel tolerance for the inner border pixels — the gold frame rows
  *  have anti-aliased shade variants (#695d3d, #6d6141, #706444) at gap
  *  positions. The outer #2e251a edge stays exact. */

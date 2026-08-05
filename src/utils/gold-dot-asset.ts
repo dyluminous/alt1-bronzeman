@@ -1,4 +1,4 @@
-// gold-dot.ts — shared gold-dot overlay asset + draw position.
+// gold-dot-asset.ts — shared gold-dot overlay asset + draw position.
 // Used by both the slot-27 debug dot (overlay.ts) and the non-unlocked dot
 // refresh (dot-hover.ts), so the encoded asset and position live here once.
 import * as a1lib from "alt1";

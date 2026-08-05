@@ -1,4 +1,4 @@
-// slot-scan.ts — monitors inventory slot contents for changes.
+// inventory-scan.ts — monitors inventory slot contents for changes.
 // Each tick: one region capture; per slot, the 4 border corners must still match
 // their calibration refs (else a tooltip/menu is covering it) and the slot must
 // not be under or adjacent to the cursor. Clean slots are hashed and compared
@@ -212,7 +212,7 @@ class SlotScanner {
         try {
             covered = this.getCoveredSlotIndices(img);
             coveredForDots = this.getCoveredForDots(img);
-        } catch (_) {
+        } catch {
             return;
         }
 

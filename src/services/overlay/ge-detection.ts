@@ -4,7 +4,9 @@ import * as a1lib from "alt1";
 import { findSubimage, imageDataFromUrl, ImgRefBind } from "alt1/base";
 import type { ImgRef } from "alt1/base";
 import * as OCR from "alt1/ocr";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const tooltipFont = require("alt1/fonts/chatbox/14pt");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const geSearchFont = require("alt1/fonts/chatbox/12pt");
 import { log, captureFullRs, geSuppressGroup } from "../../core";
 import { isNameUnlocked } from "../unlock/unlock-store";
@@ -43,7 +45,7 @@ export function stopGeDetection(): void {
         alt1.overLayClearGroup("bronzeman_ge");
         alt1.overLayClearGroup("bronzeman_subimg");
         alt1.overLayClearGroup("bronzeman_searchbox");
-    } catch (_) {}
+    } catch {}
 }
 
 /** Whether the GE interface is currently detected as open. */
@@ -64,7 +66,7 @@ export function toggleGeDebugOverlays(): void {
         try {
             alt1.overLayClearGroup("bronzeman_subimg");
             alt1.overLayClearGroup("bronzeman_searchbox");
-        } catch (_) {}
+        } catch {}
     }
 }
 
@@ -274,7 +276,7 @@ async function geDebugTick(): Promise<void> {
                             drawGeIcon(name);
                         }
                     }
-                } catch (_) {}
+                } catch {}
             }
         }
 
@@ -296,7 +298,7 @@ async function geDebugTick(): Promise<void> {
         }
 
         if (!dropdownSmall) processSearchBox(img, ox, oy, dur);
-    } catch (_) {}
+    } catch {}
 }
 
 // ----------------------------------------------------------------
@@ -361,7 +363,7 @@ function processSearchBox(img: ImgRef, ox: number, oy: number, dur: number): voi
                             if (si) si.dispatchEvent(new Event("input", { bubbles: true }));
                         }
                     }
-                } catch (_) {}
+                } catch {}
             }
         }
     } else {

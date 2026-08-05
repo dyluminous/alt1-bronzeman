@@ -1,4 +1,4 @@
-// overlay.ts — RS overlay drawing for Bronzeman Mode
+// overlay-draw.ts — RS overlay drawing for Bronzeman Mode
 import { inventory } from "../../classes/inventory";
 import * as Detect from "../inventory/inventory-detect";
 import { Inventory } from "../../classes/inventory";

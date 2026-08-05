@@ -1,4 +1,4 @@
-// capture.ts — inventory capture lifecycle for Bronzeman Mode
+// inventory-capture.ts — inventory capture lifecycle for Bronzeman Mode
 import * as Detect from "./inventory-detect";
 import { inventory } from "../../classes/inventory";
 import { state, captureFullRs, showNotification, NotificationHandle, log } from "../../core";

@@ -1,4 +1,4 @@
-// backup.ts — backup/restore the unlock DB to/from a gzipped JSON file,
+// unlock-backup.ts — backup/restore the unlock DB to/from a gzipped JSON file,
 // plus the full-screen loading overlay shown while a restore runs.
 import { log, showNotification } from "../../core";
 import { exportUnlockData, importUnlockData } from "./unlock-store";

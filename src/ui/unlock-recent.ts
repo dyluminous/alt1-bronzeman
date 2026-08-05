@@ -1,4 +1,4 @@
-// recent-unlocks.ts — ring buffer of recently unlocked items, persisted via
+// unlock-recent.ts — ring buffer of recently unlocked items, persisted via
 // IndexedDB and rehydrated on boot. Images are resolved from the wiki CDN.
 // The number of items shown is user-configurable (0-28, persisted in
 // localStorage); the buffer always keeps up to the max so raising the setting

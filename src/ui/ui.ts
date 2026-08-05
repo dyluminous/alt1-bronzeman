@@ -626,13 +626,13 @@ function moveRecentUnlockTooltip(e: MouseEvent): void {
 // Spinner helpers — called from HTML onclick
 // ============================================================
 
-// @ts-ignore — called from HTML onchange
+// Called from HTML onchange
 export function setRecentUnlocksCount(value: string | number): void {
     setRecentUnlocksLimit(Number(value));
 }
 
 /** Step the recent-unlocks spinner by ±1 from its current value. */
-// @ts-ignore — called from HTML onclick
+// Called from HTML onclick
 export function stepRecentUnlocksCount(delta: number): void {
     const input = document.getElementById("recent_unlocks_count") as HTMLInputElement | null;
     const current = Number(input?.value ?? getRecentUnlocksLimit());
@@ -642,7 +642,7 @@ export function stepRecentUnlocksCount(delta: number): void {
 }
 
 /** Step the manual-unlock slot spinner by ±1 from its current value. */
-// @ts-ignore — called from HTML onclick
+// Called from HTML onclick
 export function stepManualUnlockSlot(delta: number): void {
     stepSpinner("manual_unlock_slot_input", delta, 1, 28);
 }
