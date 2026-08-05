@@ -106,6 +106,12 @@
         text-shadow: 0 1px 1px var(--rs-text-shadow);
         cursor: pointer;
     }
+    /* Hover — the border ring lights up rs-gold (fill layer stays the same) */
+    .btn-primary:hover {
+        background-image:
+        linear-gradient(to bottom, #3b3835 0px, #3b3835 2px, #302d2b 6px, #302d2b calc(100% - 4px), #2e2a28 calc(100% - 1px), #2e2a28 100%),
+        linear-gradient(135deg, var(--rs-gold), var(--rs-gold));
+    }
     /* Disabled state — used while Restore is in flight (and the preview button) */
     .btn-primary.disabled, .btn-primary:disabled {
         opacity: 0.45;
