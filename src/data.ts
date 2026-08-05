@@ -2,13 +2,20 @@
 import { state, LS_KEYS, log, showNotification } from "./core";
 import { lowerHalfOf } from "./hash";
 
-/** One item record in the unlock IndexedDB stores. */
+/** Per-hash metadata stored alongside each variant. */
+export interface HashEntry {
+    hash: string;
+    stackableQuantity: number | null;
+    /** Timestamp when this hash variant was unlocked. */
+    addedOn: number;
+}
+
 export interface UnlockedItemRecord {
     name: string;
     tradeable: boolean;
-    /** Every known interior hash for this item (stackables can have several). */
-    hashes: string[];
-    unlockedAt: number;
+    hashes: HashEntry[];
+    /** Timestamp bumped every time a hash is added to this record. */
+    lastUpdatedOn: number;
 }
 
 // ============================================================
@@ -124,22 +131,22 @@ class UnlockStore {
                     const legacy: string[] = JSON.parse(rawHashes);
                     if (legacy.length > 0) {
                         const existing = new Set<string>();
-                        for (const r of [...tradable, ...untradable]) for (const h of r.hashes) existing.add(h);
+                        for (const r of [...tradable, ...untradable]) for (const h of r.hashes) existing.add(h.hash);
                         const fresh = legacy.filter(h => !existing.has(h));
                         if (fresh.length > 0) {
                             const rec: UnlockedItemRecord = {
                                 name: "(unknown)",
                                 tradeable: true,
-                                hashes: fresh,
-                                unlockedAt: Date.now(),
+                                hashes: fresh.map(hash => ({ hash, stackableQuantity: null, addedOn: Date.now() })),
+                                lastUpdatedOn: Date.now(),
                             };
                             await this.put(STORE_TRADABLE, rec);
                             // Feed the migrated hashes into the in-memory Sets
                             // too, so they're live on this very boot (the
                             // records array below was read before the put).
-                            for (const h of fresh) {
-                                this.hashes.add(h);
-                                this.lowerHalfIndex.set(lowerHalfOf(h), rec.name);
+                            for (const h of rec.hashes) {
+                                this.hashes.add(h.hash);
+                                this.lowerHalfIndex.set(lowerHalfOf(h.hash), rec.name);
                             }
                             this.names.add(rec.name);
                             log(`Migrated ${fresh.length} legacy hashes to IndexedDB.`);
@@ -152,13 +159,13 @@ class UnlockStore {
             }
 
             for (const r of [...tradable, ...untradable]) {
-                for (const h of r.hashes) this.hashes.add(h);
+                for (const h of r.hashes) this.hashes.add(h.hash);
                 this.names.add(r.name);
                 // Index the quantity-invariant lower-half slice of every hash.
                 // The scan tick only consults this for yellow-detected
                 // stackable slots, so no flag filter is needed — non-stackables
                 // never reach it.
-                for (const h of r.hashes) this.lowerHalfIndex.set(lowerHalfOf(h), r.name);
+                for (const h of r.hashes) this.lowerHalfIndex.set(lowerHalfOf(h.hash), r.name);
             }
             log(`Unlock DB ready: ${tradable.length} tradable, ${untradable.length} untradable, ${this.hashes.size} hashes.`);
         } catch (e) {
@@ -177,7 +184,7 @@ class UnlockStore {
      *  stackable quantity variants share one record. Idempotent by name — a
      *  name already in the DB appends silently (no notification), only
      *  genuinely new names notify. */
-    add(name: string, tradeable: boolean, hash: string): void {
+    add(name: string, tradeable: boolean, hash: string, stackableQuantity: number | null = null): void {
         const store = this.storeName(tradeable ? "tradable" : "untradable");
         if (this.hashes.has(hash)) {
             log(`Hash already unlocked for "${name}" — skipped.`);
@@ -185,6 +192,7 @@ class UnlockStore {
         }
         this.hashes.add(hash);
         this.lowerHalfIndex.set(lowerHalfOf(hash), name);
+        const entry: HashEntry = { hash, stackableQuantity, addedOn: Date.now() };
         const isNewName = !this.names.has(name);
         if (isNewName) this.names.add(name);
 
@@ -195,11 +203,12 @@ class UnlockStore {
             if (!this.ready) return;
             const existing = (await this.getAll(store)).find(r => r.name === name);
             if (existing) {
-                if (!existing.hashes.includes(hash)) existing.hashes.push(hash);
+                if (!existing.hashes.some(h => h.hash === hash)) existing.hashes.push(entry);
+                existing.lastUpdatedOn = Date.now();
                 await this.put(store, existing);
             } else {
                 const rec: UnlockedItemRecord = {
-                    name, tradeable, hashes: [hash], unlockedAt: Date.now(),
+                    name, tradeable, hashes: [entry], lastUpdatedOn: Date.now(),
                 };
                 await this.put(store, rec);
             }
@@ -256,7 +265,7 @@ class UnlockStore {
                 return;
             }
             console.log(`[diag] "${rec.name}" hashes (${rec.hashes.length}):`);
-            rec.hashes.forEach((h, i) => console.log(`  [${i}] ${h}`));
+            rec.hashes.forEach((h, i) => console.log(`  [${i}] ${h.hash} qty=${h.stackableQuantity ?? "-"} added=${new Date(h.addedOn).toISOString()}`));
         } catch (e) {
             log(`[diag] dump error: ${e}`);
         }
@@ -285,7 +294,7 @@ const unlockStore = new UnlockStore();
 
 export const initUnlockDB = (): Promise<void> => unlockStore.init();
 export const getItemRecord = (store: string, name: string): Promise<UnlockedItemRecord | undefined> => unlockStore.getRecord(store, name);
-export const addUnlockedItem = (name: string, tradeable: boolean, hash: string): void => unlockStore.add(name, tradeable, hash);
+export const addUnlockedItem = (name: string, tradeable: boolean, hash: string, stackableQuantity: number | null = null): void => unlockStore.add(name, tradeable, hash, stackableQuantity);
 export const isHashUnlocked = (hash: string): boolean => unlockStore.isHashUnlocked(hash);
 export const isLowerHalfUnlocked = (lowerHalf: string): boolean => unlockStore.isLowerHalfUnlocked(lowerHalf);
 export const dumpTradableUnlocks = (): Promise<void> => unlockStore.dumpTradable();
