@@ -33,6 +33,7 @@ export const LS_KEYS = {
     unlockedItems: LS_PREFIX + "unlockedItems",
     unlockedItemData: LS_PREFIX + "unlockedItemData",
     scanHistory: LS_PREFIX + "scanHistory",
+    ignores: LS_PREFIX + "ignores",
 } as const;
 
 export const POLL_INTERVAL_MS = 1000;
@@ -50,6 +51,7 @@ export const state = {
     // Which slots had items on the previous scan (by slot index)
     prevOccupied: new Set<number>(),
     calibrating: false,
+    debugLogIgnores: false,
 };
 
 // ============================================================

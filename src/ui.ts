@@ -2,7 +2,7 @@
 import * as a1lib from "alt1";
 import * as Inventory from "./inventory";
 import { state, POLL_INTERVAL_MS, escHtml, showSlotOverlays, updateAnchorWarning } from "./core";
-import { getUnlockedCount, getUnlockedItems, getUnlockedItemData } from "./data";
+import { getUnlockedCount, getUnlockedItems, getUnlockedItemData, getIgnoredCount, getIgnoredItems } from "./data";
 import { BUILD_NUM } from "./version";
 
 // ============================================================
@@ -55,7 +55,7 @@ export function updateUI(): void {
     const rl = document.getElementById("recent_list");
     if (rl) rl.style.display = "none";
 
-    // Render unlocked grid with images
+    // Render unlocks
     const ug = document.getElementById("unlocked_grid");
     if (ug) {
         const data = getUnlockedItemData();
@@ -69,6 +69,31 @@ export function updateUI(): void {
                     <div class="unlocked-label">${escHtml(d.name)}</div>
                 </div>`
             ).join("");
+        }
+    }
+
+    // Render recent ignores (last 3) — pickup-card style
+    const riCount = document.getElementById("recent_ignore_count");
+    if (riCount) riCount.textContent = String(getIgnoredCount());
+    const riList = document.getElementById("recent_ignores_list");
+    if (riList) {
+        const items = getIgnoredItems();
+        if (items.length === 0) {
+            riList.innerHTML = '<div style="color:#555;text-align:center;padding:4px;">No items ignored yet.</div>';
+        } else {
+            const last3 = items.slice(-3).reverse();
+            riList.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:4px;">` +
+                last3.map(i =>
+                    `<div class="pickup-card ignore-card" style="cursor:pointer;"
+                        onclick="Bronzeman.removeIgnore('${i.hash}')"
+                        onmouseenter="Bronzeman.showIgnoreTooltip('${escHtml(i.name ?? "")}')"
+                        onmouseleave="Bronzeman.hideIgnoreTooltip()"
+                        onmousemove="Bronzeman.moveIgnoreTooltip(event)">
+                        <div class="pickup-img-wrap">
+                            ${i.base64 ? `<img src="${i.base64}" alt="${escHtml(i.name ?? "")}">` : `<div style="width:36px;height:32px;"></div>`}
+                        </div>
+                    </div>`
+                ).join("") + `</div>`;
         }
     }
 
