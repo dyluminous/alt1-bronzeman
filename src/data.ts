@@ -37,7 +37,7 @@ class UnlockStore {
     private names: Set<string> = new Set();
     /** Quantity-invariant lower-half slice (cell rows 3–7) → record name. The
      *  scan tick consults this ONLY for slots proven stackable by the
-     *  yellow-digit check (slot.isStackable), so a lower-half hit means
+     *  digit-color check (slot.isStackable), so a lower-half hit means
      *  "stackable variant of an already-unlocked item" → no dot. */
     private lowerHalfIndex: Map<string, string> = new Map();
 
