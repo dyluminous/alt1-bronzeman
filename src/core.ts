@@ -49,6 +49,7 @@ export const state = {
     lastScanResult: null as Inventory.ScanResult | null,
     // Which slots had items on the previous scan (by slot index)
     prevOccupied: new Set<number>(),
+    calibrating: false,
 };
 
 // ============================================================
@@ -115,6 +116,25 @@ export function showNotification(msg: string, duration: number = 2000, style: "i
             if (el.parentNode) fadeRemove(el);
         }
     };
+}
+
+let anchorWarningHandle: NotificationHandle | null = null;
+
+/** Show/hide a persistent danger notification when no anchor is set. */
+export function updateAnchorWarning(): void {
+    try {
+        if (Inventory.loadAnchor()) {
+            if (anchorWarningHandle) { anchorWarningHandle.remove(); anchorWarningHandle = null; }
+        } else {
+            if (!anchorWarningHandle) {
+                anchorWarningHandle = showNotification("Inventory not captured", 0, "danger");
+            }
+        }
+    } catch (e) {
+        if (!anchorWarningHandle) {
+            anchorWarningHandle = showNotification("Inventory not captured", 0, "danger");
+        }
+    }
 }
 
 export function escHtml(s: string): string {
