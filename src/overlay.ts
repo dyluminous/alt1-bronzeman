@@ -1,6 +1,8 @@
 // overlay.ts — RS overlay drawing for Bronzeman Mode
 import * as a1lib from "alt1";
 import type { ImgRef } from "alt1";
+import * as OCR from "alt1/ocr";
+const tooltipFont = require("alt1/fonts/chatbox/14pt");
 import { inventory } from "./inventory";
 import * as Detect from "./inventory-detect";
 import { Inventory } from "./inventory";
@@ -367,6 +369,10 @@ function tooltipHeight(img: ImgRef, runLeftX: number, y: number, dir: "down" | "
 
 function tooltipScanTick(): void {
     if (Date.now() < tooltipNextScanAt) return; // cooling down after the last hit
+    // Clear debug boxes from the previous scan before capturing, otherwise the
+    // gold overlay sits on top of the item text and OCR returns nothing.
+    alt1.overLaySetGroup("bronzeman_tooltipbox");
+    alt1.overLayClearGroup("bronzeman_tooltipbox");
     const img = captureFullRs();
     if (!img) return;
     const hit = walkToTooltipColor(img);
@@ -374,6 +380,7 @@ function tooltipScanTick(): void {
         const run = tooltipLineRun(img, hit.x, hit.y);
         const t = tooltipHeight(img, run.leftX, hit.y, hit.dir);
         let itemNameSectionHeight = 0;
+        let itemName = "";
         if (t.height > 0) {
             // Tooltip bounds are the border run padded by TOOLTIP_BOX_OFFSET on all sides.
             const boxX = t.startX;
@@ -411,8 +418,37 @@ function tooltipScanTick(): void {
             alt1.overLayRect(green, inX + inW - 1, inY, 1, itemNameSectionHeight, TOOLTIP_BOX_DURATION_MS, 1);
             // Magenta last → stays on top of both boxes.
             alt1.overLayRect(a1lib.mixColor(255, 0, 255), midX, midY, 1, 1, TOOLTIP_BOX_DURATION_MS, 1);
+            // OCR the item name from the green box region
+            itemName = "";
+            try {
+                if (itemNameSectionHeight > 0 && inW > 20) {
+                    // Use the full RS capture as the OCR buffer (like the old code
+                    // used the wide capture), and pass screen coordinates so the
+                    // font's basey offset can't push the search window out of the
+                    // buffer.  A tightly-cropped toData() would fail the bounds
+                    // check inside getChatColorMono.
+                    const fullBuf = img.toData();
+                    if (fullBuf) {
+                        const colors: OCR.ColortTriplet[] = [[248, 213, 107], [184, 209, 209]];
+                        const ocrLine = (cy: number, ch?: number): string => {
+                            const h = ch ?? itemNameSectionHeight;
+                            const result = OCR.findReadLine(fullBuf, tooltipFont, colors, inX, cy, inW, h);
+                            return result?.text?.length > 1 ? result.text : "";
+                        };
+                        // Always split the green box at its halfway point — even a
+                        // two-line item name fits in a small height here (unlike
+                        // the old code's full-tooltip >30px gate).
+                        const halfH = Math.round(itemNameSectionHeight / 2);
+                        const line1 = ocrLine(inY + Math.round(itemNameSectionHeight / 4), halfH);
+                        const line2 = ocrLine(inY + Math.round(itemNameSectionHeight * 3 / 4), halfH);
+                        itemName = (line1 + " " + line2).trim();
+                        log(`  OCR raw text: "${itemName}"`);
+                        if (itemName) itemName = extractItemName(itemName);
+                    }
+                }
+            } catch (e) { log(`  OCR error: ${e}`); }
         }
-        log(`Tooltip debug: #2e251a ${hit.dist}px ${hit.dir} of cursor, tooltip width ${run.width}px, tooltip height ${t.height}px, item name section height ${itemNameSectionHeight}px`);
+        log(`Tooltip debug: #2e251a ${hit.dist}px ${hit.dir} of cursor, tooltip width ${run.width}px, tooltip height ${t.height}px, item name section height ${itemNameSectionHeight}px${itemName ? `, item name "${itemName}"` : ""}`);
         tooltipNextScanAt = Date.now() + TOOLTIP_COOLDOWN_MS; // pause, then start over
     }
 }
@@ -434,6 +470,29 @@ export function toggleTooltipDebug(): void {
     } else {
         if (tooltipScanTimer) { clearInterval(tooltipScanTimer); tooltipScanTimer = null; }
     }
+}
+
+// ============================================================
+// Item name extraction — strip RS action prefixes from OCR text
+// ============================================================
+
+/** Strip common RS3 action prefixes from tooltip text to get the item name. */
+function extractItemName(raw: string): string {
+    if (!raw) return "";
+    const t = raw.trim();
+    const actions = [
+        "Use", "Wield", "Equip", "Wear", "Eat", "Drink", "Drop", "Examine",
+        "Bury", "Clean", "Empty", "Fill", "Light", "String", "Craft", "Fletch",
+        "Open", "Close", "Read", "Teleport", "Cast", "Rub", "Activate",
+        "Deactivate", "Check", "Mix", "Grind", "Cook", "Smelt", "Smith",
+        "Enchant", "Charge", "Alch", "Disassemble", "Augment", "Siphon",
+        "Dissolve", "Take", "Remove", "Withdraw", "Deposit", "Store",
+        "Release", "Toggle", "Configure", "Convert", "Combine",
+    ];
+    for (const act of actions) {
+        if (t.startsWith(act + " ")) return t.substring(act.length + 1).trim();
+    }
+    return t; // no action prefix matched — probably just the item name
 }
 
 
