@@ -41,6 +41,14 @@ export class Inventory {
         return raw > 28 ? 28 : raw;
     }
 
+    /** Columns in the last row — grids capped at 28 slots may have a short last row. */
+    static lastRowCols(anchor: BackpackAnchor): number {
+        const cols = anchor.gridCols ?? 0;
+        const rows = anchor.gridRows ?? 0;
+        const total = cols * rows;
+        return total > 28 ? cols - (total - 28) : cols;
+    }
+
     /** Drop calibration entirely. */
     clear(): void {
         this._anchor = null;
@@ -77,6 +85,29 @@ export class Inventory {
         if (col < 0 || col >= anc.gridCols || row < 0 || row >= anc.gridRows) return null;
         const idx = row * anc.gridCols + col;
         return idx < this._slots.length ? idx : null;
+    }
+
+    /** The orthogonally adjacent slot indices (up/down/left/right), orientation-aware.
+     *  Only existing slots are returned (the capped last row may have fewer columns). */
+    getAdjacentSlotIndices(index: number): number[] {
+        const anc = this._anchor;
+        if (!anc || anc.gridCols == null || anc.gridRows == null) return [];
+        const cols = anc.gridCols, rows = anc.gridRows;
+        const slot = this.getSlot(index);
+        if (!slot) return [];
+        const out: number[] = [];
+        const candidates = [
+            { c: slot.col - 1, r: slot.row },  // left
+            { c: slot.col + 1, r: slot.row },  // right
+            { c: slot.col, r: slot.row - 1 },  // up
+            { c: slot.col, r: slot.row + 1 },  // down
+        ];
+        for (const { c, r } of candidates) {
+            if (c < 0 || c >= cols || r < 0 || r >= rows) continue;
+            const idx = r * cols + c;
+            if (idx < this._slots.length) out.push(idx);
+        }
+        return out;
     }
 }
 

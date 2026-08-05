@@ -27,6 +27,12 @@ export function capturePixel(x: number, y: number): [number, number, number] | n
     return [img.data[0], img.data[1], img.data[2]];
 }
 
+/** Compute HSL lightness from RGB. Returns 0-100. */
+export function lightness(r: number, g: number, b: number): number {
+    const max = Math.max(r, g, b) / 255, min = Math.min(r, g, b) / 255;
+    return Math.round(((max + min) / 2) * 100);
+}
+
 function ensureAlt1(): boolean {
     return typeof alt1 !== "undefined";
 }

@@ -3,6 +3,7 @@ import * as a1lib from "alt1";
 import { inventory } from "./inventory";
 import type { BackpackAnchor } from "./inventory";
 import * as Detect from "./inventory-detect";
+import { Inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
 import { state, captureFullRs, log, showNotification } from "./core";
 import { getAnchorWatchPoints } from "./anchor-watch";
@@ -12,7 +13,10 @@ import { getAnchorWatchPoints } from "./anchor-watch";
 // ============================================================
 
 export function drawDetectDebug(anc: BackpackAnchor, isError: boolean = false): void {
-    if (!state.inAlt1) return;
+    // Debug visual — only draw when Inventory debugging is enabled. Drawing
+    // brackets over slot corners would pollute the cornerRefs the slot-scan
+    // uses for occlusion detection (Alt1 captures include overlays).
+    if (!state.inAlt1 || !isGridDebugEnabled()) return;
     alt1.overLayClearGroup("bronzeman_detect");
     alt1.overLaySetGroup("bronzeman_detect");
     const LEN = 8;
@@ -28,8 +32,7 @@ export function drawDetectDebug(anc: BackpackAnchor, isError: boolean = false): 
     const skip = (p: { x: number; y: number }): boolean => watch.has(`${p.x},${p.y}`);
     const rows = anc.gridRows!;
     const cols = anc.gridCols!;
-    const total = cols * rows;
-    const lastRowCols = total > 28 ? cols - (total - 28) : cols;
+    const lastRowCols = Inventory.lastRowCols(anc);
     let idx = 0;
     for (let row = 0; row < rows; row++) {
         const slotCols = (row === rows - 1) ? lastRowCols : cols;
@@ -75,8 +78,7 @@ export function debugFindSlot(): void {
         log(`Grid found: ${anc.gridCols}×${anc.gridRows} at (${anc.x},${anc.y}) col=${anc.colStride} row=${anc.rowStride} in ${ms}ms`);
 
         const cols = anc.gridCols!, rows = anc.gridRows!;
-        const total = cols * rows;
-        const lastRowCols = total > 28 ? cols - (total - 28) : cols;
+        const lastRowCols = Inventory.lastRowCols(anc);
 
         const yc = a1lib.mixColor(255, 255, 0);
         const white = a1lib.mixColor(255, 255, 255);

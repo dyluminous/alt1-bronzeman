@@ -353,3 +353,57 @@
         transform: translateY(-10px);
     }
 
+
+    /* Slot hash debug pane — covers the tab area */
+    .slot-debug-pane {
+        position: absolute; inset: 0; z-index: 100;
+        background: rgba(24, 21, 19, 0.96);
+        display: flex; flex-direction: column;
+        overflow-y: auto;
+    }
+    .slot-debug-header {
+        padding: 8px 10px;
+        color: var(--rs-gold);
+        font-size: 13px;
+        border-bottom: 1px solid var(--rs-border);
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .slot-debug-close {
+        cursor: pointer; color: #aaa; font-size: 13px;
+    }
+    .slot-debug-grid {
+        display: grid;
+        gap: 4px;
+        padding: 10px;
+        justify-content: center;
+        align-content: start;
+    }
+    .slot-debug-cell {
+        background: var(--rs-card-bg);
+        border: 1px solid var(--rs-border);
+        border-radius: 3px;
+        padding: 6px 4px;
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        min-width: 64px;
+    }
+    .slot-debug-cell.empty {
+        border-color: #3a322a;
+        opacity: 0.6;
+    }
+    .slot-debug-cell .hash {
+        font-family: monospace; font-size: 9px;
+        color: var(--rs-gold);
+        word-break: break-all; text-align: center;
+        max-width: 100%;
+    }
+    .slot-debug-cell .idx {
+        font-size: 10px; color: #aaa;
+    }
+    .slot-debug-note {
+        color: #888; font-size: 11px; text-align: center; padding: 8px;
+    }
+
+    .slot-debug-canvas {
+        image-rendering: pixelated;
+        background: #000;
+    }
