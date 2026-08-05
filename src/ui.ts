@@ -118,17 +118,24 @@ export function showScanPickup(imageUrl: string, slotIndex: number): void {
     currentPickupSlot = slotIndex;
 
     const ph = document.getElementById("scan_placeholder");
-    const area = document.getElementById("scan_pickup_area");
-    const img = document.getElementById("scan_pickup_img") as HTMLImageElement;
-
     if (ph) ph.style.display = "none";
-    if (area) area.style.display = "block";
-    if (img) img.src = imageUrl;
+
+    const grid = document.getElementById("scan_pickup_grid");
+    if (!grid) return;
+
+    // Append a new card for this pickup
+    const card = document.createElement("div");
+    card.className = "pickup-card";
+    const idx = grid.children.length;
+    card.innerHTML = `<img src="${imageUrl}" alt="pickup">
+        <div class="pickup-actions">
+            <button class="btn-unlock-sm" onclick="Bronzeman.unlockPickup(${idx})">🔓</button>
+            <button class="btn-ignore-sm" onclick="void(0)">✕</button>
+        </div>`;
+    grid.appendChild(card);
 }
 
-export function getCurrentPickup(): { imageUrl: string; slotIndex: number } {
-    return { imageUrl: currentPickupUrl, slotIndex: currentPickupSlot };
-}
+
 
 export function appendChangeEntry(slot: Inventory.SlotState, time: number): void {
     const list = document.getElementById("change_list");
