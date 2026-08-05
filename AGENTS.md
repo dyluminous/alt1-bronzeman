@@ -18,6 +18,7 @@ Build: `npm run build` — webpack bundles into `dist/main.js`
 
 ## Rules
 
+- Don't commit unless the user explicitly asks you to commit.
 - New code goes in the file that owns its concern. If no file owns it, create one.
 - `index.ts` only imports + bootstraps + re-exports. Never dump logic there.
 - HTML buttons use `onclick="Bronzeman.fn(...)"`. Those fns are re-exported by index.ts.
