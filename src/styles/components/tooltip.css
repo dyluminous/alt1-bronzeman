@@ -1,0 +1,23 @@
+/* ---- tooltips ---- */
+
+#recent_unlock_tooltip {
+    display: none;
+    position: fixed;
+    z-index: var(--rs-z-tooltip);
+    pointer-events: none;
+}
+
+.recent-unlock-tooltip {
+    background: var(--rs-bg-dark);
+    border: 1px solid var(--rs-gold);
+    border-radius: 3px;
+    padding: 4px 8px;
+    color: var(--rs-gold);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: normal;
+    max-width: 220px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.7), inset 0 0 4px rgba(212, 168, 75, 0.15);
+    text-shadow: 0 1px 1px var(--rs-text-shadow);
+    pointer-events: none;
+}

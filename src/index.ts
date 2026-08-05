@@ -11,7 +11,7 @@ const searchIcon = document.getElementById("search_icon_img") as HTMLImageElemen
 if (searchIcon) searchIcon.src = searchIconUrl;
 const dbSearchIcon = document.getElementById("db_search_icon_img") as HTMLImageElement | null;
 if (dbSearchIcon) dbSearchIcon.src = searchIconUrl;
-import "./style.css";
+import "./styles/main.css";
 
 import { initOnLoad } from "./bootstrap";
 

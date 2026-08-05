@@ -1,0 +1,160 @@
+/* ---- layout & shared patterns ---- */
+
+#tab-content {
+    background: var(--rs-bg-mid);
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow-y: auto;
+}
+
+/* ---- status bar ---- */
+
+.status-bar {
+    display: flex;
+    justify-content: space-between;
+    background: var(--rs-bg-light);
+    border-radius: 4px;
+    padding: 4px 8px;
+    margin-bottom: 6px;
+    font-size: 10px;
+    text-shadow: none;
+}
+
+.status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.status-dot.green { background: var(--rs-green); }
+.status-dot.red { background: var(--rs-red); }
+
+/* ---- anchor dot ---- */
+
+.anchor-dot {
+    display: inline-flex;
+    align-self: center;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--rs-gold);
+    vertical-align: middle;
+    margin-right: 4px;
+    transition: opacity 0.3s;
+}
+.anchor-dot.hidden { opacity: 0; }
+.anchor-dot.magenta { background: #ff00ff; }
+
+/* ---- section titles ---- */
+
+.section-title {
+    font-size: 11px; font-weight: bold; color: var(--rs-gold-muted);
+    border-bottom: 1px solid #333; padding-bottom: 2px; margin: 6px 0 3px;
+}
+
+.section-title-gap {
+    margin-top: 12px;
+}
+
+/* ---- settings rows & labels ---- */
+
+.settings-label {
+    font-size: 12px;
+    color: var(--rs-text-muted);
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.settings-progress-col {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.settings-btn-row {
+    display: flex;
+    gap: 6px;
+}
+
+.settings-btn-wide {
+    width: 100%;
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+.settings-btn-half {
+    flex: 1;
+    min-width: 0;
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+/* ---- developer ---- */
+
+.dev-status-bar {
+    margin-top: 6px;
+}
+
+.dev-inline-panel {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+}
+
+.dev-btn-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+#alt1_status_text {
+    font-size: 10px;
+}
+
+/* ---- close button ---- */
+
+.close-btn-lg {
+    font-size: 16px;
+}
+
+/* ---- manual unlock ---- */
+
+#manual_unlock_inline {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+}
+
+.manual-unlock-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.manual-unlock-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.manual-unlock-btn {
+    padding: 6px 16px;
+    font-size: 12px;
+}
+
+/* ---- DB search ---- */
+
+.db-search-row {
+    display: flex;
+    gap: 6px;
+    padding: 8px 10px;
+}
+
+.db-search-field {
+    flex: 1;
+}

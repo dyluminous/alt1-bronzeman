@@ -1,0 +1,175 @@
+/* ---- buttons ---- */
+
+.btn {
+    flex: 1; padding: 5px; border: none; border-radius: 3px;
+    cursor: pointer; font-size: 10px; font-weight: 600; text-align: center;
+    transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.85; }
+
+.btn-primary {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 150px; height: 29px; padding: 0 12px; box-sizing: border-box;
+    border: 1px solid transparent; border-radius: 4px;
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    background-image:
+        linear-gradient(to bottom, #3b3835 0px, #3b3835 2px, #302d2b 6px, #302d2b calc(100% - 4px), #2e2a28 calc(100% - 1px), #2e2a28 100%),
+        var(--rs-gold-border);
+    box-shadow: inset 0 0 0 2px #23201d;
+    color: var(--rs-text);
+    font: 400 13px/1 var(--rs-font);
+    text-shadow: 0 1px 1px var(--rs-text-shadow);
+    cursor: pointer;
+}
+
+.btn-primary:hover {
+    background-image:
+        linear-gradient(to bottom, #3b3835 0px, #3b3835 2px, #302d2b 6px, #302d2b calc(100% - 4px), #2e2a28 calc(100% - 1px), #2e2a28 100%),
+        linear-gradient(135deg, var(--rs-gold), var(--rs-gold));
+}
+
+.btn-primary.disabled, .btn-primary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: saturate(0.3) brightness(0.85);
+    pointer-events: none;
+}
+
+/* ---- pixel-style checkboxes ---- */
+
+.pixel-checkbox {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    box-sizing: content-box;
+    width: 12px;
+    height: 12px;
+    padding: 2px;
+    margin: 0;
+    flex: none;
+    border: 1px solid var(--rs-border-light);
+    border-radius: 2px;
+    background-image: linear-gradient(to bottom, #67615d, #413b37);
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.pixel-checkbox::before {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    border-radius: 1px;
+    background-color: #1e1814;
+}
+
+.pixel-checkbox::after {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    opacity: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 12px 12px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.4 4.7 8.7 9.5 3.2' fill='none' stroke='%23513701' stroke-width='4' stroke-linecap='square' stroke-linejoin='miter'/%3E%3Cpath d='M2.5 6.4 4.7 8.7 9.5 3.2' fill='none' stroke='%23D0A96A' stroke-width='2' stroke-linecap='square' stroke-linejoin='miter'/%3E%3C/svg%3E");
+}
+
+.pixel-checkbox:checked::after {
+    opacity: 1;
+}
+
+.pixel-checkbox:focus-visible {
+    outline: 1px solid #d0a96a;
+    outline-offset: 1px;
+}
+
+/* ---- Custom Number Spinner ---- */
+
+.spinner-container {
+    display: inline-flex;
+    align-items: stretch;
+    height: 29px;
+    background: var(--rs-bg-dark);
+    border: 1px solid var(--rs-border);
+    border-radius: 4px;
+    padding: 1px;
+    box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.8);
+    width: 58px;
+}
+
+.spinner-input {
+    width: 36px;
+    height: 100%;
+    background: var(--rs-bg-deep);
+    border: 1px solid var(--rs-border-input);
+    border-radius: 3px 0 0 3px;
+    color: var(--rs-gold);
+    font: 600 13px/1 var(--rs-font);
+    text-align: center;
+    outline: none;
+    padding: 0 4px;
+    box-shadow: var(--rs-shadow-input);
+}
+
+.spinner-input::-webkit-outer-spin-button,
+.spinner-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.spinner-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+.spinner-controls {
+    display: flex;
+    flex-direction: column;
+    width: 20px;
+    margin-left: 1px;
+    gap: 1px;
+}
+
+.spinner-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #302d2b;
+    background-image: linear-gradient(to bottom, #3b3835 0%, #2e2a28 100%);
+    border: 1px solid #4a4237;
+    border-radius: 2px;
+    color: var(--rs-text);
+    cursor: pointer;
+    font-size: 8px;
+    line-height: 1;
+    user-select: none;
+    transition: opacity 0.15s, background-color 0.15s;
+}
+
+.spinner-btn:hover {
+    background-image: linear-gradient(to bottom, #47433f 0%, #383431 100%);
+    color: var(--rs-gold);
+}
+
+.spinner-btn:active {
+    background-image: linear-gradient(to bottom, #23201d 0%, #2e2a28 100%);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* ---- icon-only button ---- */
+
+.icon-btn {
+    min-width: 0;
+    width: 35px;
+    flex: 0 0 35px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn img {
+    width: 16px;
+    height: 16px;
+}

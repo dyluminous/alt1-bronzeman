@@ -1,0 +1,55 @@
+:root {
+    /* Backgrounds */
+    --rs-bg-dark: #181513;
+    --rs-bg-mid: #231E1B;
+    --rs-bg-light: #2E2825;
+    --rs-bg-deep: #13100e;
+    --rs-card-bg: #211D1A;
+
+    /* Accent */
+    --rs-gold: #D4A84B;
+    --rs-gold-muted: #9a7a35;
+    --rs-green: #1CE401;
+    --rs-red: #EE0202;
+    --rs-warning: #ff9800;
+
+    /* Text */
+    --rs-text: #F5F5F5;
+    --rs-text-muted: #ccc;
+    --rs-text-dim: #888;
+    --rs-text-subtle: #aaa;
+    --rs-text-faint: #777;
+    --rs-text-placeholder: #8a857e;
+    --rs-text-modal: #f0d080;
+
+    /* Borders */
+    --rs-border: #37322F;
+    --rs-border-light: #2e2825;
+    --rs-border-input: #28231f;
+
+    /* Gold gradient border (shared by btn-primary, pickup-card, modal-content) */
+    --rs-gold-border: linear-gradient(135deg, #7e6c4c 0%, #6b5a3c 50%, #58472b 100%);
+
+    /* Fonts */
+    --rs-font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --rs-font-mono: monospace;
+
+    /* Shadows */
+    --rs-text-shadow: rgba(0, 0, 0, 0.8);
+    --rs-shadow-input: inset 0 1px 3px rgba(0, 0, 0, 0.9);
+
+    /* Z-index layers */
+    --rs-z-pane: 100;
+    --rs-z-modal: 999;
+    --rs-z-loading: 1000;
+    --rs-z-notif: 9999;
+    --rs-z-tooltip: 10000;
+
+    /* Search stripes */
+    --rs-search-stripe-odd: #1d1a17;
+    --rs-search-stripe-even: #24201c;
+    --rs-search-stripe-hover: #292520;
+
+    /* Scrollbar track color (also used in slot-debug-pane bg, search-results bg) */
+    --rs-scroll-track: #181513;
+}

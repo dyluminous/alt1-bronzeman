@@ -1,0 +1,147 @@
+/* ---- slot debug pane ---- */
+
+.slot-debug-pane {
+    position: absolute; inset: 0; z-index: var(--rs-z-pane);
+    background: var(--rs-scroll-track);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+}
+
+#wiki_disambig_pane {
+    display: none;
+}
+
+.slot-debug-header {
+    padding: 8px 10px;
+    color: var(--rs-gold);
+    font-size: 13px;
+    border-bottom: 1px solid var(--rs-border);
+    display: flex; align-items: center; justify-content: space-between;
+}
+
+.slot-debug-close {
+    cursor: pointer; color: var(--rs-text-subtle); font-size: 13px;
+}
+
+.slot-debug-toggle {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--rs-gold); font-size: 12px; cursor: pointer;
+}
+
+.slot-debug-grid {
+    display: grid;
+    gap: 4px;
+    padding: 10px;
+    justify-content: center;
+    align-content: start;
+}
+
+.slot-debug-cell {
+    background: var(--rs-card-bg);
+    border: 1px solid var(--rs-border);
+    border-radius: 3px;
+    padding: 6px 4px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    min-width: 64px;
+}
+
+.slot-debug-cell.empty    { border-color: #3a322a; opacity: 0.6; }
+.slot-debug-cell.noted    { border-color: #bba876; opacity: 0.6; }
+.slot-debug-cell.inuse    { border-color: #ffffff; opacity: 0.6; }
+.slot-debug-cell.blocked  { border-color: var(--rs-red); opacity: 0.5; }
+.slot-debug-cell.stackable { border-color: #ffff00; }
+
+.slot-debug-cell .hash {
+    font-family: var(--rs-font-mono); font-size: 9px;
+    color: var(--rs-gold);
+    word-break: break-all; text-align: center;
+    max-width: 100%;
+}
+
+.slot-debug-cell .idx {
+    font-size: 10px; color: var(--rs-text-subtle);
+}
+
+.slot-debug-note {
+    color: var(--rs-text-dim); font-size: 11px; text-align: center; padding: 8px;
+}
+
+.slot-debug-canvas {
+    image-rendering: pixelated;
+    background: #000;
+}
+
+/* ---- manual unlock ---- */
+
+.manual-unlock-body {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 8px;
+    padding: 20px;
+}
+
+.manual-unlock-msg {
+    color: var(--rs-text-muted); font-size: 12px; text-align: center;
+    max-width: 260px;
+}
+
+/* ---- wiki disambiguation ---- */
+
+.wiki-disambig-body {
+    padding: 10px;
+    display: flex; flex-direction: column; gap: 8px;
+}
+
+.wiki-disambig-msg {
+    color: var(--rs-text);
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.wiki-disambig-row {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--rs-border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    cursor: pointer;
+}
+
+.wiki-disambig-row:hover {
+    background: rgba(212, 168, 75, 0.15);
+    border-color: var(--rs-gold);
+}
+
+.wiki-disambig-name {
+    color: var(--rs-gold);
+    font-size: 13px;
+    font-weight: 600;
+    display: block;
+}
+
+.wiki-disambig-desc {
+    color: var(--rs-text);
+    font-size: 11px;
+    margin-top: 2px;
+}
+
+.wiki-disambig-note {
+    color: var(--rs-text-dim);
+    font-size: 11px;
+}
+
+/* ---- recent unlocks ---- */
+
+.recent-unlock-cell {
+    background: var(--rs-bg-light);
+    border: 1px solid var(--rs-border);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px; height: 34px;
+    transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.recent-unlock-cell:hover {
+    border-color: var(--rs-gold-muted);
+    box-shadow: inset 0 0 4px rgba(212, 168, 75, 0.3);
+}

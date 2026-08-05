@@ -1,0 +1,40 @@
+/* ---- notifications ---- */
+
+#notification_container {
+    position: fixed;
+    bottom: 4px;
+    left: 4px;
+    right: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: var(--rs-z-notif);
+    pointer-events: none;
+}
+
+.notif-item {
+    padding: 4px;
+    background: var(--rs-bg-dark);
+    border: 1px solid var(--rs-gold);
+    border-radius: 4px;
+    text-align: center;
+    font-size: 13px;
+    pointer-events: auto;
+    white-space: pre-line;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.notif-info    { border-color: var(--rs-gold); }
+.notif-success { border-color: var(--rs-green); }
+.notif-warning { border-color: var(--rs-warning); }
+.notif-danger  { border-color: var(--rs-red); }
+
+.notif-item-enter {
+    transform: translateY(20px);
+    opacity: 0;
+}
+
+.notif-item-exit {
+    opacity: 0;
+    transform: translateY(-10px);
+}
