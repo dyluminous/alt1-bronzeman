@@ -94,6 +94,7 @@ const GE_SCALES_GEM_IDENTIFIER = [0x85, 0x57, 0xc4] as const;
 
 let _bx = 0, _by = 0;
 let _geLocated = false;
+let _geItemName = "";  // cached across ticks, cleared when star disappears
 
 async function geDebugTick(): Promise<void> {
     if (!geDebugActive) return;
@@ -148,26 +149,29 @@ async function geDebugTick(): Promise<void> {
 
         // Star pixel → item selected
         const fav = img.read(ox + 531, oy + 130, 1, 1);
+        let starVisible = false;
         if (fav) {
             const fr = fav.data[0], fg = fav.data[1], fb = fav.data[2];
             if ((fr === 0x7b && fg === 0x7b && fb === 0x7b) ||
                 (fr === 0xd4 && fg === 0xae && fb === 0x6d)) {
+                starVisible = true;
                 alt1.overLayRect(a1lib.mixColor(255, 0, 255), _bx + 182, _by + 120, 340, 17, dur, 1);
                 try {
                     const fullBuf = img.toData();
                     const colors: OCR.ColortTriplet[] = [[0xf0, 0xbe, 0x79]];
                     const result = OCR.findReadLine(fullBuf, tooltipFont, colors, ox + 182, oy + 120, 340, 17);
-                    if (result && result.text.length > 1) geItemName = result.text;
+                    if (result && result.text.length > 1) _geItemName = result.text;
                 } catch (_) {}
             }
         }
+        if (!starVisible) _geItemName = "";
 
-        // Small dropdown → draw icon
+        // Small dropdown → draw icon (400ms duration bridges OCR timing gaps)
         const sp = img.read(ox + 42, oy + 327, 1, 1);
         if (!sp) { alt1.overLayClearGroup("bronzeman_ge"); return; }
         const sr = sp.data[0], sg = sp.data[1], sb = sp.data[2];
-        if (sr === 0xe3 && sg === 0xbc && sb === 0x7d && geItemName) {
-            getItemRecord("unlocks_tradable", geItemName).then(async rec => {
+        if (sr === 0xe3 && sg === 0xbc && sb === 0x7d && _geItemName) {
+            getItemRecord("unlocks_tradable", _geItemName).then(async rec => {
                 let enc = rec ? _encUnlocked : _encNotUnlocked;
                 if (!enc) {
                     const url = rec ? geItemUnlockedUrl : geItemNotUnlockedUrl;
@@ -175,7 +179,7 @@ async function geDebugTick(): Promise<void> {
                     if (rec) _encUnlocked = enc; else _encNotUnlocked = enc;
                 }
                 alt1.overLaySetGroup("bronzeman_ge");
-                alt1.overLayImage(_bx + 184, _by + 330, enc.data, enc.width, dur);
+                alt1.overLayImage(_bx + 184, _by + 330, enc.data, enc.width, 400);
             }).catch(() => {});
         } else {
             alt1.overLayClearGroup("bronzeman_ge");
