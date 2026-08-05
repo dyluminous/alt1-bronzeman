@@ -14,6 +14,7 @@ Build: `npm run build` — webpack bundles into `dist/main.js`
 | `capture.ts` | Auto-capture lifecycle + retry loop |
 | `overlay.ts` | RS overlay drawing (`drawDetectDebug`, `debugFindSlot`, `updateGridBoundary`) |
 | `modal.ts` | Confirm dialog |
+| `style.css` | All CSS — imported by index.ts, injected at runtime via style-loader |
 
 ## Rules
 

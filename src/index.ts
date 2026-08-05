@@ -11,6 +11,7 @@ import { loadState, initIgnoreDB } from "./data";
 import "./index.html";
 import "./appconfig.json";
 import "./icon.png";
+import "./style.css";
 
 // ============================================================
 // Init

@@ -61,9 +61,6 @@ export function updateUI(): void {
     const ue = document.getElementById("unlocked_count_items");
     if (ue) ue.textContent = String(count);
 
-    const rl = document.getElementById("recent_list");
-    if (rl) rl.style.display = "none";
-
     // Render unlocks
     const ug = document.getElementById("unlocked_grid");
     if (ug) {
