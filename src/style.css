@@ -398,6 +398,10 @@
         border-color: #bba876;
         opacity: 0.6;
     }
+    .slot-debug-cell.inuse {
+        border-color: #ffffff;
+        opacity: 0.6;
+    }
     .slot-debug-cell .hash {
         font-family: monospace; font-size: 9px;
         color: var(--rs-gold);
