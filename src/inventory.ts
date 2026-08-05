@@ -1,4 +1,5 @@
 import { ImgRef } from "alt1/base";
+import { InventorySlot, SlotCorners } from "./inventory-slot";
 
 export interface BackpackAnchor {
     x: number; y: number;
@@ -10,8 +11,6 @@ export interface BackpackAnchor {
     scrollbar?: boolean;
 }
 
-export type DebugLog = (msg: string) => void;
-export const COLS = 4, ROWS = 7;
 
 // ============================================================
 // Anchor & stride persistence in localStorage
@@ -30,14 +29,29 @@ export function loadAnchor(): BackpackAnchor | null {
 export function clearAnchor(): void { localStorage.removeItem(ANCHOR_KEY); }
 export function hasAnchor(): boolean { return !!localStorage.getItem(ANCHOR_KEY); }
 
-/** Returns the center pixel of a slot (0-indexed) given the anchor grid. */
-export function getSlotCenterCoordinates(anc: BackpackAnchor, slotIndex: number): { x: number; y: number } {
-    const col = slotIndex % COLS;
-    const row = Math.floor(slotIndex / COLS);
-    return {
-        x: anc.x + col * anc.colStride + 19,
-        y: anc.y + row * anc.rowStride + 17,
-    };
+// ============================================================
+// Slot corner capture — 4 pixels (TL,TR,BL,BR) per slot × 28
+// ============================================================
+
+/** Read the 4 corner pixels for all 28 slots and return InventorySlot instances. */
+export function captureSlotCorners(img: ImgRef, anc: BackpackAnchor): InventorySlot[] {
+    const slots: InventorySlot[] = [];
+    for (let i = 0; i < 28; i++) {
+        const slot = new InventorySlot(anc, anc.gridCols ?? 4, i);
+        slot.corners = {
+            tl: readPixel(img, slot.tl.x, slot.tl.y),
+            tr: readPixel(img, slot.tr.x, slot.tr.y),
+            bl: readPixel(img, slot.bl.x, slot.bl.y),
+            br: readPixel(img, slot.br.x, slot.br.y),
+        };
+        slots.push(slot);
+    }
+    return slots;
+}
+
+function readPixel(img: ImgRef, x: number, y: number): [number, number, number] {
+    const d = img.toData(x, y, 1, 1);
+    return [d.data[0], d.data[1], d.data[2]];
 }
 
 // ============================================================
@@ -63,61 +77,6 @@ export function saveAnchorPixel(img: ImgRef, anc: BackpackAnchor): void {
 export function clearAnchorPixel(): void { localStorage.removeItem(ANCHOR_PIXEL_KEY); }
 
 // ============================================================
-// Outer perimeter bounding box + empty slot data persistence
-// ============================================================
-
-const OUTER_PERM_KEY = "Bronzeman/outerPerm";
-const EMPTY_SLOT_KEY = "Bronzeman/emptySlotData";
-
-const OUTER_L: [number,number][][] = [
-    [[-1,-1],[0,-1],[-1,0]],
-    [[36,-1],[35,-1],[36,0]],
-    [[-1,32],[0,32],[-1,31]],
-    [[36,32],[35,32],[36,31]],
-];
-
-export function captureOuterPerm(img: ImgRef, anc: BackpackAnchor, debug: DebugLog): number[] | null {
-    const pixels: number[] = [];
-    for (let row = 0; row < ROWS; row++) {
-        for (let col = 0; col < COLS; col++) {
-            const sx = anc.x + col * anc.colStride;
-            const sy = anc.y + row * anc.rowStride;
-            for (const corner of OUTER_L) {
-                for (const [dx, dy] of corner) {
-                    const ax = sx + dx, ay = sy + dy;
-                    if (ax < 0 || ay < 0 || ax >= img.width || ay >= img.height) {
-                        debug(`outer_perm: slot [${row},${col}] out of bounds`);
-                        return null;
-                    }
-                    const d = img.toData(ax, ay, 1, 1);
-                    pixels.push(d.data[0], d.data[1], d.data[2]);
-                }
-            }
-        }
-    }
-    localStorage.setItem(OUTER_PERM_KEY, JSON.stringify(pixels));
-    debug(`outer_perm: saved ${pixels.length/3} pixels`);
-    return pixels;
-}
-
-export function clearOuterPerm(): void { localStorage.removeItem(OUTER_PERM_KEY); }
-
-export function captureEmptySlotData(img: ImgRef, anc: BackpackAnchor, debug: DebugLog): Uint8ClampedArray | null {
-    const sx = anc.x + 3 * anc.colStride;
-    const sy = anc.y + 6 * anc.rowStride;
-    const W = 36, H = 32;
-    if (sx + W > img.width || sy + H > img.height || sx < 0 || sy < 0) {
-        debug(`empty_slot: slot 28 out of bounds`);
-        return null;
-    }
-    const data = img.toData(sx, sy, W, H);
-    localStorage.setItem(EMPTY_SLOT_KEY, JSON.stringify(Array.from(data.data)));
-    debug(`empty_slot: captured slot 28 (${W}x${H})`);
-    return new Uint8ClampedArray(data.data);
-}
-
-export function clearEmptySlotData(): void { localStorage.removeItem(EMPTY_SLOT_KEY); }
-
 // ============================================================
 // Fingerprint slot detection
 // ============================================================
