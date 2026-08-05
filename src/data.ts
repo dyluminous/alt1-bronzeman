@@ -20,11 +20,50 @@ let unlockedItems: Set<string> = new Set();
 let unlockedItemDataList: UnlockedItemData[] = [];
 
 // ============================================================
+// Unlocked item hashes (in-memory Set, persisted to localStorage)
+// ============================================================
+
+let unlockedHashes: Set<string> = new Set();
+
+export function addUnlockedHash(hash: string): void {
+    if (unlockedHashes.has(hash)) return;
+    unlockedHashes.add(hash);
+    localStorage.setItem(LS_KEYS.unlockedHashes, JSON.stringify(Array.from(unlockedHashes)));
+    log(`Hash added to unlocked set.`);
+}
+
+export function removeUnlockedHash(hash: string): void {
+    if (!unlockedHashes.has(hash)) return;
+    unlockedHashes.delete(hash);
+    localStorage.setItem(LS_KEYS.unlockedHashes, JSON.stringify(Array.from(unlockedHashes)));
+    log(`Hash removed from unlocked set.`);
+}
+
+export function isHashUnlocked(hash: string): boolean {
+    return unlockedHashes.has(hash);
+}
+
+export function getUnlockedHashes(): string[] {
+    return Array.from(unlockedHashes);
+}
+
+// Load on startup (called from loadState below)
+
+// ============================================================
 // Persistence
 // ============================================================
 
 export function loadState(): void {
     loadIgnoredItems();
+    try {
+        const rawHashes = localStorage.getItem(LS_KEYS.unlockedHashes);
+        if (rawHashes) {
+            unlockedHashes = new Set(JSON.parse(rawHashes));
+            log(`Loaded ${unlockedHashes.size} unlocked hashes.`);
+        } else {
+            localStorage.setItem(LS_KEYS.unlockedHashes, JSON.stringify([]));
+        }
+    } catch (e) { log("ERROR loading hashes: " + e); }
     try {
         const raw = localStorage.getItem(LS_KEYS.unlockedItems);
         if (raw) {

@@ -62,6 +62,9 @@ export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug
 // Slot scan diagnostics
 export { diagnoseSlotScan, dumpSlotHash, debugCorners } from "./slot-scan";
 
+// Data
+export { addUnlockedHash, removeUnlockedHash, isHashUnlocked, getUnlockedHashes } from "./data";
+
 // Modal
 export { modalCancel, modalOk } from "./modal";
 
