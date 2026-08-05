@@ -11,45 +11,16 @@ export interface BackpackAnchor {
 }
 
 // ============================================================
-// Anchor & stride persistence in localStorage
+// Anchor state — in-memory only; the grid is re-scanned on every
+// plugin load, so persistence across reloads is unnecessary.
 // ============================================================
-const ANCHOR_KEY = "Bronzeman/anchor";
+let currentAnchor: BackpackAnchor | null = null;
 
-export function saveAnchor(anchor: BackpackAnchor): void {
-    localStorage.setItem(ANCHOR_KEY, JSON.stringify(anchor));
-}
-export function loadAnchor(): BackpackAnchor | null {
-    const raw = localStorage.getItem(ANCHOR_KEY);
-    if (!raw) return null;
-    try { const a = JSON.parse(raw); if (a && typeof a.x === "number") return a as BackpackAnchor; } catch { /* corrupt */ }
-    return null;
-}
-export function clearAnchor(): void { localStorage.removeItem(ANCHOR_KEY); }
-export function hasAnchor(): boolean { return !!localStorage.getItem(ANCHOR_KEY); }
+export function saveAnchor(anchor: BackpackAnchor): void { currentAnchor = anchor; }
+export function loadAnchor(): BackpackAnchor | null { return currentAnchor; }
+export function clearAnchor(): void { currentAnchor = null; }
+export function hasAnchor(): boolean { return currentAnchor !== null; }
 
-// ============================================================
-// Anchor pixel tracking — detect when inventory moves
-// ============================================================
-const ANCHOR_PIXEL_KEY = "Bronzeman/anchorPixel";
-
-export interface AnchorPixel {
-    x: number; y: number;  // cell TL position
-    r: number; g: number; b: number;
-}
-
-export function saveAnchorPixel(img: ImgRef, anc: BackpackAnchor): void {
-    const bx = anc.x;      // BL corner x
-    const by = anc.y + 33; // BL corner y
-    if (bx < 0 || by < 0 || bx >= img.width || by >= img.height) return;
-    const d = img.toData(bx, by, 1, 1);
-    if (!d) return;
-    const pixel: AnchorPixel = { x: bx, y: by, r: d.data[0], g: d.data[1], b: d.data[2] };
-    localStorage.setItem(ANCHOR_PIXEL_KEY, JSON.stringify(pixel));
-}
-
-export function clearAnchorPixel(): void { localStorage.removeItem(ANCHOR_PIXEL_KEY); }
-
-// ============================================================
 // ============================================================
 // Fingerprint slot detection
 // ============================================================
