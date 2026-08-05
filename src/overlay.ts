@@ -351,6 +351,7 @@ function startHoverFlow(slotIndex: number): void {
     const itemName = readTooltipItemName();
     if (!itemName) {
         showNotification("Failed to read item name", 3000, "danger");
+        if (hoverAnimation) { hoverAnimation.stop(); hoverAnimation = null; }
         hoveredDotSlot = null;
         hoverResolved = false;
         return;
