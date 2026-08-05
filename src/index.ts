@@ -2,7 +2,7 @@
 // Bootstrap + Bronzeman namespace for HTML onclick handlers. All feature code
 // lives in domain modules: capture, overlay, ui, modal, data, inventory, core.
 import { state, log } from "./core";
-import { updateAlt1Status, updateUI, applyDebugTabVisibility } from "./ui";
+import { updateAlt1Status, updateUI, applyDeveloperMode } from "./ui";
 import { initUnlockDB } from "./data";
 import { initRecentUnlocks, setRecentUnlocksLimit, getRecentUnlocksLimit } from "./recent-unlocks";
 import { calibrateGrid } from "./capture";
@@ -23,7 +23,7 @@ function initOnLoad() {
     log(`inAlt1=${state.inAlt1}`);
 
     updateAlt1Status();
-    applyDebugTabVisibility();
+    applyDeveloperMode();
     initUnlockDB().then(() => { updateUI(); initRecentUnlocks().catch(() => {}); });
     syncRecentUnlocksSpinner();
 
@@ -71,7 +71,7 @@ export {
     openSlotDebug, closeSlotDebug, refreshSlotDebug,
     showDisambiguation, selectDisambiguationOption, closeDisambiguation,
     openItemPngs, closeItemPngs,
-    toggleDebugTab,
+    toggleDeveloperMode,
 } from "./ui";
 
 // Recent unlocks setting

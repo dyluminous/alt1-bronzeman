@@ -10,7 +10,7 @@ import { startAnchorWatch, stopAnchorWatch } from "./anchor-watch";
 import { startSlotScan, stopSlotScan, captureCornerRefs } from "./slot-scan";
 
 // ============================================================
-// Auto-capture on/off — wired to the debug-menu checkbox.
+// Auto-capture on/off — wired to the Developer mode checkbox.
 // Auto-capture defaults ON at boot. stopAutoCapture/startAutoCapture
 // are also used by the restore flow (pause capture while the DB
 // is being rewritten, resume silently afterwards).
