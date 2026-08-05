@@ -28,6 +28,20 @@ if (lGlyph) {
 
 /** Tooltip border color being searched for (#2e251a). */
 const COLOR: [number, number, number] = [0x2e, 0x25, 0x1a];
+/** The tooltip border is a 4-pixel gradient, outer → inner:
+ *  #2e251a, #665a3a, #59482e, #33281d (verified against tooltip_example.png).
+ *  A lone #2e251a pixel could be any UI element — only the full sequence
+ *  proves we're on the tooltip border. */
+const BORDER_GRADIENT: readonly (readonly [number, number, number])[] = [
+    [0x2e, 0x25, 0x1a],
+    [0x66, 0x5a, 0x3a],
+    [0x59, 0x48, 0x2e],
+    [0x33, 0x28, 0x1d],
+];
+/** Per-channel tolerance for the inner border pixels — the gold frame rows
+ *  have anti-aliased shade variants (#695d3d, #6d6141, #706444) at gap
+ *  positions. The outer #2e251a edge stays exact. */
+const BORDER_TOL = 10;
 /** Polling cadence while the debug checkbox is on. */
 const SCAN_INTERVAL_MS = 100;
 /** Max pixels searched from the cursor in each direction. */
@@ -65,6 +79,22 @@ function isTooltipColor(img: ImgRef, x: number, y: number, tol = 0): boolean {
         && Math.abs(d.data[2] - COLOR[2]) <= tol;
 }
 
+/** True when the pixel at (x, y) is the tooltip border's outer #2e251a edge,
+ *  i.e. the full 4-pixel gradient follows it in the walk direction. The outer
+ *  edge is an exact match; the inner pixels tolerate anti-aliased shades. */
+function isTooltipBorder(img: ImgRef, x: number, y: number, dir: "down" | "up"): boolean {
+    const dy = dir === "down" ? 1 : -1;
+    for (let i = 1; i < BORDER_GRADIENT.length; i++) {
+        const d = img.toData(x, y + dy * i, 1, 1);
+        if (!d) return false;
+        const g = BORDER_GRADIENT[i];
+        if (Math.abs(d.data[0] - g[0]) > BORDER_TOL
+            || Math.abs(d.data[1] - g[1]) > BORDER_TOL
+            || Math.abs(d.data[2] - g[2]) > BORDER_TOL) return false;
+    }
+    return true;
+}
+
 /** Strip common RS3 action prefixes from tooltip text to get the item name. */
 export function extractItemName(raw: string): string {
     if (!raw) return "";
@@ -93,16 +123,22 @@ interface Hit { x: number; y: number; dist: number; dir: "down" | "up" }
 interface Run { width: number; leftX: number }
 interface VerticalRun { startX: number; startY: number; height: number }
 
-/** Walk ±MAX_DIST from the cursor along the X column: down first, then up. */
+/** Walk ±MAX_DIST from the cursor along the X column: down first, then up.
+ *  The walk is clamped to the RS window edges (the capture is full-window). */
 function walkToColor(img: ImgRef): Hit | null {
     const m = a1lib.getMousePosition();
     if (!m) return null;
     const x = m.x, y0 = m.y;
-    for (let y = y0; y <= y0 + MAX_DIST; y++) {
-        if (isTooltipColor(img, x, y)) return { x, y, dist: y - y0, dir: "down" };
+    const yMax = img.y + img.height - 1;
+    for (let y = y0; y <= Math.min(y0 + MAX_DIST, yMax); y++) {
+        if (isTooltipColor(img, x, y) && isTooltipBorder(img, x, y, "down")) {
+            return { x, y, dist: y - y0, dir: "down" };
+        }
     }
-    for (let y = y0 - 1; y >= y0 - MAX_DIST; y--) {
-        if (isTooltipColor(img, x, y)) return { x, y, dist: y0 - y, dir: "up" };
+    for (let y = y0 - 1; y >= Math.max(y0 - MAX_DIST, img.y); y--) {
+        if (isTooltipColor(img, x, y) && isTooltipBorder(img, x, y, "up")) {
+            return { x, y, dist: y0 - y, dir: "up" };
+        }
     }
     return null;
 }
@@ -210,12 +246,20 @@ function measureTooltip(): TooltipMeasure | null {
 }
 
 /** Capture the screen, locate the tooltip at the cursor, and OCR the item name.
- *  Returns the item name or null when the tooltip can't be found/read. */
-export function readTooltipItemName(): string | null {
+ *  Returns the measured geometry plus the name, or null when the tooltip
+ *  can't be found/read. */
+function measureAndRead(): { name: string; m: TooltipMeasure } | null {
     const m = measureTooltip();
     if (!m) return null;
     const name = ocrItemName(m.img, m.inX, m.inY, m.inW, m.itemSectionH);
-    return name || null;
+    if (!name) return null;
+    return { name, m };
+}
+
+/** Capture the screen, locate the tooltip at the cursor, and OCR the item name.
+ *  Returns the item name or null when the tooltip can't be found/read. */
+export function readTooltipItemName(): string | null {
+    return measureAndRead()?.name ?? null;
 }
 
 // ============================================================
@@ -255,13 +299,11 @@ export class TooltipScanner {
         alt1.overLaySetGroup(TooltipScanner.GROUP);
         alt1.overLayClearGroup(TooltipScanner.GROUP);
 
-        const itemName = readTooltipItemName();
-        if (!itemName) return;
-
-        // Re-measure from a fresh capture for the drawing bounds (the same
-        // pipeline readTooltipItemName used, just keeping the geometry).
-        const m = measureTooltip();
-        if (!m) return;
+        // Single capture: measure once, reuse the geometry for both the OCR
+        // and the debug boxes (no double capture, no frame-skew between them).
+        const result = measureAndRead();
+        if (!result) return;
+        const { name: itemName, m } = result;
 
         const gold = a1lib.mixColor(212, 168, 75);
         const green = a1lib.mixColor(28, 228, 1);
