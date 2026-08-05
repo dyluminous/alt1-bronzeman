@@ -189,6 +189,11 @@ const SLOT_DOT_GROUP = "bronzeman_slotdot";
  *  even when frozen, so the dot is re-drawn with a fresh duration on a timer. */
 const SLOT_DOT_INTERVAL_MS = 500;
 const SLOT_DOT_DURATION_MS = 1000;
+/** Dot position on the slot, relative to the TL border pixel (0,0). */
+const SLOT_DOT_X = 26;
+const SLOT_DOT_Y = 2;
+/** gold_dot.png is 10×10. */
+const SLOT_DOT_W = 10;
 
 let slotDotTimer: ReturnType<typeof setInterval> | null = null;
 let slotDotSlot: InventorySlot | null = null;
@@ -216,11 +221,11 @@ function loadGoldDotEncoded(): Promise<string> {
     return goldDotPromise;
 }
 
-/** Draw the gold dot at (26, 2) from the slot TL border pixel. */
+/** Draw the gold dot at (SLOT_DOT_X, SLOT_DOT_Y) from the slot TL border pixel. */
 function drawSlotDotNow(): void {
     if (!slotDotSlot || !slotDotEncoded) return;
     alt1.overLaySetGroup(SLOT_DOT_GROUP);
-    alt1.overLayImage(slotDotSlot.x + 26, slotDotSlot.y + 2, slotDotEncoded, 10, SLOT_DOT_DURATION_MS);
+    alt1.overLayImage(slotDotSlot.x + SLOT_DOT_X, slotDotSlot.y + SLOT_DOT_Y, slotDotEncoded, SLOT_DOT_W, SLOT_DOT_DURATION_MS);
 }
 
 /** Show the dot while the checkbox is ticked; keep-alive redraws it so it persists. */
