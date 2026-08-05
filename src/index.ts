@@ -4,6 +4,11 @@
 import "./index.html";
 import "./appconfig.json";
 import "./icon.png";
+import searchIconUrl from "./assets/images/search_icon.png";
+
+// Set the search icon (webpack inlines the URL)
+const searchIcon = document.getElementById("search_icon_img") as HTMLImageElement | null;
+if (searchIcon) searchIcon.src = searchIconUrl;
 import "./style.css";
 
 import { initOnLoad } from "./bootstrap";

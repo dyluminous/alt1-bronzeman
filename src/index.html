@@ -30,7 +30,8 @@
     <div class="tab-panel" id="panel_search">
         <div class="search-panel">
             <div style="position:relative;">
-                <input type="text" id="search_input" class="text-input" placeholder="Search unlocks..." spellcheck="false" style="padding-right:24px;">
+                <img id="search_icon_img" src="" style="position:absolute;left:6px;top:50%;transform:translateY(-50%);width:20px;height:20px;pointer-events:none;">
+                <input type="text" id="search_input" class="text-input" placeholder="Search unlocks..." spellcheck="false" maxlength="20" style="padding-left:28px;padding-right:24px;">
                 <span id="search_clear_btn" onclick="document.getElementById('search_input').value='';document.getElementById('search_input').dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('search_clear_btn').style.display='none';" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;color:#8a857e;font-size:14px;display:none;">&#x2715;</span>
             </div>
         </div>
