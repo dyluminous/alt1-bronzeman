@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Bronzeman Mode Tracker</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            padding: 8px;
+            user-select: none;
+            font-size: 11px;
+        }
+        header {
+            text-align: center;
+            border-bottom: 1px solid #333;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+        }
+        header h1 { font-size: 15px; color: #d4a84b; }
+        header p { font-size: 9px; color: #888; }
+
+        /* ---- status bar + stats always visible ---- */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            background: #16213e;
+            border-radius: 4px;
+            padding: 4px 8px;
+            margin-bottom: 6px;
+            font-size: 10px;
+        }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+        .status-dot.green { background: #4caf50; }
+        .status-dot.red { background: #f44336; }
+
+        .stats-row { display: flex; gap: 5px; margin-bottom: 6px; }
+        .stat-box { flex: 1; background: #16213e; border-radius: 4px; padding: 4px; text-align: center; }
+        .stat-box .stat-value { font-size: 16px; font-weight: bold; color: #d4a84b; }
+        .stat-box .stat-label { font-size: 8px; color: #888; }
+
+        /* ---- tabs ---- */
+        .tab-bar {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 6px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 5px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 600;
+            background: #16213e;
+            color: #888;
+            transition: background 0.15s, color 0.15s;
+        }
+        .tab-btn:hover { background: #1f3050; }
+        .tab-btn.active {
+            background: #d4a84b;
+            color: #1a1a2e;
+        }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ---- buttons (always visible) ---- */
+        .btn-row { display: flex; gap: 5px; margin-bottom: 5px; }
+        .btn {
+            flex: 1; padding: 5px; border: none; border-radius: 3px;
+            cursor: pointer; font-size: 10px; font-weight: 600; text-align: center;
+            transition: opacity 0.15s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn-primary { background: #d4a84b; color: #1a1a2e; }
+        .btn-secondary { background: #333; color: #ccc; }
+        .btn-danger { background: #5c1a1a; color: #f99; }
+
+        /* ---- scan tab ---- */
+        .section-title {
+            font-size: 11px; font-weight: bold; color: #aaa;
+            border-bottom: 1px solid #333; padding-bottom: 2px; margin: 6px 0 3px;
+        }
+        .section-subtitle { font-size: 8px; color: #666; margin-bottom: 3px; }
+        #change_list {
+            max-height: 100px; overflow-y: auto;
+            background: #0f0f23; border-radius: 4px; padding: 3px; font-size: 9px;
+        }
+        .change-entry {
+            display: flex; justify-content: space-between;
+            padding: 2px 4px; border-bottom: 1px solid #1a1a1a; font-family: monospace; font-size: 8px;
+        }
+        .change-entry:last-child { border-bottom: none; }
+        .change-slot { color: #ff8a80; }
+        .change-hash { color: #888; }
+        .change-time { color: #555; }
+
+        /* ---- items tab ---- */
+        .item-list {
+            max-height: 180px; overflow-y: auto;
+            background: #0f0f23; border-radius: 4px; padding: 3px; font-size: 9px;
+        }
+        .item-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 2px 4px; border-bottom: 1px solid #1a1a1a;
+        }
+        .item-row:last-child { border-bottom: none; }
+        .item-row.unlocked .item-name { color: #d4a84b; }
+        .item-badge { font-size: 7px; padding: 1px 4px; border-radius: 2px; }
+        .item-badge.unlocked { background: #2e7d32; color: #c8e6c9; }
+
+        /* ---- debug tab ---- */
+        .mini-grid { display: inline-block; background: #0a0a15; border-radius: 4px; padding: 3px; }
+        .mini-grid-row { display: flex; gap: 2px; margin-bottom: 2px; }
+        .mini-grid-row:last-child { margin-bottom: 0; }
+        .mini-slot {
+            width: 50px; height: 32px;
+            background: #1a1a30; border: 1px solid #2a2a45; border-radius: 2px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 8px; transition: background 0.2s, border-color 0.2s;
+        }
+        .mini-slot.changed { background: #3d1a1a; border-color: #f44336; animation: flash 0.6s ease-out; }
+        @keyframes flash {
+            0% { background: #f44336; }
+            100% { background: #3d1a1a; }
+        }
+        .mini-slot-num { font-size: 10px; font-weight: bold; color: #ccc; }
+        .mini-slot-hash { font-size: 6px; color: #666; font-family: monospace; }
+        .mini-slot.changed .mini-slot-num { color: #ff8a80; }
+
+        #anchor_info { font-size: 8px; color: #666; font-family: monospace; margin-top: 2px; }
+
+        #log {
+            font-size: 8px; color: #777; margin-top: 4px;
+            max-height: 140px; overflow-y: auto;
+            font-family: monospace; background: #0d0d1a; border-radius: 3px; padding: 2px 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Always-visible header and status -->
+    <header>
+        <h1>Bronzeman Mode <span id="build_num" style="font-size:9px;color:#666;"></span></h1>
+        <p>Earn it before you buy it</p>
+    </header>
+
+    <div class="status-bar">
+        <span><span id="alt1_status_dot" class="status-dot red"></span><span id="alt1_status_text">Alt1 not detected</span></span>
+        <span id="scan_status">Idle</span>
+    </div>
+
+    <div class="stats-row">
+        <div class="stat-box"><div class="stat-value" id="unlocked_count">0</div><div class="stat-label">Unlocked</div></div>
+        <div class="stat-box"><div class="stat-value" id="scan_count">0</div><div class="stat-label">Scans</div></div>
+        <div class="stat-box"><div class="stat-value" id="change_count">0</div><div class="stat-label">Changes</div></div>
+    </div>
+
+    <!-- Buttons always visible -->
+    <div class="btn-row" id="calibrate_row">
+        <div class="btn btn-primary" id="calibrate_btn" onclick="Bronzeman.captureReference()">📷 Capture</div>
+        <div class="btn btn-secondary" onclick="Bronzeman.clearCalibration()">Clear</div>
+    </div>
+    <div class="btn-row" id="stride_row" style="margin-top:2px;">
+        <div class="btn btn-secondary" style="font-size:11px;" onclick="Bronzeman.adjColStride(-1)" title="Reduce column spacing">Col −</div>
+        <div class="btn btn-secondary" style="font-size:11px;" onclick="Bronzeman.adjColStride(1)" title="Increase column spacing">Col +</div>
+        <div class="btn btn-secondary" style="font-size:11px;" onclick="Bronzeman.adjRowStride(-1)" title="Reduce row spacing">Row −</div>
+        <div class="btn btn-secondary" style="font-size:11px;" onclick="Bronzeman.adjRowStride(1)" title="Increase row spacing">Row +</div>
+        <div class="btn btn-secondary" style="font-size:11px;" onclick="Bronzeman.nudgeAnchorX(-1)" title="Move grid left">←</div>
+        <div class="btn btn-secondary" style="font-size:11px;" onclick="Bronzeman.nudgeAnchorX(1)" title="Move grid right">→</div>
+        <div class="btn btn-secondary" style="font-size:11px;" onclick="Bronzeman.nudgeAnchorY(-1)" title="Move grid up">↑</div>
+        <div class="btn btn-secondary" style="font-size:11px;" onclick="Bronzeman.nudgeAnchorY(1)" title="Move grid down">↓</div>
+    </div>
+    <div class="btn-row" id="main_btn_row">
+        <div class="btn btn-primary" onclick="Bronzeman.scanInventory()">Scan Now</div>
+        <div class="btn btn-secondary" id="move_mode_btn" onclick="Bronzeman.toggleMoveMode()">🔳 Move Mode</div>
+        <div class="btn btn-secondary" onclick="Bronzeman.exportData()">Export</div>
+        <div class="btn btn-danger" onclick="Bronzeman.resetData()">Reset</div>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('scan')">Scan</button>
+        <button class="tab-btn" onclick="switchTab('items')">Items</button>
+        <button class="tab-btn" onclick="switchTab('debug')">Debug</button>
+    </div>
+
+    <!-- Tab: Scan -->
+    <div class="tab-panel active" id="panel_scan">
+        <div class="section-title">Recent Slot Changes</div>
+        <div id="change_list"><div style="color:#555;text-align:center;padding:8px;">No changes yet.</div></div>
+    </div>
+
+    <!-- Tab: Items -->
+    <div class="tab-panel" id="panel_items">
+        <div class="section-title">Unlocked Items</div>
+        <div class="item-list" id="recent_list"><div style="color:#555;text-align:center;padding:8px;">No items unlocked yet.</div></div>
+    </div>
+
+    <!-- Tab: Debug -->
+    <div class="tab-panel" id="panel_debug">
+        <div class="section-title">Inventory Grid (4×7)</div>
+        <div id="slot_grid"><div style="color:#555;text-align:center;padding:12px;">Waiting for scan...</div></div>
+        <div id="anchor_info"></div>
+        <div class="section-title">Event Log</div>
+        <div id="log"></div>
+    </div>
+
+    <script src="./main.js"></script>
+    <script>
+        function switchTab(name) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.querySelector('.tab-btn[onclick*="' + name + '"]').classList.add('active');
+            document.getElementById('panel_' + name).classList.add('active');
+        }
+    </script>
+</body>
+</html>
