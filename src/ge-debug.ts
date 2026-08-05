@@ -4,6 +4,7 @@ import { findSubimage, imageDataFromUrl, ImgRefBind } from "alt1/base";
 import type { ImgRef } from "alt1/base";
 import * as OCR from "alt1/ocr";
 const tooltipFont = require("alt1/fonts/chatbox/14pt");
+const geSearchFont = require("alt1/fonts/chatbox/12pt");
 import { log } from "./core";
 import { isNameUnlocked } from "./data";
 import geItemUnlockedUrl from "./assets/images/ge_item_unlocked_button.png";
@@ -274,7 +275,37 @@ async function geDebugTick(): Promise<void> {
                     if (cursorX !== _lastCursorX || ocrW !== _lastOcrW) {
                         _lastCursorX = cursorX;
                         _lastOcrW = ocrW;
-                        log(`OCR test — cursor at ${cursorX}, box width ${ocrW}`);
+                        try {
+                            const fullBuf = img.toData();
+                            const result = OCR.findReadLine(fullBuf, geSearchFont, [[0xff, 0xff, 0xff]], ox + 49, oy + 217, ocrW, 16);
+                            if (result && result.text.length > 0) {
+                                log(`GE search text: "${result.text}"`);
+                            }
+                            // Show the OCR region on the debug pane at 1:1
+                            try {
+                                const region = new ImageData(ocrW, 16);
+                                const srcBuf = img.toData();
+                                for (let py = 0; py < 16; py++) {
+                                    for (let px = 0; px < ocrW; px++) {
+                                        const si = ((oy + 217 + py) * srcBuf.width + (ox + 49 + px)) * 4;
+                                        const di = (py * ocrW + px) * 4;
+                                        region.data[di] = srcBuf.data[si];
+                                        region.data[di + 1] = srcBuf.data[si + 1];
+                                        region.data[di + 2] = srcBuf.data[si + 2];
+                                        region.data[di + 3] = 255;
+                                    }
+                                }
+                                const canvas = document.createElement("canvas");
+                                canvas.width = ocrW;
+                                canvas.height = 16;
+                                canvas.getContext("2d")!.putImageData(region, 0, 0);
+                                const el = document.getElementById("ge_ocr_preview");
+                                if (el) {
+                                    el.innerHTML = "";
+                                    el.appendChild(canvas);
+                                }
+                            } catch (_) {}
+                        } catch (_) {}
                     }
                 }
                 // Cursor not found or at position 49 (empty): just don't draw.
