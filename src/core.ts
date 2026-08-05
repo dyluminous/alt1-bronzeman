@@ -60,6 +60,11 @@ export const state = {
     autocapture: true,
 };
 
+/** GE search temporarily overrides "Group similar items" — typed results
+ *  should never be grouped. Set when the GE auto-switches to Search tab,
+ *  cleared when the GE closes. Read by isSearchGroupSimilar() in ui.ts. */
+export const geSuppressGroup = { value: false };
+
 // ============================================================
 // Notifications
 // ============================================================
