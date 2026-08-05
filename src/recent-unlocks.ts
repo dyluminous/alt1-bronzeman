@@ -44,6 +44,12 @@ export async function recordUnlock(name: string, imageUrl: string, displayLabel:
     updateUI();
 }
 
+/** Empty the recent-unlocks buffer. Called when the user resets all unlocks. */
+export function clearRecentUnlocks(): void {
+    entries.length = 0;
+    updateUI();
+}
+
 /** Populate the buffer from the last MAX_STORED hash unlocks across all
  *  records — the display limit is only applied at render time, so raising the
  *  spinner never requires a re-hydrate. */
