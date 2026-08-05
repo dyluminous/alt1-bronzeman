@@ -4,14 +4,6 @@ import type { BackpackAnchor } from "./inventory";
 /** Pixel coords within the RS game viewport. */
 export interface Point { x: number; y: number }
 
-/** 4 corner pixel data captured during calibration (R,G,B per corner). */
-export interface SlotCorners {
-    tl: [number, number, number];
-    tr: [number, number, number];
-    bl: [number, number, number];
-    br: [number, number, number];
-}
-
 export class InventorySlot {
     readonly index: number;
     readonly col: number;
@@ -21,9 +13,6 @@ export class InventorySlot {
     readonly x: number;
     /** Top-left Y of the slot cell. */
     readonly y: number;
-
-    /** Corner pixel data set after calibration, or null. */
-    corners: SlotCorners | null = null;
 
     constructor(anc: BackpackAnchor, cols: number, index: number) {
         this.index = index;

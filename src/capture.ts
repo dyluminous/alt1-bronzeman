@@ -3,8 +3,9 @@ import * as Detect from "./inventory-detect";
 import { inventory } from "./inventory";
 import { state, captureFullRs, showNotification, NotificationHandle, log, setSearchingGrid } from "./core";
 import { updateUI } from "./ui";
-import { drawDetectDebug, updateGridBoundary } from "./overlay";
+import { drawDetectDebug, updateGridBoundary, drawAnchorWatchDot, clearAnchorWatchDot } from "./overlay";
 import { startSlotHover, stopSlotHover } from "./slot-hover";
+import { startAnchorWatch, stopAnchorWatch } from "./anchor-watch";
 
 // ============================================================
 // Toggle auto-capture on/off
@@ -19,6 +20,7 @@ export function captureReference(): void {
         state.autocapture = false;
         stopGridSearch();
         stopSlotHover();
+        stopAnchorWatch();
         inventory.clear();
         if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
         updateUI();
@@ -35,7 +37,7 @@ export function captureReference(): void {
 // Run fingerprint detection
 // ============================================================
 
-export function calibrateGrid(): void {
+export function calibrateGrid(opts?: { silent?: boolean }): void {
     try {
         const img = captureFullRs();
         if (!img) {
@@ -64,12 +66,19 @@ export function calibrateGrid(): void {
             inventory.calibrate(anc);
             state.calibrating = false;
             state.autocapture = true;
-            showNotification("Inventory calibrated", 3000, "success");
+            if (!opts?.silent) showNotification("Inventory calibrated", 3000, "success");
             drawDetectDebug(anc, false);
             updateGridBoundary();
+            drawAnchorWatchDot();
             updateUI();
             stopGridSearch();
             startSlotHover();
+            startAnchorWatch(() => {
+                // Hide the old dot while recalibrating — a failed re-capture
+                // otherwise leaves a stale marker floating mid-slot.
+                clearAnchorWatchDot();
+                calibrateGrid({ silent: true });
+            }, drawAnchorWatchDot);
         } else {
             state.calibrating = false;
             updateUI();
@@ -91,6 +100,7 @@ export function clearReference(): void {
     state.calibrating = false;
     stopGridSearch();
     stopSlotHover();
+    stopAnchorWatch();
     inventory.clear();
     if (state.inAlt1) alt1.overLayClearGroup("bronzeman_boundary");
     log("Anchor cleared. Capture again to set.");

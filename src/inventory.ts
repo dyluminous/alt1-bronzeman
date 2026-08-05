@@ -54,6 +54,16 @@ export class Inventory {
 
     /** Last column, first row — the rightmost slot in the top row. */
     getLastColumnFirstRowIndex(): number { return this.cols - 1; }
+
+    /** First column, last row — the bottom-left slot. */
+    getFirstColumnLastRowIndex(): number {
+        return Math.min(this.cols * (this.rows - 1), this._slots.length - 1);
+    }
+
+    /** The final slot in the grid (bottom-right-most existing slot). */
+    getLastSlotIndex(): number {
+        return this._slots.length - 1;
+    }
 }
 
 /** Module-wide singleton — the app's calibrated inventory. */
