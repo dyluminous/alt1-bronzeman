@@ -3,6 +3,7 @@ import { inventory } from "./inventory";
 import { state, escHtml, showNotification, log, captureFullRs } from "./core";
 import { getUnlockedCount, getUnlockedItemData, getIgnoredItems, clearIgnoredItems, removeIgnoredItem, resetUnlocks as dataResetUnlocks } from "./data";
 import { showModal } from "./modal";
+import { getObscuredSlotIndices } from "./slot-scan";
 import { BUILD_NUM } from "./version";
 
 // ============================================================
@@ -151,12 +152,21 @@ function renderSlotDebug(): void {
     }
     // Capture once, then draw every slot's interior from the same buffer.
     const img = captureFullRs();
+    // Slots covered by tooltips/menus or under/adjacent to the cursor are
+    // obscured — don't render their (possibly occluded) pixels in the pane.
+    const obscured = img ? getObscuredSlotIndices(img) : new Set<number>();
     // Preserve the grid orientation (columns from calibration).
     grid.style.gridTemplateColumns = `repeat(${inventory.cols}, minmax(64px, auto))`;
     grid.innerHTML = slots.map(slot => {
         const h = slot.previousHash;
         const empty = h === null || h === "empty";
-        return `<div class="slot-debug-cell${empty ? " empty" : ""}" title="${escHtml(h ?? "")}">
+        const blocked = obscured.has(slot.index);
+        const cls = [
+            "slot-debug-cell",
+            empty ? " empty" : "",
+            blocked ? " blocked" : "",
+        ].join("");
+        return `<div class="${cls}" title="${escHtml(h ?? "")}">
             <canvas class="slot-debug-canvas" width="36" height="32"></canvas>
             <div class="idx">#${slot.index}</div>
         </div>`;
@@ -164,6 +174,7 @@ function renderSlotDebug(): void {
 
     if (!img) return;
     slots.forEach((slot, i) => {
+        if (obscured.has(slot.index)) return; // don't draw occluded pixels
         const canvas = grid.children[i]?.querySelector("canvas");
         const ctx = canvas?.getContext("2d");
         if (!canvas || !ctx) return;

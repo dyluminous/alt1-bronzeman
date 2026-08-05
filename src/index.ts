@@ -60,7 +60,7 @@ export { captureReference, clearReference } from "./capture";
 export { debugFindSlot, updateGridBoundary } from "./overlay";
 
 // Slot scan diagnostics
-export { diagnoseSlotScan, dumpSlotHash } from "./slot-scan";
+export { diagnoseSlotScan, dumpSlotHash, debugCorners } from "./slot-scan";
 
 // Modal
 export { modalCancel, modalOk } from "./modal";

@@ -407,3 +407,8 @@
         image-rendering: pixelated;
         background: #000;
     }
+
+    .slot-debug-cell.blocked {
+        border-color: var(--rs-red);
+        opacity: 0.5;
+    }
