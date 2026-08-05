@@ -4,7 +4,7 @@
 import { state, log } from "./core";
 import { updateAlt1Status, updateUI } from "./ui";
 import { initUnlockDB } from "./data";
-import { initRecentUnlocks } from "./recent-unlocks";
+import { initRecentUnlocks, setRecentUnlocksLimit, getRecentUnlocksLimit } from "./recent-unlocks";
 import { calibrateGrid } from "./capture";
 
 import "./index.html";
@@ -24,6 +24,7 @@ function initOnLoad() {
 
     updateAlt1Status();
     initUnlockDB().then(() => { updateUI(); initRecentUnlocks().catch(() => {}); });
+    syncRecentUnlocksSpinner();
 
     if (state.inAlt1) {
         alt1.identifyAppUrl("./appconfig.json");
@@ -47,6 +48,12 @@ function initOnLoad() {
     }, 1000);
 
     log(`Init done. inAlt1=${state.inAlt1}`);
+}
+
+/** Keep the Settings spinner in sync with the persisted value on boot. */
+function syncRecentUnlocksSpinner(): void {
+    const input = document.getElementById("recent_unlocks_count") as HTMLInputElement | null;
+    if (input) input.value = String(getRecentUnlocksLimit());
 }
 
 // ============================================================
@@ -75,6 +82,14 @@ export {
     showDisambiguation, selectDisambiguationOption, closeDisambiguation,
     openItemPngs, closeItemPngs,
 } from "./ui";
+
+// Recent unlocks setting
+// @ts-ignore — called from HTML onchange
+function setRecentUnlocksCount(value: string | number): void {
+    setRecentUnlocksLimit(Number(value));
+}
+
+export { setRecentUnlocksCount };
 
 // ============================================================
 // Bootstrap

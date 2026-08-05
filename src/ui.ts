@@ -4,7 +4,7 @@ import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, showNotification, captureFullRs } from "./core";
 import { resetUnlocks as dataResetUnlocks } from "./data";
 import { hashToPngDataUrl } from "./data";
-import { getRecentUnlocks } from "./recent-unlocks";
+import { getRecentUnlocks, getRecentUnlocksLimit } from "./recent-unlocks";
 import { showModal } from "./modal";
 import { getObscuredSlotIndices } from "./slot-scan";
 import type { DisambiguationOption } from "./wiki";
@@ -63,6 +63,15 @@ function updateAnchorWarning(): void {
 
 export function updateUI(): void {
     renderRecentUnlocks();
+
+    // Reflect the configured count in the tab title. At 0 the whole section
+    // is hidden — no point showing "Last 0 items unlocked" with a dead pane.
+    const titleEl = document.getElementById("recent_unlocks_title");
+    const gridEl = document.getElementById("recent_unlocks_grid");
+    const n = getRecentUnlocksLimit();
+    if (titleEl) titleEl.style.display = n === 0 ? "none" : "";
+    if (gridEl) gridEl.style.display = n === 0 ? "none" : "";
+    if (titleEl) titleEl.textContent = n === 1 ? "Last 1 item unlocked" : `Last ${n} items unlocked`;
 
     const calBtn = document.getElementById("calibrate_btn");
     if (calBtn) {
@@ -293,17 +302,19 @@ function renderRecentUnlocks(): void {
     if (!grid) return;
     const recent = getRecentUnlocks();
     if (recent.length === 0) {
-        grid.innerHTML = '<div class="wiki-disambig-note">No items unlocked yet.</div>';
+        grid.innerHTML = "";
         return;
     }
     grid.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;">` +
         recent.map(entry => {
             const img = entry.imageUrl
-                ? `<img src="${escHtml(entry.imageUrl)}" style="width:36px;height:32px;image-rendering:pixelated;display:block;margin:0 auto;" alt="">`
-                : `<div style="width:36px;height:32px;background:#1a1a1a;margin:0 auto;"></div>`;
-            return `<div style="text-align:center;width:60px;">
-                ${img}
-                <div class="wiki-disambig-note" style="font-size:9px;line-height:1.1;word-break:break-word;">${escHtml(entry.displayLabel)}</div>
+                ? `<img src="${escHtml(entry.imageUrl)}" style="max-width:36px;max-height:32px;image-rendering:pixelated;display:block;" alt="">`
+                : ``;
+            return `<div class="recent-unlock-cell">
+                <div style="width:36px;height:32px;display:flex;align-items:center;justify-content:center;">
+                    ${img}
+                </div>
+                <div class="wiki-disambig-note" style="font-size:10px;line-height:1.1;word-break:break-word;text-align:center;">${escHtml(entry.displayLabel)}</div>
             </div>`;
         }).join("") + `</div>`;
 }

@@ -396,6 +396,14 @@
     .slot-debug-cell .idx {
         font-size: 10px; color: #aaa;
     }
+    .recent-unlock-cell {
+        background: var(--rs-bg-light);
+        border: 1px solid var(--rs-border);
+        border-radius: 3px;
+        padding: 6px 4px;
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        width: 70px; height: 80px;
+    }
     .slot-debug-note {
         color: #888; font-size: 11px; text-align: center; padding: 8px;
     }
