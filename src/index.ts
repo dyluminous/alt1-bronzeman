@@ -696,21 +696,14 @@ function pollScanningMouse(): void {
         try {
             if (tooltipW > 20 && tooltipH > 10) {
                 const colors: OCR.ColortTriplet[] = [[248, 213, 107], [184, 209, 209]];
-                const fontTries = [
-                    require("alt1/fonts/chatbox/16pt"),
-                    require("alt1/fonts/chatbox/14pt"),
-                    require("alt1/fonts/chatbox/12pt"),
-                    require("alt1/fonts/chatbox/10pt"),
-                ];
+                const tooltipFont = require("alt1/fonts/chatbox/14pt");
 
                 const ocrLine = (y: number, searchH?: number): string => {
                     const h = searchH ?? tooltipH;
-                    for (const f of fontTries) {
-                        try {
-                            const result = OCR.findReadLine(wideData, f, colors, leftX, y, tooltipW, h);
-                            if (result?.text && result.text.length > 1) return result.text;
-                        } catch {}
-                    }
+                    try {
+                        const result = OCR.findReadLine(wideData, tooltipFont, colors, leftX, y, tooltipW, h);
+                        if (result?.text && result.text.length > 1) return result.text;
+                    } catch {}
                     return "";
                 };
 
