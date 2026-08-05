@@ -125,11 +125,15 @@ export function updateUI(): void {
 // ============================================================
 
 let slotDebugTimer: ReturnType<typeof setInterval> | null = null;
+/** Whether the pane shows the occlusion gate (blocked cells) or the last-valid pixels. */
+let showOccludedSlots = true;
 
 export function openSlotDebug(): void {
     const pane = document.getElementById("slot_debug_pane");
     if (!pane) return;
     pane.style.display = "flex";
+    const cb = document.getElementById("slot_debug_show_occluded") as HTMLInputElement | null;
+    if (cb) showOccludedSlots = cb.checked;
     renderSlotDebug();
     if (!slotDebugTimer) {
         // Keep the pane in sync with the slot-scan hashes as they update.
@@ -141,6 +145,13 @@ export function closeSlotDebug(): void {
     if (slotDebugTimer) { clearInterval(slotDebugTimer); slotDebugTimer = null; }
     const pane = document.getElementById("slot_debug_pane");
     if (pane) pane.style.display = "none";
+}
+
+/** Re-render immediately after the checkbox toggles (called from HTML onchange). */
+export function refreshSlotDebug(): void {
+    const cb = document.getElementById("slot_debug_show_occluded") as HTMLInputElement | null;
+    if (cb) showOccludedSlots = cb.checked;
+    renderSlotDebug();
 }
 
 function renderSlotDebug(): void {
@@ -161,7 +172,7 @@ function renderSlotDebug(): void {
     grid.innerHTML = slots.map(slot => {
         const h = slot.previousHash;
         const empty = h === null || h === "empty";
-        const blocked = obscured.has(slot.index);
+        const blocked = obscured.has(slot.index) && showOccludedSlots;
         const cls = [
             "slot-debug-cell",
             empty ? " empty" : "",
@@ -175,10 +186,18 @@ function renderSlotDebug(): void {
 
     if (!img) return;
     slots.forEach((slot, i) => {
-        if (obscured.has(slot.index)) return; // don't draw occluded pixels
         const canvas = grid.children[i]?.querySelector("canvas");
         const ctx = canvas?.getContext("2d");
         if (!canvas || !ctx) return;
+        if (obscured.has(slot.index)) {
+            // Occluded slot: show the occlusion gate (blank + red) or the last
+            // cleanly-scanned pixels, depending on the toggle.
+            if (!showOccludedSlots && slot.lastValidPixels) {
+                const imgData = new ImageData(new Uint8ClampedArray(slot.lastValidPixels), InventorySlot.INTERIOR_W, InventorySlot.INTERIOR_H);
+                ctx.putImageData(imgData, 0, 0);
+            }
+            return;
+        }
         // Interior of the slot cell: 36×32, skipping the 1px border.
         const d = img.toData(slot.interiorX, slot.interiorY, InventorySlot.INTERIOR_W, InventorySlot.INTERIOR_H);
         if (d) ctx.putImageData(d, 0, 0);

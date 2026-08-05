@@ -24,6 +24,9 @@ export class InventorySlot {
     cornerRefs: [number, number, number][] = [];
     /** Hash of the slot contents from the last clean scan (null = no baseline yet). */
     previousHash: string | null = null;
+    /** Interior RGBA from the last clean (non-obscured) scan — shown in the debug
+     *  pane when the slot is currently occluded. Null until first clean read. */
+    lastValidPixels: Uint8ClampedArray | null = null;
 
     constructor(anc: BackpackAnchor, cols: number, index: number) {
         this.index = index;

@@ -39,10 +39,9 @@ function readInterior(slot: InventorySlot, img: ImgRef): Uint8ClampedArray | nul
     return d ? d.data : null;
 }
 
-/** Average lightness of a slot's interior, or -1 when unreadable. */
-function interiorLightness(slot: InventorySlot, img: ImgRef): number {
-    const data = readInterior(slot, img);
-    if (!data) return -1;
+/** Average lightness of an interior buffer, or -1 when empty. */
+function interiorLightness(data: Uint8ClampedArray): number {
+    if (!data || data.length === 0) return -1;
     let sum = 0, cnt = 0;
     for (let i = 0; i < data.length; i += 4) {
         sum += lightness(data[i], data[i + 1], data[i + 2]);
@@ -59,6 +58,7 @@ export function captureCornerRefs(img: ImgRef): void {
     for (const slot of inventory.slots) {
         slot.cornerRefs = slot.corners.map(c => readPixel(img, c.x, c.y) ?? [0, 0, 0]);
         slot.previousHash = null;
+        slot.lastValidPixels = null;
     }
     // Slot 27 is assumed always-empty (user-verified) — store its raw interior
     // as the empty reference. Any slot matching it exactly is empty.
@@ -86,10 +86,8 @@ function isCovered(slot: InventorySlot, img: ImgRef): boolean {
 }
 
 /** Number of interior pixels differing from the empty reference beyond tolerance. */
-function emptyMismatchCount(slot: InventorySlot, img: ImgRef): number {
+function emptyMismatchCount(data: Uint8ClampedArray): number {
     if (!emptyRef) return Infinity;
-    const data = readInterior(slot, img);
-    if (!data) return Infinity;
     let mismatched = 0;
     for (let i = 0; i < emptyRef.length; i += 4) {
         if (Math.abs(data[i] - emptyRef[i]) > EMPTY_TOL
@@ -101,15 +99,13 @@ function emptyMismatchCount(slot: InventorySlot, img: ImgRef): number {
     return mismatched;
 }
 
-/** True when the slot's interior is (near-)identical to the empty reference. */
-function isEmptySlot(slot: InventorySlot, img: ImgRef): boolean {
-    return emptyMismatchCount(slot, img) <= EMPTY_MISMATCH_PX;
+/** True when the interior buffer is (near-)identical to the empty reference. */
+function isEmptyInterior(data: Uint8ClampedArray): boolean {
+    return emptyMismatchCount(data) <= EMPTY_MISMATCH_PX;
 }
 
 /** 8×8 cells, 4-bit brightness → 64-char hex. */
-function hashInterior(slot: InventorySlot, img: ImgRef): string {
-    const data = readInterior(slot, img);
-    if (!data) return "";
+function hashInterior(data: Uint8ClampedArray): string {
     const W = InventorySlot.INTERIOR_W, H = InventorySlot.INTERIOR_H;
     const cw = Math.max(1, Math.floor(W / 8));
     const ch = Math.max(1, Math.floor(H / 8));
@@ -166,7 +162,10 @@ function skipReason(slot: InventorySlot, img: ImgRef, obscured: Set<number>): st
         if (bad.length > 0) return "covered: " + bad.join(" ");
         return "excluded: cursor/adjacent";
     }
-    return `baseline-pending light=${interiorLightness(slot, img)} emptyMismatch=${emptyMismatchCount(slot, img)}`;
+    const data = readInterior(slot, img);
+    const light = interiorLightness(data);
+    const mismatch = data ? emptyMismatchCount(data) : -1;
+    return `baseline-pending light=${light} emptyMismatch=${mismatch}`;
 }
 
 /** One-shot full report of every slot's scan state — call from console: Bronzeman.diagnoseSlotScan(). */
@@ -191,8 +190,10 @@ export function dumpSlotHash(index: number): void {
     if (!slot) { log(`[diag] slot ${index} does not exist`); return; }
     const img = captureFullRs();
     if (!img) { log("[diag] capture failed"); return; }
-    const h = hashInterior(slot, img);
-    log(`[diag] slot ${index}: rawHash=${h} emptyMismatch=${emptyMismatchCount(slot, img)}`);
+    const data = readInterior(slot, img);
+    if (!data) { log("[diag] interior unreadable"); return; }
+    const h = hashInterior(data);
+    log(`[diag] slot ${index}: rawHash=${h} emptyMismatch=${emptyMismatchCount(data)}`);
 }
 
 /** Debug one slot's corner gate — call while a menu covers the slot:
@@ -230,7 +231,12 @@ function scanTick(): void {
     for (const slot of inventory.slots) {
         if (obscured.has(slot.index)) continue;
 
-        const cur = isEmptySlot(slot, img) ? EMPTY_HASH : hashInterior(slot, img);
+        // Read the interior once per tick; feed the empty check, the hash and
+        // the last-valid pixels from the same buffer.
+        const data = readInterior(slot, img);
+        if (!data) continue;
+        slot.lastValidPixels = data;
+        const cur = isEmptyInterior(data) ? EMPTY_HASH : hashInterior(data);
         const prev = slot.previousHash;
         if (prev === null) {
             // First clean sighting since calibrate — record the baseline, no event.
