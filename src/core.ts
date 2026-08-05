@@ -62,6 +62,61 @@ export function showOverlay(msg: string, color: number, dur: number): void {
     alt1.overLayTextEx(msg, color, 16, Math.round(alt1.rsWidth / 2), 250, dur, "", true, true);
 }
 
+
+export interface NotificationHandle {
+    update(msg: string): void;
+    remove(): void;
+}
+
+const MAX_NOTIFICATIONS = 3;
+
+function makeNotifEl(msg: string, style: "info" | "success" | "warning" | "danger" = "info"): HTMLDivElement {
+    const el = document.createElement("div");
+    el.textContent = msg;
+    el.className = "notif-item notif-item-enter notif-" + style;
+    return el;
+}
+
+function fadeRemove(el: HTMLElement): void {
+    el.classList.add("notif-item-exit");
+    setTimeout(() => {
+        if (el.parentNode) el.parentNode.removeChild(el);
+    }, 300);
+}
+
+export function showNotification(msg: string, duration: number = 2000, style: "info" | "success" | "warning" | "danger" = "info"): NotificationHandle | null {
+    const c = document.getElementById("notification_container");
+    if (!c) return null;
+
+    while (c.children.length >= MAX_NOTIFICATIONS) {
+        const old = c.firstElementChild as HTMLElement | null;
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+    }
+
+    const el = makeNotifEl(msg, style);
+    c.appendChild(el);
+    requestAnimationFrame(() => {
+        el.classList.remove("notif-item-enter");
+    });
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (duration > 0) {
+        timer = setTimeout(() => {
+            if (el.parentNode) fadeRemove(el);
+        }, duration);
+    }
+
+    return {
+        update(newMsg: string): void {
+            if (el.parentNode) el.textContent = newMsg;
+        },
+        remove(): void {
+            if (timer !== null) clearTimeout(timer);
+            if (el.parentNode) fadeRemove(el);
+        }
+    };
+}
+
 export function escHtml(s: string): string {
     const d = document.createElement("div");
     d.textContent = s;

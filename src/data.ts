@@ -1,7 +1,7 @@
 // data.ts — persistence and Bronzeman unlock logic
 import * as a1lib from "alt1";
 import * as Inventory from "./inventory";
-import { state, LS_KEYS, log, showOverlay } from "./core";
+import { state, LS_KEYS, log, showNotification } from "./core";
 
 // ============================================================
 // Types
@@ -68,7 +68,7 @@ export function unlockItem(itemName: string, base64: string = ""): boolean {
     saveState();
     addScanHistory(n, "unlocked");
     log(`UNLOCKED: "${n}"${base64 ? " (with raster)" : ""}`);
-    if (state.inAlt1) showOverlay(`Unlocked: ${n}`, a1lib.mixColor(100, 255, 100), 3000);
+    if (state.inAlt1) showNotification("Unlocked: " + n, 3000, "success");
     return true;
 }
 
