@@ -124,14 +124,26 @@
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             font-size: 8px; transition: background 0.2s, border-color 0.2s;
         }
-        .mini-slot.changed { background: #3d1a1a; border-color: #f44336; animation: flash 0.6s ease-out; }
-        @keyframes flash {
+        .mini-slot.changed { background: #1a3d1a; border-color: #4caf50; animation: flash_green 0.6s ease-out; }
+        .mini-slot.skipped { background: #3d1a1a; border-color: #f44336; animation: flash_red 0.6s ease-out; }
+        .mini-slot.pending { background: #3d3a10; border-color: #ffc107; animation: flash_yellow 0.6s ease-out; }
+        @keyframes flash_green {
+            0% { background: #4caf50; }
+            100% { background: #1a3d1a; }
+        }
+        @keyframes flash_red {
             0% { background: #f44336; }
             100% { background: #3d1a1a; }
         }
+        @keyframes flash_yellow {
+            0% { background: #ffc107; }
+            100% { background: #3d3a10; }
+        }
         .mini-slot-num { font-size: 10px; font-weight: bold; color: #ccc; }
         .mini-slot-hash { font-size: 6px; color: #666; font-family: monospace; }
-        .mini-slot.changed .mini-slot-num { color: #ff8a80; }
+        .mini-slot.changed .mini-slot-num { color: #81c784; }
+        .mini-slot.skipped .mini-slot-num { color: #ff8a80; }
+        .mini-slot.pending .mini-slot-num { color: #ffd54f; }
 
         #anchor_info { font-size: 8px; color: #666; font-family: monospace; margin-top: 2px; }
 

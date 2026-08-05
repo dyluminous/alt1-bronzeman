@@ -63,6 +63,9 @@ let scanCount = 0;
 let moveMode = false;
 let moveModeTimer: ReturnType<typeof setInterval> | null = null;
 
+// 2-scan confirmation: slotIndex → hash that was seen last scan
+const pendingChanges = new Map<number, string>();
+
 // ============================================================
 // Initialization
 // ============================================================
@@ -266,7 +269,7 @@ function doScan(): void {
         lastScanResult = result;
 
         updateDebugGrid(result);
-        drawSlotOverlays(img, result);
+        drawSlotOverlays(result);
 
         if (scanCount === 1) {
             updateScanStatus(`Baseline (${result.anchor.method})`);
@@ -277,11 +280,68 @@ function doScan(): void {
         }
 
         if (result.changes > 0) {
+            // Filter 1: batch change — >4 slots = UI event (bank, dialog), ignore
+            if (result.changes > 4) {
+                drawSlotOverlays(result, { r: 255, g: 80, b: 80 }); // red
+                updateDebugGrid(result, true); // red in debug tab too
+                log(`  ⏭ Skipped: ${result.changes} slots changed at once (UI event, not inventory action)`);
+                return;
+            }
+
+            // Filter 2: anti-drag — if RS cursor is inside inventory, user is likely dragging
+            if (isCursorInInventory(result)) {
+                drawSlotOverlays(result, { r: 255, g: 80, b: 80 }); // red
+                updateDebugGrid(result, true);
+                log(`  ⏭ Skipped: cursor inside inventory (likely drag/UI interaction)`);
+                return;
+            }
+
             const changedSlots = result.slots.filter(s => s.changed);
-            const names = changedSlots.map(s => `#${s.index + 1}[r${s.row},c${s.col}]`).join(" ");
-            log(`${result.changes} change(s): ${names}`);
-            updateScanStatus(`${result.changes} change(s)`);
-            for (const slot of changedSlots) appendChangeEntry(slot, result.time);
+            const confirmed: Inventory.SlotState[] = [];
+            const newlyPending: Inventory.SlotState[] = [];
+            const reverted: Inventory.SlotState[] = [];
+
+            for (const slot of changedSlots) {
+                const prev = pendingChanges.get(slot.index);
+                if (prev !== undefined) {
+                    if (prev === slot.hash) {
+                        confirmed.push(slot);
+                    } else {
+                        reverted.push(slot);
+                    }
+                    pendingChanges.delete(slot.index);
+                } else {
+                    pendingChanges.set(slot.index, slot.hash);
+                    newlyPending.push(slot);
+                }
+            }
+
+            // Clean stale pending entries for slots that reverted to baseline
+            const changedIndices = new Set(changedSlots.map(s => s.index));
+            const stale: number[] = [];
+            pendingChanges.forEach((_, idx) => { if (!changedIndices.has(idx)) stale.push(idx); });
+            stale.forEach(idx => pendingChanges.delete(idx));
+
+            // Overlays: orange for reverted, yellow for pending, red for confirmed
+            if (reverted.length > 0) {
+                drawSlotOverlaysFor(reverted, { r: 255, g: 80, b: 80 }); // red
+                log(`  ⏭ Reverted: ${reverted.map(s => `#${s.index + 1}`).join(" ")}`);
+            }
+            if (newlyPending.length > 0) {
+                drawSlotOverlaysFor(newlyPending, { r: 255, g: 215, b: 0 }, reverted.length === 0);
+                updateDebugGrid(result, true, new Set(newlyPending.map(s => s.index)));
+            }
+            if (confirmed.length > 0) {
+                drawSlotOverlaysFor(confirmed, { r: 80, g: 200, b: 80 }, newlyPending.length === 0 && reverted.length === 0); // green
+                const names = confirmed.map(s => `#${s.index + 1}[r${s.row},c${s.col}]`).join(" ");
+                log(`  ✅ Confirmed: ${names}`);
+                updateScanStatus(`${confirmed.length} confirmed`);
+                for (const slot of confirmed) appendChangeEntry(slot, result.time);
+            }
+
+            if (confirmed.length === 0 && newlyPending.length === 0 && reverted.length === 0) {
+                updateDebugGrid(result);
+            }
         } else {
             updateScanStatus(`Polling #${scanCount}`);
         }
@@ -307,19 +367,26 @@ export async function scanInventory(): Promise<void> {
 // Overlays
 // ============================================================
 
-function drawSlotOverlays(img: ImgRef, result: Inventory.ScanResult): void {
+function drawSlotOverlaysFor(slots: Inventory.SlotState[], color: { r: number; g: number; b: number }, clearFirst = true): void {
     if (!inAlt1) return;
-    alt1.overLayClearGroup("bronzeman_slots");
-    alt1.overLaySetGroup("bronzeman_slots");
-
-    for (const slot of result.slots) {
-        if (slot.changed) {
-            alt1.overLayRect(a1lib.mixColor(255, 80, 80), slot.x, slot.y, slot.w, slot.h, POLL_INTERVAL_MS + 200, 2);
-            alt1.overLayText(String(slot.index + 1), a1lib.mixColor(255, 255, 255), 11, slot.x + 3, slot.y + 2, POLL_INTERVAL_MS + 200);
-        }
+    if (clearFirst) {
+        alt1.overLayClearGroup("bronzeman_slots");
+        alt1.overLaySetGroup("bronzeman_slots");
     }
+    const clr = a1lib.mixColor(color.r, color.g, color.b);
+    for (const slot of slots) {
+        alt1.overLayRect(clr, slot.x, slot.y, slot.w, slot.h, POLL_INTERVAL_MS + 200, 2);
+        alt1.overLayText(String(slot.index + 1), a1lib.mixColor(255, 255, 255), 11, slot.x + 3, slot.y + 2, POLL_INTERVAL_MS + 200);
+    }
+}
+
+function drawSlotOverlays(result: Inventory.ScanResult, color?: { r: number; g: number; b: number }): void {
+    const changed = result.slots.filter(s => s.changed);
+    if (changed.length === 0) return;
+    drawSlotOverlaysFor(changed, color || { r: 80, g: 200, b: 80 }); // green default
 
     // Gold dot at anchor
+    alt1.overLaySetGroup("bronzeman_slots");
     alt1.overLayRect(a1lib.mixColor(212, 168, 75), result.anchor.x - 2, result.anchor.y - 2, 5, 5, POLL_INTERVAL_MS + 200, 1);
 }
 
@@ -468,7 +535,21 @@ function updateUI(): void {
     }
 }
 
-function updateDebugGrid(result: Inventory.ScanResult | null): void {
+// Check if RS cursor is inside the inventory grid — likely dragging/UI interaction
+function isCursorInInventory(result: Inventory.ScanResult): boolean {
+    try {
+        const pos = a1lib.getMousePosition();
+        if (!pos) return false;
+        const anc = result.anchor;
+        const pad = anc.colStride; // generous padding around grid
+        const left = anc.x - pad, top = anc.y - pad;
+        const right = anc.x + 4 * anc.colStride + pad;
+        const bottom = anc.y + 7 * anc.rowStride + pad;
+        return pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom;
+    } catch { return false; }
+}
+
+function updateDebugGrid(result: Inventory.ScanResult | null, discarded = false, pending: Set<number> = new Set()): void {
     const gridEl = document.getElementById("slot_grid");
     if (!gridEl) return;
     if (!result) { gridEl.innerHTML = '<div style="color:#555;text-align:center;padding:20px;">Waiting...</div>'; return; }
@@ -479,7 +560,11 @@ function updateDebugGrid(result: Inventory.ScanResult | null): void {
         for (let col = 0; col < 4; col++) {
             const slot = result.slots[row * 4 + col];
             let cls = "mini-slot";
-            if (slot.changed) cls += " changed";
+            if (slot.changed) {
+                if (pending.has(slot.index)) cls += " pending";
+                else if (discarded) cls += " skipped";
+                else cls += " changed";
+            }
             const sh = slot.hash.slice(-4) || "----";
             html += `<div class="${cls}" title="Slot ${slot.index + 1} [r${row},c${col}]&#10;Hash: ${slot.hash}&#10;Diff: ${slot.diffScore} (thresh=24)">
                 <span class="mini-slot-num">${slot.index + 1}</span>
