@@ -50,10 +50,9 @@ export function calibrateGrid(opts?: { silent?: boolean }): void {
     try {
         const img = captureFullRs();
         if (!img) {
-            log("Capture failed — could not read RS screen.");
             state.calibrating = false;
             updateUI();
-            showNotification("RS Unlinked", 3000, "danger");
+            if (!opts?.silent) showNotification("RS Unlinked", 3000, "danger");
             return;
         }
 
@@ -168,7 +167,7 @@ function startGridSearch(): void {
             return;
         }
         gridSearchNotify?.update(`Scanning for inventory...\n(${formatElapsed(Date.now() - gridSearchStarted)})`);
-        calibrateGrid();
+        calibrateGrid({ silent: true });
     }, 1000);
 }
 
