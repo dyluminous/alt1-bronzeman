@@ -116,19 +116,28 @@ class UnlockStore {
                 this.getAll(STORE_TRADABLE),
                 this.getAll(STORE_UNTRADABLE),
             ]);
-
-            for (const r of [...tradable, ...untradable]) {
-                for (const h of r.hashes) this.hashes.add(h.hash);
-                this.names.add(r.name);
-                // Index the quantity-invariant lower-half slice of every hash.
-                // The scan tick only consults this for yellow-detected
-                // stackable slots, so no flag filter is needed — non-stackables
-                // never reach it.
-                for (const h of r.hashes) this.lowerHalfIndex.set(lowerHalfOf(h.hash), r.name);
-            }
+            this.rebuildIndexes([...tradable, ...untradable]);
             log(`Unlock DB ready: ${tradable.length} tradable, ${untradable.length} untradable, ${this.hashes.size} hashes.`);
         } catch (e) {
             log(`Unlock DB init error: ${e}`);
+        }
+    }
+
+    /** Rebuild the in-memory hash lookup, name set, and quantity-invariant
+     *  lower-half index from the given records. Used at init and after restore.
+     *  The lower half of every hash is indexed with no flag filter — the scan
+     *  tick only consults it for yellow-detected stackable slots, so
+     *  non-stackables never reach it. */
+    private rebuildIndexes(records: UnlockedItemRecord[]): void {
+        this.hashes.clear();
+        this.names.clear();
+        this.lowerHalfIndex.clear();
+        for (const r of records) {
+            for (const h of r.hashes) {
+                this.hashes.add(h.hash);
+                this.lowerHalfIndex.set(lowerHalfOf(h.hash), r.name);
+            }
+            this.names.add(r.name);
         }
     }
 
@@ -301,16 +310,7 @@ class UnlockStore {
         });
 
         // Rebuild the in-memory indexes from the restored records.
-        this.hashes.clear();
-        this.names.clear();
-        this.lowerHalfIndex.clear();
-        for (const r of [...tradable, ...untradable]) {
-            for (const h of r.hashes) {
-                this.hashes.add(h.hash);
-                this.lowerHalfIndex.set(lowerHalfOf(h.hash), r.name);
-            }
-            this.names.add(r.name);
-        }
+        this.rebuildIndexes([...tradable, ...untradable]);
         log(`Unlock DB restored: ${tradable.length} tradable, ${untradable.length} untradable, ${this.hashes.size} hashes.`);
     }
 }
