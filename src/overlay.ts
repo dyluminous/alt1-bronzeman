@@ -47,6 +47,18 @@ export function drawDetectDebug(isError: boolean = false): void {
         if (!skip(slot.br)) alt1.overLayRect(yellow, slot.br.x - LEN + 1, slot.br.y, LEN, 1, dur, 1);
         if (!skip(slot.br)) alt1.overLayRect(yellow, slot.br.x, slot.br.y - LEN + 1, 1, LEN, dur, 1);
     }
+
+    // Yellow bounding box around the whole grid — used to verify the region
+    // capture bounds. Computed from actual slot cells (covers resized grids
+    // with a short last row). Corner pixels are skipped: they are exactly the
+    // anchor-watch points + slot 0 TL, which must never be painted over.
+    const bounds = inventory.getInventoryBounds();
+    if (bounds) {
+        alt1.overLayRect(yellow, bounds.x + 1, bounds.y, bounds.w - 2, 1, dur, 1);          // top
+        alt1.overLayRect(yellow, bounds.x + 1, bounds.y + bounds.h - 1, bounds.w - 2, 1, dur, 1); // bottom
+        alt1.overLayRect(yellow, bounds.x, bounds.y + 1, 1, bounds.h - 2, dur, 1);          // left
+        alt1.overLayRect(yellow, bounds.x + bounds.w - 1, bounds.y + 1, 1, bounds.h - 2, dur, 1); // right
+    }
 }
 
 // ============================================================
@@ -114,8 +126,10 @@ export function updateGridDebug(): void {
     if (!state.inAlt1) return;
     if (!showGridBoundary) {
         alt1.overLayClearGroup("bronzeman_hover");
+        alt1.overLayClearGroup("bronzeman_detect");
         clearAnchorWatchDot();
     } else {
+        drawDetectDebug(false);
         drawAnchorWatchDot();
     }
 }
