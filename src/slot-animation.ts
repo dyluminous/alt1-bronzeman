@@ -97,6 +97,7 @@ export class SlotBorderAnimation {
      *  Tiling [prev, cur) keeps each trail contiguous — rounding the endpoints can't
      *  leave 1px gaps the way rounding a fixed 3px step per frame can. */
     private tick(): void {
+        alt1.overLaySetGroup(SlotBorderAnimation.GROUP); // immune to other code switching the active group
         const pos = (Date.now() - this.startTime) / this.cycleMs * PERIMETER;
         this.drawComet(this.lastPos, pos);
         if (this.secondCometOffset != null) {

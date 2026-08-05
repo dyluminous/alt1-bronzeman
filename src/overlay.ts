@@ -7,6 +7,7 @@ import { InventorySlot } from "./inventory-slot";
 import { state, captureFullRs, log, showNotification } from "./core";
 import { getAnchorWatchPoints } from "./anchor-watch";
 import { SlotBorderAnimation } from "./slot-animation";
+import goldDot from "./assets/images/gold_dot.png";
 
 // ============================================================
 // Detection debug — corner brackets on all slots
@@ -183,6 +184,67 @@ export function clearSlotHover(): void {
 // Slot animation toggle — "Show slot animation" debug checkbox
 // ============================================================
 
+const SLOT_DOT_GROUP = "bronzeman_slotdot";
+/** Redraw cadence for the dot — Alt1 overlay elements have a finite lifetime
+ *  even when frozen, so the dot is re-drawn with a fresh duration on a timer. */
+const SLOT_DOT_INTERVAL_MS = 500;
+const SLOT_DOT_DURATION_MS = 1000;
+
+let slotDotTimer: ReturnType<typeof setInterval> | null = null;
+let slotDotSlot: InventorySlot | null = null;
+let slotDotEncoded: string | null = null;
+let goldDotPromise: Promise<string> | null = null;
+
+/** Load gold_dot.png once and return its encoded overlay-image string. */
+function loadGoldDotEncoded(): Promise<string> {
+    if (!goldDotPromise) {
+        goldDotPromise = new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                const cv = document.createElement("canvas");
+                cv.width = img.width;
+                cv.height = img.height;
+                const ctx = cv.getContext("2d");
+                if (!ctx) { reject(new Error("no 2d context")); return; }
+                ctx.drawImage(img, 0, 0);
+                resolve(a1lib.encodeImageString(ctx.getImageData(0, 0, img.width, img.height)));
+            };
+            img.onerror = () => reject(new Error("failed to load gold_dot.png"));
+            img.src = goldDot;
+        });
+    }
+    return goldDotPromise;
+}
+
+/** Draw the gold dot at (26, 2) from the slot TL border pixel. */
+function drawSlotDotNow(): void {
+    if (!slotDotSlot || !slotDotEncoded) return;
+    alt1.overLaySetGroup(SLOT_DOT_GROUP);
+    alt1.overLayImage(slotDotSlot.x + 26, slotDotSlot.y + 2, slotDotEncoded, 10, SLOT_DOT_DURATION_MS);
+}
+
+/** Show the dot while the checkbox is ticked; keep-alive redraws it so it persists. */
+function startSlotDot(slot: InventorySlot): void {
+    slotDotSlot = slot;
+    void loadGoldDotEncoded().then(encoded => {
+        const cb = document.getElementById("show_slot_animation") as HTMLInputElement | null;
+        if (!state.inAlt1 || !cb?.checked || slotDotSlot !== slot) return; // toggled off meanwhile
+        slotDotEncoded = encoded;
+        drawSlotDotNow();
+        if (!slotDotTimer) slotDotTimer = setInterval(drawSlotDotNow, SLOT_DOT_INTERVAL_MS);
+    });
+}
+
+function stopSlotDot(): void {
+    if (slotDotTimer) { clearInterval(slotDotTimer); slotDotTimer = null; }
+    slotDotSlot = null;
+    slotDotEncoded = null;
+    try {
+        alt1.overLaySetGroup(SLOT_DOT_GROUP);
+        alt1.overLayClearGroup(SLOT_DOT_GROUP);
+    } catch { /* group already gone — nothing to clear */ }
+}
+
 let slotAnimation: SlotBorderAnimation | null = null;
 
 /** Start/stop the loading-ring animation on slot 27's border, driven by the
@@ -202,11 +264,13 @@ export function toggleSlotAnimation(): void {
             log("Slot 27 not available (inventory not calibrated?)");
             return;
         }
+        startSlotDot(slot);
         slotAnimation ??= new SlotBorderAnimation(slot);
         slotAnimation.start();
         log(`Show slot animation: gold loading ring on slot 27 border from TL (${slot.tl.x},${slot.tl.y})`);
     } else {
         slotAnimation?.stop();
+        stopSlotDot();
     }
 }
 
