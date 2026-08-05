@@ -438,6 +438,10 @@
         display: flex; flex-direction: column;
         overflow-y: auto;
     }
+    /* Hidden by default — JS sets display:flex when shown */
+    #wiki_disambig_pane {
+        display: none;
+    }
     .slot-debug-header {
         padding: 8px 10px;
         color: var(--rs-gold);
