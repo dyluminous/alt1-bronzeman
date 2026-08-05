@@ -12,7 +12,7 @@ import { getNonUnlockedSlotIndices } from "./slot-scan";
 import { readTooltipItemName } from "./tooltip-read";
 import { fetchItemTradeable } from "./wiki";
 import type { WikiQueryResult } from "./wiki";
-import { addUnlockedItem } from "./data";
+import { addUnlockedItem, isHashUnlocked } from "./data";
 import { showDisambiguation, closeDisambiguation } from "./ui";
 
 const NON_UNLOCKED_DOT_GROUP = "bronzeman_nonunlock";
@@ -176,17 +176,28 @@ class UnlockHoverFlow {
             this.startHoverFlow(this.hoveredDotSlot);
         }
 
+        // Filter out slots whose previousHash is already unlocked — the
+        // scanner hasn't re-read these yet (they're covered by the tooltip),
+        // but the hover flow already stored the hash. The dot must disappear
+        // immediately after the unlock, not after mouse-leave.
+        const toDrawArr: number[] = [];
+        indices.forEach(idx => {
+            const slot = inventory.getSlot(idx);
+            if (slot?.previousHash && slot.previousHash !== "empty" && isHashUnlocked(slot.previousHash)) return;
+            toDrawArr.push(idx);
+        });
+
         // Redraw with a fresh duration every tick so dots never expire mid-frame
         // (no clear on steady state = no flicker). Only clear when the set changed,
         // so removed slots' dots vanish promptly.
-        const same = indices.size === this.drawnSlots.size
-            && Array.from(indices).every(i => this.drawnSlots.has(i));
+        const same = toDrawArr.length === this.drawnSlots.size
+            && toDrawArr.every(i => this.drawnSlots.has(i));
         alt1.overLaySetGroup(NON_UNLOCKED_DOT_GROUP);
         if (!same) {
             alt1.overLayClearGroup(NON_UNLOCKED_DOT_GROUP);
-            this.drawnSlots = new Set(indices);
+            this.drawnSlots = new Set(toDrawArr);
         }
-        indices.forEach(idx => {
+        toDrawArr.forEach(idx => {
             const slot = inventory.getSlot(idx);
             if (!slot) return;
             alt1.overLayImage(slot.x + SLOT_DOT_X, slot.y + SLOT_DOT_Y, this.encoded!, SLOT_DOT_W, DOT_DURATION_MS);
