@@ -87,8 +87,9 @@ export class Inventory {
         return idx < this._slots.length ? idx : null;
     }
 
-    /** The orthogonally adjacent slot indices (up/down/left/right), orientation-aware.
-     *  Only existing slots are returned (the capped last row may have fewer columns). */
+    /** The adjacent slot indices — orthogonal (up/down/left/right) plus diagonals
+     *  (TL/TR/BL/BR), orientation-aware. Only existing slots are returned (the
+     *  capped last row may have fewer columns). */
     getAdjacentSlotIndices(index: number): number[] {
         const anc = this._anchor;
         if (!anc || anc.gridCols == null || anc.gridRows == null) return [];
@@ -97,10 +98,14 @@ export class Inventory {
         if (!slot) return [];
         const out: number[] = [];
         const candidates = [
-            { c: slot.col - 1, r: slot.row },  // left
-            { c: slot.col + 1, r: slot.row },  // right
-            { c: slot.col, r: slot.row - 1 },  // up
-            { c: slot.col, r: slot.row + 1 },  // down
+            { c: slot.col - 1, r: slot.row },      // left
+            { c: slot.col + 1, r: slot.row },      // right
+            { c: slot.col, r: slot.row - 1 },      // up
+            { c: slot.col, r: slot.row + 1 },      // down
+            { c: slot.col - 1, r: slot.row - 1 },  // TL
+            { c: slot.col + 1, r: slot.row - 1 },  // TR
+            { c: slot.col - 1, r: slot.row + 1 },  // BL
+            { c: slot.col + 1, r: slot.row + 1 },  // BR
         ];
         for (const { c, r } of candidates) {
             if (c < 0 || c >= cols || r < 0 || r >= rows) continue;
