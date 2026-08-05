@@ -6,7 +6,7 @@ import type { ImgRef } from "alt1/base";
 import * as OCR from "alt1/ocr";
 const tooltipFont = require("alt1/fonts/chatbox/14pt");
 const geSearchFont = require("alt1/fonts/chatbox/12pt");
-import { log } from "./core";
+import { log, captureFullRs } from "./core";
 import { isNameUnlocked } from "./data";
 import geItemUnlockedUrl from "./assets/images/ge_item_unlocked_button.png";
 import geItemNotUnlockedUrl from "./assets/images/ge_item_not_unlocked_button.png";
@@ -101,15 +101,6 @@ async function loadGeButtonEncoded(url: string): Promise<{ data: string; width: 
 // Capture helpers
 // ----------------------------------------------------------------
 
-function captureFull(): ImgRef | null {
-    try {
-        const w = alt1.rsWidth, h = alt1.rsHeight;
-        const handle = alt1.bindRegion(0, 0, w, h);
-        if (handle <= 0) return null;
-        return new ImgRefBind(handle, 0, 0, w, h);
-    } catch { return null; }
-}
-
 function captureGeRegion(bx: number, by: number): ImgRef | null {
     try {
         const handle = alt1.bindRegion(bx, by, 768, 572);
@@ -176,7 +167,7 @@ async function geDebugTick(): Promise<void> {
             const now = Date.now();
             if (now - _lastHuntAt < HUNT_INTERVAL_MS) return;
             _lastHuntAt = now;
-            img = captureFull();
+            img = captureFullRs();
             if (!img) return;
             const needle = await getNeedle();
             const matches = img.findSubimage(needle);
