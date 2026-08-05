@@ -2,7 +2,7 @@
 import * as a1lib from "alt1";
 import * as Inventory from "./inventory";
 import { state, escHtml, updateAnchorWarning } from "./core";
-import { getUnlockedCount, getUnlockedItems, getUnlockedItemData, getIgnoredCount, getIgnoredItems } from "./data";
+import { getUnlockedCount, getUnlockedItems, getUnlockedItemData, getIgnoredItems } from "./data";
 import { BUILD_NUM } from "./version";
 
 // ============================================================
@@ -20,13 +20,6 @@ export function updateAlt1Status(): void {
         dot.className = "status-dot red";
         text.textContent = `Build #${BUILD_NUM} (no alt1)`;
     }
-}
-
-export function updateScanStatus(s: string): void {
-    const el = document.getElementById("scan_status");
-    if (el) el.textContent = s;
-    const sc = document.getElementById("scan_count_debug");
-    if (sc) sc.textContent = String(state.scanCount);
 }
 
 // ============================================================
@@ -71,8 +64,6 @@ export function updateUI(): void {
     }
 
     // Render recent ignores (last 3) — pickup-card style
-    const riCount = document.getElementById("recent_ignore_count");
-    if (riCount) riCount.textContent = String(getIgnoredCount());
     const riList = document.getElementById("recent_ignores_list");
     if (riList) {
         const items = getIgnoredItems();
@@ -95,11 +86,6 @@ export function updateUI(): void {
         }
     }
 
-    if (state.lastScanResult) {
-        const ae = document.getElementById("anchor_info");
-        if (ae) ae.textContent = `Anchor: (${state.lastScanResult.anchor.x}, ${state.lastScanResult.anchor.y}) via ${state.lastScanResult.anchor.method}`;
-    }
-
     const calBtn = document.getElementById("calibrate_btn");
     if (calBtn) {
         const anc = Inventory.loadAnchor();
@@ -116,39 +102,6 @@ export function updateUI(): void {
 
     updateAnchorDot();
     updateAnchorWarning();
-}
-
-// ============================================================
-// Debug tab: mini-grid
-// ============================================================
-
-export function updateDebugGrid(result: Inventory.ScanResult | null, discarded = false, pending: Set<number> = new Set()): void {
-    const gridEl = document.getElementById("slot_grid");
-    if (!gridEl) return;
-    if (!result) { gridEl.innerHTML = '<div style="color:#555;text-align:center;padding:20px;">Waiting...</div>'; return; }
-
-    let html = '<div class="mini-grid">';
-    for (let row = 0; row < 7; row++) {
-        html += '<div class="mini-grid-row">';
-        for (let col = 0; col < 4; col++) {
-            const slot = result.slots[row * 4 + col];
-            let cls = "mini-slot";
-            if (slot.changed) {
-                if (pending.has(slot.index)) cls += " pending";
-                else if (discarded) cls += " skipped";
-                else cls += " changed";
-            }
-            const sh = slot.hash.slice(-4) || "----";
-            html += `<div class="${cls}" title="Slot ${slot.index + 1} [r${row},c${col}]&#10;Hash: ${slot.hash}&#10;Diff: ${slot.diffScore} (thresh=24)">
-                <span class="mini-slot-num">${slot.index + 1}</span>
-                <span class="mini-slot-hash">${sh}</span></div>`;
-        }
-        html += "</div>";
-    }
-    html += "</div>";
-    gridEl.innerHTML = html;
-
-    updateUI();
 }
 
 // ============================================================

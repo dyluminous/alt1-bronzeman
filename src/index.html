@@ -46,10 +46,6 @@
         .status-dot.green { background: #4caf50; }
         .status-dot.red { background: #f44336; }
 
-        .stats-row { display: flex; gap: 5px; margin-bottom: 6px; }
-        .stat-box { flex: 1; background: #1e1a18; border-radius: 4px; padding: 4px; text-align: center; }
-        .stat-box .stat-value { font-size: 16px; font-weight: bold; color: #d4a84b; }
-        .stat-box .stat-label { font-size: 8px; color: #888; }
 
         /* ---- tabs ---- */
         .tab-bar {
@@ -112,21 +108,6 @@
             text-shadow: 0 1px 1px rgba(0,0,0,0.8);
             cursor: pointer;
         }
-        .btn-danger {
-            display: inline-flex; align-items: center; justify-content: center;
-            min-width: 150px; height: 29px; padding: 0 12px; box-sizing: border-box;
-            border: 1px solid transparent; border-radius: 4px;
-            background-origin: border-box;
-            background-clip: padding-box, border-box;
-            background-image:
-                linear-gradient(to bottom, #3b3835 0px, #3b3835 2px, #302d2b 6px, #302d2b calc(100% - 4px), #2e2a28 calc(100% - 1px), #2e2a28 100%),
-                linear-gradient(135deg, #7e4030 0%, #6b3525 50%, #582b1b 100%);
-            box-shadow: inset 0 0 0 2px #23201d;
-            color: #FF3333;
-            font: 400 13px/1 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            text-shadow: 0 1px 1px rgba(0,0,0,0.8);
-            cursor: pointer;
-        }
 
         /* ---- scan tab: pickup grid ---- */
         #pickup_grid {
@@ -134,86 +115,18 @@
             background: #181513; border-radius: 4px; padding: 4px;
             display: flex; flex-wrap: wrap; gap: 3px;
         }
-        .pickup-thumb {
-            width: 40px;
-            border: 1px solid #4caf50; border-radius: 2px;
-            background: #1e1a18;
-            image-rendering: pixelated;
-            display: flex; flex-direction: column; align-items: center;
-        }
-        .pickup-thumb img {
-            width: 100%; height: 32px;
-            object-fit: contain; display: block;
-        }
-        .pickup-thumb .pickup-label {
-            color: #4caf50;
-            font-size: 9px; line-height: 1.2;
-            padding: 1px 0;
-        }
         .section-title {
             font-size: 11px; font-weight: bold; color: #aaa;
             border-bottom: 1px solid #333; padding-bottom: 2px; margin: 6px 0 3px;
-        }
-        .section-subtitle { font-size: 8px; color: #666; margin-bottom: 3px; }
-        #change_list {
-            max-height: 100px; overflow-y: auto;
-            background: #181513; border-radius: 4px; padding: 3px; font-size: 9px;
-        }
-        .change-entry {
-            display: flex; justify-content: space-between;
-            padding: 2px 4px; border-bottom: 1px solid #1a1a1a; font-family: monospace; font-size: 8px;
-        }
-        .change-entry:last-child { border-bottom: none; }
-        .change-slot { color: #ff8a80; }
-        .change-hash { color: #888; }
-        .change-time { color: #555; }
+        }
 
         /* ---- items tab ---- */
         .item-list {
             max-height: 180px; overflow-y: auto;
             background: #181513; border-radius: 4px; padding: 3px; font-size: 9px;
         }
-        .item-row {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 2px 4px; border-bottom: 1px solid #1a1a1a;
-        }
-        .item-row:last-child { border-bottom: none; }
-        .item-row.unlocked .item-name { color: #d4a84b; }
-        .item-badge { font-size: 7px; padding: 1px 4px; border-radius: 2px; }
-        .item-badge.unlocked { background: #2e7d32; color: #c8e6c9; }
 
-        /* ---- debug tab ---- */
-        .mini-grid { display: inline-block; background: #13100e; border-radius: 4px; padding: 3px; }
-        .mini-grid-row { display: flex; gap: 2px; margin-bottom: 2px; }
-        .mini-grid-row:last-child { margin-bottom: 0; }
-        .mini-slot {
-            width: 50px; height: 32px;
-            background: #1e1a18; border: 1px solid #2a2522; border-radius: 2px;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            font-size: 8px; transition: background 0.2s, border-color 0.2s;
-        }
-        .mini-slot.changed { background: #1a3d1a; border-color: #4caf50; animation: flash_green 0.6s ease-out; }
-        .mini-slot.skipped { background: #3d1a1a; border-color: #f44336; animation: flash_red 0.6s ease-out; }
-        .mini-slot.pending { background: #3d3a10; border-color: #ffc107; animation: flash_yellow 0.6s ease-out; }
-        @keyframes flash_green {
-            0% { background: #4caf50; }
-            100% { background: #1a3d1a; }
-        }
-        @keyframes flash_red {
-            0% { background: #f44336; }
-            100% { background: #3d1a1a; }
-        }
-        @keyframes flash_yellow {
-            0% { background: #ffc107; }
-            100% { background: #3d3a10; }
-        }
-        .mini-slot-num { font-size: 10px; font-weight: bold; color: #ccc; }
-        .mini-slot-hash { font-size: 6px; color: #666; font-family: monospace; }
-        .mini-slot.changed .mini-slot-num { color: #81c784; }
-        .mini-slot.skipped .mini-slot-num { color: #ff8a80; }
-        .mini-slot.pending .mini-slot-num { color: #ffd54f; }
 
-        #anchor_info { font-size: 8px; color: #666; font-family: monospace; margin-top: 2px; }
 
         .anchor-dot {
             display: inline-flex;
@@ -227,19 +140,7 @@
             transition: opacity 0.3s;
         }
         .anchor-dot.hidden { opacity: 0; }
-        .anchor-dot.pulse {
-            animation: anchor-pulse 1s ease-in-out infinite;
-        }
-        @keyframes anchor-pulse {
-            0%, 100% { background: #d4a84b; }
-            50% { background: #e8c97a; }
-        }
 
-        /* ---- scan tab pickup ---- */
-        .pickup-grid {
-            display: flex; flex-wrap: wrap; gap: 4px;
-            align-content: flex-start;
-        }
         .pickup-card {
             display: flex; flex-direction: column; align-items: center;
             background: #211D1A; border-radius: 3px; padding: 4px 3px;
@@ -289,30 +190,6 @@
             border-radius: 1px;
             margin-top: 2px;
         }
-        .pickup-card .pickup-actions {
-            display: flex; gap: 1px; margin-top: 2px;
-        }
-        .pickup-card .pickup-actions button {
-            padding: 1px 3px; font-size: 9px; border: none; border-radius: 2px; cursor: pointer; line-height: 1;
-        }
-        .pickup-card .btn-unlock-sm {
-            background: #2e7d32; color: #fff;
-        }
-        .pickup-card .btn-unlock-sm:hover { background: #388e3c; }
-        .pickup-card .btn-unlock-sm.scanning { background: #c62828; }
-        .pickup-card .btn-ignore-sm {
-            background: #444; color: #aaa;
-        }
-        .pickup-card .btn-ignore-sm:hover { background: #555; }
-        .pickup-card .btn-item-menu-overlay {
-            position: absolute; top: 1px; right: 1px;
-            width: 12px; height: 12px; padding: 0;
-            border: 1px solid #37322f; border-radius: 1px;
-            cursor: pointer; z-index: 3;
-            background: rgba(0,0,0,0.4);
-            font-size: 8px; line-height: 12px; text-align: center; color: #ccc;
-        }
-        .pickup-card .btn-item-menu-overlay:hover { background: #3a0a0a; border-color: #8a3030; color: #ff6666; }
         
         @keyframes pulse {
             0%, 100% { opacity: 0.6; }
@@ -322,8 +199,7 @@
         .btn-unlock.scanning {
             background: #f57f17;
             color: #fff8e1;
-        }
-        .scan-hint {
+        }
             color: #ffcc02;
             font-size: 10px;
             text-align: center;
@@ -558,14 +434,6 @@
             <span>Inventory bounds</span>
         </label>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;">
-            <input type="checkbox" class="pixel-checkbox" id="show_tooltip_debug" onclick="Bronzeman.toggleTooltipDebug()">
-            <span>Tooltip scanning</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;">
-            <input type="checkbox" class="pixel-checkbox" id="show_slot_overlays" onclick="Bronzeman.toggleSlotOverlays()">
-            <span>Inventory monitor</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;">
             <input type="checkbox" class="pixel-checkbox" onchange="Bronzeman.toggleIgnoreLog(this.checked)">
             <span>Log ignored items</span>
         </label>
@@ -574,7 +442,7 @@
             <div class="btn btn-primary" onclick="Bronzeman.dumpIgnoredItems()" style="width:100%;padding-top:6px;padding-bottom:6px;">Ignored &gt; Console</div>
             <div class="btn btn-primary" onclick="Bronzeman.debugFindSlot()" style="width:100%;padding-top:6px;padding-bottom:6px;">Fingerprint Slot</div>
         </div>
-        <canvas id="ocr_preview" height="60" style="image-rendering:pixelated;border:1px solid #555;margin-bottom:6px;display:none;max-width:100%;"></canvas>
+
         <div id="anchor_info" style="font-size:8px;color:#666;font-family:monospace;"></div>
         <div id="log" style="display:none;"></div>
         

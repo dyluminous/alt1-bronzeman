@@ -1,5 +1,4 @@
 // core.ts — utilities, constants, shared state for Bronzeman Mode
-import * as a1lib from "alt1";
 import { ImgRef, ImgRefBind } from "alt1/base";
 import * as Inventory from "./inventory";
 
@@ -44,23 +43,13 @@ export const POLL_INTERVAL_MS = 1000;
 
 export const state = {
     inAlt1: false,
-    scanCount: 0,
-    lastScanResult: null as Inventory.ScanResult | null,
     calibrating: false,
     autocapture: false,
-    debugLogIgnores: false,
 };
 
 // ============================================================
 // Helpers
 // ============================================================
-
-export function showOverlay(msg: string, color: number, dur: number): void {
-    if (!state.inAlt1) return;
-    alt1.overLayClearGroup("bronzeman");
-    alt1.overLaySetGroup("bronzeman");
-    alt1.overLayTextEx(msg, color, 16, Math.round(alt1.rsWidth / 2), 250, dur, "", true, true);
-}
 
 
 export interface NotificationHandle {
