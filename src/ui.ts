@@ -2,16 +2,13 @@
 import { inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, captureFullRs, LS_KEYS, log, showNotification } from "./core";
-import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount, getSearchIndex, addUnlockedItem, isHashUnlocked } from "./data";
+import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount, getSearchIndex } from "./data";
 import { hashToPngDataUrl } from "./data";
-import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks, recordUnlock, resolveImageUrl } from "./recent-unlocks";
+import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks, setRecentUnlocksLimit } from "./recent-unlocks";
 import { showModal } from "./modal";
-import { getObscuredSlotIndices, readStackableQuantity } from "./slot-scan";
-import type { DisambiguationOption, WikiQueryResult } from "./wiki";
-import { fetchItemTradeable, pickImageForQuantity } from "./wiki";
+import { getObscuredSlotIndices } from "./slot-scan";
+import type { DisambiguationOption } from "./wiki";
 import type { SearchEntry } from "./data";
-import { SlotLoadingAnimation } from "./slot-animation";
-import { readTooltipItemName } from "./tooltip-read";
 import { BUILD_NUM } from "./version";
 
 // ============================================================
@@ -252,187 +249,22 @@ export function updateUI(): void {
 }
 
 // ============================================================
-// Manual item unlock — user picks a slot, hovers to OCR the
-// tooltip, wiki query, and add to unlock DB.
-// ============================================================
 
-/** Active manual-unlock state; null when idle. */
-let manualUnlockState: {
-    targetIndex: number;
-    animation: SlotLoadingAnimation;
-    timer: ReturnType<typeof setInterval>;
-    abort: () => void;
-} | null = null;
-
-export function openManualUnlock(): void {
-    const content = document.getElementById("settings_content");
-    const inline = document.getElementById("manual_unlock_inline");
-    if (!content || !inline) return;
-    // Reset UI
-    const msg = document.getElementById("manual_unlock_msg");
-    if (msg) msg.textContent = "Select the inventory slot containing the item you want to unlock.";
-    const btn = document.getElementById("manual_unlock_start_btn");
-    if (btn) btn.textContent = "Unlock";
-    content.style.display = "none";
-    inline.style.display = "flex";
+function showInlinePanel(contentId: string, inlineId: string): void {
+    const content = document.getElementById(contentId);
+    const inline = document.getElementById(inlineId);
+    if (content) content.style.display = "none";
+    if (inline) inline.style.display = "flex";
 }
 
-export function closeManualUnlock(): void {
-    if (manualUnlockState) manualUnlockState.abort();
-    const content = document.getElementById("settings_content");
-    const inline = document.getElementById("manual_unlock_inline");
+function hideInlinePanel(contentId: string, inlineId: string): void {
+    const content = document.getElementById(contentId);
+    const inline = document.getElementById(inlineId);
     if (content) content.style.display = "";
     if (inline) inline.style.display = "none";
 }
 
-export function manualUnlock(): void {
-    // If already running, cancel and return.
-    if (manualUnlockState) {
-        manualUnlockState.abort();
-        return;
-    }
-
-    if (!inventory.isCalibrated) {
-        showNotification("Inventory not calibrated — capture it first", 3000, "danger");
-        return;
-    }
-
-    const input = document.getElementById("manual_unlock_slot_input") as HTMLInputElement | null;
-    const userSlot = parseInt(input?.value ?? "1", 10);
-    const targetIndex = Math.min(27, Math.max(0, userSlot - 1));
-    const slot = inventory.getSlot(targetIndex);
-    if (!slot) {
-        showNotification(`Slot ${userSlot} is out of range for the current grid`, 3000, "danger");
-        return;
-    }
-
-    const anim = new SlotLoadingAnimation(slot);
-    anim.start();
-
-    // Update button and message
-    const btn = document.getElementById("manual_unlock_start_btn");
-    if (btn) btn.textContent = "Cancel";
-    const msg = document.getElementById("manual_unlock_msg");
-    if (msg) msg.textContent = "Hover over the target inventory slot";
-
-    const POLL_MS = 200;
-    const TIMEOUT_MS = 30_000;
-    let elapsed = 0;
-    let resolved = false;
-
-    const cleanup = (): void => {
-        if (btn) btn.textContent = "Unlock";
-        if (msg) msg.textContent = "Select the inventory slot containing the item you want to unlock.";
-        if (!manualUnlockState) return;
-        clearInterval(manualUnlockState.timer);
-        manualUnlockState.animation.stop();
-        manualUnlockState = null;
-        closeDisambiguation();
-    };
-
-    const abort = (): void => { resolved = true; cleanup(); };
-
-    const tick = (): void => {
-        elapsed += POLL_MS;
-        if (elapsed > TIMEOUT_MS) {
-            cleanup();
-            showNotification("Timed out waiting for tooltip", 3000, "danger");
-            return;
-        }
-
-        // Check if mouse is over the target slot.
-        const hoveredIndex = inventory.getHoveredSlotIndex();
-        if (hoveredIndex !== targetIndex) return;
-
-        // Mouse is over the slot — stop the animation to avoid frame-skip
-        // during the synchronous full-RS capture inside readTooltipItemName().
-        anim.stop();
-        const itemName = readTooltipItemName();
-        if (!itemName) {
-            anim.start();
-            return;
-        }
-
-        // Got a name — lock in so we don't fire twice.
-        if (resolved) return;
-        resolved = true;
-
-        log(`Manual unlock: "${itemName}" (slot ${targetIndex})`);
-
-        // Stackable quantity
-        let stackQty: number | null = null;
-        if (slot.isStackable) {
-            const n = readStackableQuantity(targetIndex);
-            if (n !== null) stackQty = n;
-        }
-
-        // Internal hash for storage
-        const slotHash = slot.previousHash && slot.previousHash !== "empty" ? slot.previousHash : null;
-
-        void fetchItemTradeable(itemName).then(result => {
-            handleManualWikiResult(result, itemName, slotHash, targetIndex, stackQty, anim, abort);
-        });
-    };
-
-    manualUnlockState = { targetIndex, animation: anim, timer: setInterval(tick, POLL_MS), abort };
-    log(`Manual unlock: waiting for hover on slot ${userSlot} (index ${targetIndex})...`);
-}
-
-/** Handle wiki response for manual unlock, mirroring dot-hover flow. */
-function handleManualWikiResult(
-    result: WikiQueryResult,
-    itemName: string,
-    slotHash: string | null,
-    slotIndex: number,
-    stackQty: number | null,
-    anim: SlotLoadingAnimation,
-    abort: () => void,
-): void {
-    if (result.ok && result.tradeable) {
-        let qtyToStore: number | null = null;
-        if (slotIndex >= 0 && stackQty) {
-            const slot = inventory.getSlot(slotIndex);
-            if (slot?.isStackable && result.images && result.images.length > 0) {
-                const picked = pickImageForQuantity(result.images, stackQty);
-                qtyToStore = picked?.count ?? null;
-            }
-        }
-        const queriedName = itemName;
-        log(`Manual unlock Wiki: "${queriedName}" tradeable = ${result.tradeable}`);
-        if (slotHash) {
-            addUnlockedItem(queriedName, result.tradeable.toLowerCase() === "yes", slotHash, qtyToStore, true);
-        }
-        void resolveImageUrl(queriedName, qtyToStore).then(({ url, displayLabel }) => {
-            recordUnlock(queriedName, url, displayLabel).catch(() => {});
-        });
-        // Notification is sent by addUnlockedItem internally — don't double-fire.
-        closeManualUnlock();
-    } else if (result.disambig && result.disambig.length > 0) {
-        if (result.disambig.length === 1) {
-            const name = result.disambig[0].name;
-            log(`Manual unlock disambig: only one "${name}", continuing`);
-            void fetchItemTradeable(name).then(r =>
-                handleManualWikiResult(r, name, slotHash, slotIndex, stackQty, anim, abort));
-            return;
-        }
-        showDisambiguation(result.disambig,
-            (name: string) => {
-                log(`Manual unlock disambig: selected "${name}"`);
-                void fetchItemTradeable(name).then(r =>
-                    handleManualWikiResult(r, name, slotHash, slotIndex, stackQty, anim, abort));
-            },
-            () => {
-                log("Manual unlock disambig: abandoned");
-                abort();
-            });
-    } else if (result.status !== undefined) {
-        showNotification(`Failed to query Wiki API (${result.status})`, 3000, "danger");
-        abort();
-    } else {
-        showNotification("Failed to query Wiki API (no tradeable data)", 3000, "danger");
-        abort();
-    }
-}
+export { showInlinePanel, hideInlinePanel };
 
 // ============================================================
 // Slot hash debug pane
@@ -443,11 +275,7 @@ let slotDebugTimer: ReturnType<typeof setInterval> | null = null;
 let showOccludedSlots = true;
 
 export function openSlotDebug(): void {
-    const content = document.getElementById("developer_content");
-    const inline = document.getElementById("slot_debug_inline");
-    if (!content || !inline) return;
-    content.style.display = "none";
-    inline.style.display = "flex";
+    showInlinePanel("developer_content", "slot_debug_inline");
     const cb = document.getElementById("slot_debug_show_occluded") as HTMLInputElement | null;
     if (cb) showOccludedSlots = cb.checked;
     renderSlotDebug();
@@ -459,10 +287,7 @@ export function openSlotDebug(): void {
 
 export function closeSlotDebug(): void {
     if (slotDebugTimer) { clearInterval(slotDebugTimer); slotDebugTimer = null; }
-    const content = document.getElementById("developer_content");
-    const inline = document.getElementById("slot_debug_inline");
-    if (content) content.style.display = "";
-    if (inline) inline.style.display = "none";
+    hideInlinePanel("developer_content", "slot_debug_inline");
 }
 
 /** Re-render immediately after the checkbox toggles (called from HTML onchange). */
@@ -593,13 +418,10 @@ export function closeDisambiguation(): void {
  *  (empty/unscanned slots render as a blank tile; identical hashes get a green
  *  border). */
 export function openItemPngs(): void {
-    const content = document.getElementById("developer_content");
-    const inline = document.getElementById("item_pngs_inline");
     const body = document.getElementById("item_pngs_body");
-    if (!content || !inline || !body) return;
+    if (!body) return;
     renderInventoryPngs(body);
-    content.style.display = "none";
-    inline.style.display = "flex";
+    showInlinePanel("developer_content", "item_pngs_inline");
 }
 
 /** Fill the pane with every slot's current interior hash. */
@@ -641,10 +463,7 @@ function renderInventoryPngs(body: HTMLElement): void {
 
 /** Close the item hash PNGs pane. */
 export function closeItemPngs(): void {
-    const content = document.getElementById("developer_content");
-    const inline = document.getElementById("item_pngs_inline");
-    if (content) content.style.display = "";
-    if (inline) inline.style.display = "none";
+    hideInlinePanel("developer_content", "item_pngs_inline");
 }
 
 // ============================================================
@@ -722,4 +541,36 @@ function moveRecentUnlockTooltip(e: MouseEvent): void {
     if (top + h > vh - pad) top = e.clientY - h - pad;
     tooltipEl.style.left = `${Math.max(pad, left)}px`;
     tooltipEl.style.top = `${Math.max(pad, top)}px`;
+}
+
+// ============================================================
+// Spinner helpers — called from HTML onclick
+// ============================================================
+
+// @ts-ignore — called from HTML onchange
+export function setRecentUnlocksCount(value: string | number): void {
+    setRecentUnlocksLimit(Number(value));
+}
+
+/** Step the recent-unlocks spinner by ±1 from its current value. */
+// @ts-ignore — called from HTML onclick
+export function stepRecentUnlocksCount(delta: number): void {
+    const input = document.getElementById("recent_unlocks_count") as HTMLInputElement | null;
+    const current = Number(input?.value ?? getRecentUnlocksLimit());
+    const next = Math.min(28, Math.max(0, current + delta));
+    setRecentUnlocksCount(next);
+    if (input) input.value = String(next);
+}
+
+/** Step the manual-unlock slot spinner by ±1 from its current value. */
+// @ts-ignore — called from HTML onclick
+export function stepManualUnlockSlot(delta: number): void {
+    stepSpinner("manual_unlock_slot_input", delta, 1, 28);
+}
+
+function stepSpinner(inputId: string, delta: number, min: number, max: number): void {
+    const input = document.getElementById(inputId) as HTMLInputElement | null;
+    const current = Number(input?.value ?? min);
+    const next = Math.min(max, Math.max(min, current + delta));
+    if (input) input.value = String(next);
 }
