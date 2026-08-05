@@ -17,9 +17,9 @@ export class InventorySlot {
     readonly col: number;
     readonly row: number;
 
-    /** Top-left X of the slot content area (36×32, excludes 1px border). */
+    /** Top-left X of the slot cell (38×34, includes 1px border). */
     readonly x: number;
-    /** Top-left Y of the slot content area. */
+    /** Top-left Y of the slot cell. */
     readonly y: number;
 
     /** Corner pixel data set after calibration, or null. */
@@ -33,17 +33,17 @@ export class InventorySlot {
         this.y = anc.y + this.row * anc.rowStride;
     }
 
-    /** Center pixel of the slot cell (including 1px border). */
-    get cx(): number { return this.x + 18; }
     /** Center pixel of the slot cell. */
-    get cy(): number { return this.y + 16; }
+    get cx(): number { return this.x + 19; }
+    /** Center pixel of the slot cell. */
+    get cy(): number { return this.y + 17; }
 
-    /** Top-left corner of the slot border (1px outside content area). */
-    get tl(): Point { return { x: this.x - 1, y: this.y - 1 }; }
+    /** Top-left corner of the slot border. */
+    get tl(): Point { return { x: this.x, y: this.y }; }
     /** Top-right corner of the slot border. */
-    get tr(): Point { return { x: this.x + 36, y: this.y - 1 }; }
+    get tr(): Point { return { x: this.x + 37, y: this.y }; }
     /** Bottom-left corner of the slot border. */
-    get bl(): Point { return { x: this.x - 1, y: this.y + 32 }; }
+    get bl(): Point { return { x: this.x, y: this.y + 33 }; }
     /** Bottom-right corner of the slot border. */
-    get br(): Point { return { x: this.x + 36, y: this.y + 32 }; }
+    get br(): Point { return { x: this.x + 37, y: this.y + 33 }; }
 }
