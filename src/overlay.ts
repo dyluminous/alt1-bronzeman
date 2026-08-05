@@ -8,11 +8,12 @@ import { state, captureFullRs, log, showNotification } from "./core";
 import { getAnchorWatchPoints } from "./anchor-watch";
 import { SlotLoadingAnimation } from "./slot-animation";
 import goldDot from "./assets/images/gold_dot.png";
+import { getNonUnlockedSlotIndices } from "./slot-scan";
 import { TooltipScanner, readTooltipItemName } from "./tooltip-read";
 import { fetchItemTradeable } from "./wiki";
 import type { WikiQueryResult } from "./wiki";
+import { addUnlockedItem } from "./data";
 import { showDisambiguation, closeDisambiguation } from "./ui";
-import { getNonUnlockedSlotIndices } from "./slot-scan";
 
 // ============================================================
 // Detection debug — corner brackets on all slots
@@ -312,10 +313,16 @@ function finishHoverFlow(): void {
     hoverResolved = true;
 }
 
-function handleWikiResult(result: WikiQueryResult, queriedName: string): void {
+function handleWikiResult(result: WikiQueryResult, queriedName: string, slotHash: string | null): void {
     queryBusy = false;
     if (result.ok) {
-        log(`Wiki: "${queriedName}" tradeable = ${result.tradeable}`);
+        log(`Wiki: "${queriedName}" tradeable = ${result.tradeable} stackable = ${result.stackable ? "Yes" : "No"}`);
+        // Store the unlock: name + tradeable/stackable flags + the slot's hash.
+        if (slotHash) {
+            addUnlockedItem(queriedName, result.tradeable?.toLowerCase() === "yes", result.stackable ?? false, slotHash);
+        } else {
+            log(`No slot hash available — skipping unlock record for "${queriedName}"`);
+        }
         finishHoverFlow();
     } else if (result.disambig && result.disambig.length > 0) {
         // Only one item option after filtering — continue without a dialog.
@@ -323,7 +330,7 @@ function handleWikiResult(result: WikiQueryResult, queriedName: string): void {
             const name = result.disambig[0].name;
             log(`Wiki disambiguation: only one item "${name}", continuing`);
             queryBusy = true;
-            void fetchItemTradeable(name).then(r => handleWikiResult(r, name));
+            void fetchItemTradeable(name).then(r => handleWikiResult(r, name, slotHash));
             return;
         }
         // Ask the user which option is the right item — animation keeps running.
@@ -333,7 +340,7 @@ function handleWikiResult(result: WikiQueryResult, queriedName: string): void {
                 disambigOpen = false;
                 log(`Wiki disambiguation: selected "${name}"`);
                 queryBusy = true;
-                void fetchItemTradeable(name).then(r => handleWikiResult(r, name));
+                void fetchItemTradeable(name).then(r => handleWikiResult(r, name, slotHash));
             },
             () => {
                 // ✕ or click-outside — abandoned, end the flow.
@@ -358,6 +365,9 @@ function startHoverFlow(slotIndex: number): void {
             hoverAnimation.start();
         }
     }
+    // The scanned interior hash of this slot — the item identity used for storage.
+    const slot = inventory.getSlot(slotIndex);
+    const slotHash = slot && slot.previousHash && slot.previousHash !== "empty" ? slot.previousHash : null;
     const itemName = readTooltipItemName();
     if (!itemName) {
         showNotification("Failed to read item name", 3000, "danger");
@@ -366,9 +376,9 @@ function startHoverFlow(slotIndex: number): void {
         hoverResolved = false;
         return;
     }
-    log(`Hovered item: "${itemName}" (slot ${slotIndex})`);
+    log(`Hovered item: "${itemName}" (slot ${slotIndex}) hash=${slotHash ? slotHash.slice(0, 12) + "…" : "n/a"}`);
     queryBusy = true;
-    void fetchItemTradeable(itemName).then(result => handleWikiResult(result, itemName));
+    void fetchItemTradeable(itemName).then(result => handleWikiResult(result, itemName, slotHash));
 }
 
 function drawNonUnlockedDots(): void {

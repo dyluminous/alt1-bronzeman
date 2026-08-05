@@ -3,7 +3,7 @@
 // lives in domain modules: capture, overlay, ui, modal, data, inventory, core.
 import { state, log } from "./core";
 import { updateAlt1Status, updateUI } from "./ui";
-import { loadState, initIgnoreDB } from "./data";
+import { loadState, initUnlockDB } from "./data";
 import { calibrateGrid } from "./capture";
 
 import "./index.html";
@@ -23,7 +23,7 @@ function initOnLoad() {
 
     updateAlt1Status();
     loadState();
-    initIgnoreDB().then(() => updateUI());
+    initUnlockDB().then(() => updateUI());
 
     if (state.inAlt1) {
         alt1.identifyAppUrl("./appconfig.json");
@@ -63,16 +63,14 @@ export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug
 export { diagnoseSlotScan, dumpSlotHash, debugCorners } from "./slot-scan";
 
 // Data
-export { addUnlockedHash, removeUnlockedHash, isHashUnlocked, getUnlockedHashes } from "./data";
+export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks } from "./data";
 
 // Modal
 export { modalCancel, modalOk } from "./modal";
 
 // UI action handlers
 export {
-    resetUnlocks, resetIgnores,
-    removeIgnore,
-    showIgnoreTooltip, hideIgnoreTooltip, moveIgnoreTooltip,
+    resetUnlocks,
     openSlotDebug, closeSlotDebug, refreshSlotDebug,
     showDisambiguation, selectDisambiguationOption, closeDisambiguation,
 } from "./ui";
