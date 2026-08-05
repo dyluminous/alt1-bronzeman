@@ -1,7 +1,7 @@
 // inventory-capture.ts — inventory capture lifecycle for Bronzeman Mode
 import * as Detect from "./inventory-detect";
 import { inventory } from "../../classes/inventory";
-import { state, captureFullRs, showNotification, NotificationHandle, log } from "../../core";
+import { state, captureFullRs, showNotification, NotificationHandle, log, LS_KEYS } from "../../core";
 import { updateUI } from "../../ui/ui";
 import { drawDetectDebug, updateGridDebug, drawAnchorWatchDot, clearAnchorWatchDot, stopGeDetection, initGeDetection, geIsOpen } from "../overlay/overlay-draw";
 import { startNonUnlockedDotRefresh, stopNonUnlockedDotRefresh } from "../unlock/unlock-hover";
@@ -128,6 +128,22 @@ export function clearReference(): void {
 }
 
 // ============================================================
+// Hide "Scanning for inventory" notification
+// ============================================================
+
+let hideScanningNotification = localStorage.getItem(LS_KEYS.hideScanningNotification) === "1";
+
+export function toggleHideScanningNotification(): void {
+    hideScanningNotification = !hideScanningNotification;
+    localStorage.setItem(LS_KEYS.hideScanningNotification, hideScanningNotification ? "1" : "0");
+    // If the notification is currently showing and the user hides it, dismiss it.
+    if (hideScanningNotification && gridSearchNotify) {
+        gridSearchNotify.remove();
+        gridSearchNotify = null;
+    }
+}
+
+// ============================================================
 // Initial grid search — fires every 1s until inventory found.
 // No timeout: auto-capture is always-on, so the scan keeps trying
 // until the backpack comes into view (or the user disables it).
@@ -158,7 +174,7 @@ function startGridSearch(): void {
     // never show "Scanning" — avoids a flash-on-then-off.
     gridSearchNotifyTimer = setTimeout(() => {
         gridSearchNotifyTimer = null;
-        if (!inventory.isCalibrated && !geIsOpen()) {
+        if (!inventory.isCalibrated && !geIsOpen() && !hideScanningNotification) {
             gridSearchNotify = showNotification(`Scanning for inventory...\n(${formatElapsed(Date.now() - gridSearchStarted)})`, 0, "info");
         }
     }, 1000);
