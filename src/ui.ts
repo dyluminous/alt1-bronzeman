@@ -2,7 +2,7 @@
 import { inventory } from "./inventory";
 import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, captureFullRs, LS_KEYS } from "./core";
-import { resetUnlocks as dataResetUnlocks } from "./data";
+import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount } from "./data";
 import { hashToPngDataUrl } from "./data";
 import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks } from "./recent-unlocks";
 import { showModal } from "./modal";
@@ -42,6 +42,63 @@ export function applyDeveloperMode(): void {
 }
 
 // ============================================================
+// Search settings — persisted checkboxes (mirrors Developer mode)
+// ============================================================
+
+/** Whether "Hide untradable items" is enabled (persisted; default off). */
+export function isSearchHideUntradable(): boolean {
+    return localStorage.getItem(LS_KEYS.searchHideUntradable) === "1";
+}
+
+/** Toggle "Hide untradable items", persisting the choice. */
+export function toggleSearchHideUntradable(): void {
+    const on = !isSearchHideUntradable();
+    localStorage.setItem(LS_KEYS.searchHideUntradable, on ? "1" : "0");
+    applySearchSettings();
+    updateSearchUnlockCount(true); // count scope changed — force a refresh
+}
+
+/** Whether "Group similar items" is enabled (persisted; default off). */
+export function isSearchGroupSimilar(): boolean {
+    return localStorage.getItem(LS_KEYS.searchGroupSimilar) === "1";
+}
+
+/** Toggle "Group similar items", persisting the choice. */
+export function toggleSearchGroupSimilar(): void {
+    const on = !isSearchGroupSimilar();
+    localStorage.setItem(LS_KEYS.searchGroupSimilar, on ? "1" : "0");
+    applySearchSettings();
+}
+
+/** Sync the search checkboxes to their persisted values (boot + toggles). */
+export function applySearchSettings(): void {
+    const hide = document.getElementById("search_hide_untradable") as HTMLInputElement | null;
+    if (hide) hide.checked = isSearchHideUntradable();
+    const group = document.getElementById("search_group_similar") as HTMLInputElement | null;
+    if (group) group.checked = isSearchGroupSimilar();
+}
+
+// ============================================================
+// Search tab — unlock count label
+// ============================================================
+
+let lastSearchUnlockCount = -1;
+
+/** Set the search input placeholder to "Search N unlocks..." (memoized — the
+ *  count query is async and updateUI() runs frequently). When "Hide untradable
+ *  items" is on, N is the tradable unlock count only. */
+function updateSearchUnlockCount(force = false): void {
+    const input = document.getElementById("search_input") as HTMLInputElement | null;
+    if (!input) return;
+    const countQuery = isSearchHideUntradable() ? getTradableUnlockCount() : getUnlockCount();
+    void countQuery.then((count) => {
+        if (!force && count === lastSearchUnlockCount) return;
+        lastSearchUnlockCount = count;
+        input.placeholder = count === 1 ? "Search 1 unlock..." : `Search ${count} unlocks...`;
+    });
+}
+
+// ============================================================
 // Status bar
 // ============================================================
 
@@ -75,6 +132,7 @@ function updateAnchorDot(): void {
 
 export function updateUI(): void {
     renderRecentUnlocks();
+    updateSearchUnlockCount();
 
     // Reflect the configured count in the tab title. At 0 the whole section
     // is hidden — no point showing "Last 0 items unlocked" with a dead pane.

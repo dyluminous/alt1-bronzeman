@@ -108,7 +108,7 @@
         outline: none;
         box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.9);
     }
-    .text-input::placeholder { color: #8a857e; }
+    .text-input::placeholder { color: #8a857e; font-weight: 400; }
 
     /* ---- buttons (always visible) ---- */
     .btn-row { display: flex; gap: 5px; margin-bottom: 5px; }
