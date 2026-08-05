@@ -136,9 +136,9 @@
         <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;">
             <div class="btn btn-primary" onclick="Bronzeman.debugFindSlot()" style="width:100%;padding-top:6px;padding-bottom:6px;">Fingerprint Slot</div>
             <div class="btn btn-primary" onclick="Bronzeman.openSlotDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Slots interface</div>
-            <div class="btn btn-primary" onclick="Bronzeman.openItemPngs()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Item PNGs</div>
+            <div class="btn btn-primary" onclick="Bronzeman.openItemPngs()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Inventory Hashes</div>
             <div class="btn btn-primary" onclick="Bronzeman.ocrStackableDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">OCR Stackable (Slot 27)</div>
-            <div class="btn btn-primary" onclick="Bronzeman.openDbItemPngs()" style="width:100%;padding-top:6px;padding-bottom:6px;">DB Item Hash</div>
+            <div class="btn btn-primary" onclick="Bronzeman.openDbItemPngs()" style="width:100%;padding-top:6px;padding-bottom:6px;">Search DB Item Hash</div>
         </div>
         </div>
         <div id="slot_debug_inline" style="display:none;flex:1;flex-direction:column;">
@@ -165,7 +165,9 @@
             </div>
             <div style="display:flex;gap:6px;padding:8px 10px;">
                 <input type="text" id="db_item_hash_input" class="text-input" placeholder="Item name" style="flex:1;">
-                <div class="btn btn-primary" onclick="Bronzeman.searchDbItemHash()" style="padding:2px 10px;">Search</div>
+                <div class="btn btn-primary" onclick="Bronzeman.searchDbItemHash()" style="min-width:0;width:35px;flex:0 0 35px;padding:0;display:flex;align-items:center;justify-content:center;" title="Search">
+                    <img id="db_search_icon_img" src="" style="width:16px;height:16px;">
+                </div>
             </div>
             <div id="db_item_pngs_body" class="wiki-disambig-body"></div>
         </div>
