@@ -5,28 +5,19 @@
 // against the slot's previousHash to detect appeared / removed / changed / moved.
 import * as a1lib from "alt1";
 import * as OCR from "alt1/ocr";
-import { inventory } from "./inventory";
-import { captureFullRs, log, lightness } from "./core";
+import { inventory } from "../classes/inventory";
+import { captureFullRs, log, lightness } from "../core";
 import type { ImgRef } from "alt1/base";
-import { InventorySlot } from "./inventory-slot";
+import { InventorySlot } from "../classes/inventory-slot";
 import { isHashUnlocked, isLowerHalfUnlocked, isHashNibbleUnlocked } from "./data";
-import { hashInterior, LOWER_HALF_OFFSET } from "./hash";
+import { hashInterior, LOWER_HALF_OFFSET } from "../utils/hash";
+import { readPixel } from "../utils/helpers";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const stackableFont = require("alt1/fonts/pixel_8px_digits");
 
 const SCAN_MS = 500;
 /** Sentinel previousHash for an empty slot. */
 const EMPTY_HASH = "empty";
-
-// ============================================================
-// Low-level reads from a captured image
-// ============================================================
-
-/** Read one RGB pixel from an image, or null when unavailable. */
-function readPixel(img: ImgRef, x: number, y: number): [number, number, number] | null {
-    const d = img.toData(x, y, 1, 1);
-    return d ? [d.data[0], d.data[1], d.data[2]] : null;
-}
 
 /** Read a slot's interior (36×32, inside the 1px border) from an image, or null. */
 function readInterior(slot: InventorySlot, img: ImgRef): Uint8ClampedArray | null {

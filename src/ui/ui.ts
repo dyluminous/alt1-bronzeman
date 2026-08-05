@@ -1,17 +1,17 @@
 // ui.ts — DOM rendering and UI action handlers for Bronzeman Mode
-import { inventory } from "./inventory";
-import { InventorySlot } from "./inventory-slot";
-import { state, escHtml, captureFullRs, LS_KEYS, log, showNotification, geSuppressGroup } from "./core";
-import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount, getSearchIndex } from "./data";
-import { hashToPngDataUrl, getItemRecord } from "./data";
-import type { UnlockedItemRecord } from "./data";
+import { inventory } from "../classes/inventory";
+import { InventorySlot } from "../classes/inventory-slot";
+import { state, escHtml, captureFullRs, LS_KEYS, log, showNotification, geSuppressGroup } from "../core";
+import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount, getSearchIndex } from "../services/data";
+import { hashToPngDataUrl, getItemRecord } from "../services/data";
+import type { UnlockedItemRecord } from "../services/data";
 import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks, setRecentUnlocksLimit } from "./recent-unlocks";
 import { showModal } from "./modal";
-import { getObscuredSlotIndices } from "./slot-scan";
-import { geIsOpen } from "./ge-debug";
-import type { DisambiguationOption } from "./wiki";
-import type { SearchEntry } from "./data";
-import { BUILD_NUM } from "./version";
+import { getObscuredSlotIndices } from "../services/slot-scan";
+import { geIsOpen } from "../services/ge-debug";
+import type { DisambiguationOption } from "../services/wiki";
+import type { SearchEntry } from "../services/data";
+import { BUILD_NUM } from "../version";
 
 // ============================================================
 // Developer tab visibility

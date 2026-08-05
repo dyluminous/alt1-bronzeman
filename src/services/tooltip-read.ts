@@ -2,7 +2,9 @@
 import * as a1lib from "alt1";
 import type { ImgRef } from "alt1";
 import * as OCR from "alt1/ocr";
-import { captureFullRs, log } from "./core";
+import { captureFullRs, log } from "../core";
+import type { TooltipHit, TooltipRun, TooltipVerticalRun, TooltipMeasure } from "../types";
+import { RS_GOLD, RS_GREEN, OVERLAY_MAGENTA } from "../utils/colors";
 
 const tooltipFont = require("alt1/fonts/chatbox/14pt");
 
@@ -26,8 +28,9 @@ if (lGlyph) {
 // Constants
 // ============================================================
 
-/** Tooltip border color being searched for (#2e251a). */
-const COLOR: [number, number, number] = [0x2e, 0x25, 0x1a];
+/** Tooltip border outer edge colour (#2E251A). Also the first entry in
+ *  BORDER_GRADIENT — both must agree. */
+const TOOLTIP_BORDER_OUTER: [number, number, number] = [0x2e, 0x25, 0x1a];
 /** The tooltip border is a 4-pixel gradient, outer → inner:
  *  #2e251a, #665a3a, #59482e, #33281d (verified against tooltip_example.png).
  *  A lone #2e251a pixel could be any UI element — only the full sequence
@@ -57,6 +60,10 @@ const BOX_INSET = 4;
 /** Pause between successful hits before the scan starts over. */
 const COOLDOWN_MS = 2000;
 
+/** Tooltip OCR colours — gold item-name text, cyan secondary text. */
+const TOOLTIP_OCR_GOLD: OCR.ColortTriplet[] = [[248, 213, 107]]; // #F8D56B
+const TOOLTIP_OCR_CYAN: OCR.ColortTriplet[] = [[184, 209, 209]]; // #B8D1D1
+
 // ============================================================
 // Helpers
 // ============================================================
@@ -74,9 +81,9 @@ function drawBox(color: number, x: number, y: number, w: number, h: number, dur:
 function isTooltipColor(img: ImgRef, x: number, y: number, tol = 0): boolean {
     const d = img.toData(x, y, 1, 1);
     if (!d) return false;
-    return Math.abs(d.data[0] - COLOR[0]) <= tol
-        && Math.abs(d.data[1] - COLOR[1]) <= tol
-        && Math.abs(d.data[2] - COLOR[2]) <= tol;
+    return Math.abs(d.data[0] - TOOLTIP_BORDER_OUTER[0]) <= tol
+        && Math.abs(d.data[1] - TOOLTIP_BORDER_OUTER[1]) <= tol
+        && Math.abs(d.data[2] - TOOLTIP_BORDER_OUTER[2]) <= tol;
 }
 
 /** True when the pixel at (x, y) is the tooltip border's outer #2e251a edge,
@@ -119,13 +126,11 @@ export function extractItemName(raw: string): string {
 // gold-dot hover path to OCR an item name from the tooltip at the cursor.
 // ============================================================
 
-interface Hit { x: number; y: number; dist: number; dir: "down" | "up" }
-interface Run { width: number; leftX: number }
-interface VerticalRun { startX: number; startY: number; height: number }
+
 
 /** Walk ±MAX_DIST from the cursor along the X column: down first, then up.
  *  The walk is clamped to the RS window edges (the capture is full-window). */
-function walkToColor(img: ImgRef): Hit | null {
+function walkToColor(img: ImgRef): TooltipHit | null {
     const m = a1lib.getMousePosition();
     if (!m) return null;
     const x = m.x, y0 = m.y;
@@ -145,7 +150,7 @@ function walkToColor(img: ImgRef): Hit | null {
 
 /** Horizontal run of tooltip-colored pixels through (x, y) with a small shade
  *  tolerance so the slightly-lighter corner pixel counts. */
-function measureRun(img: ImgRef, x: number, y: number): Run {
+function measureRun(img: ImgRef, x: number, y: number): TooltipRun {
     let leftX = x, rightX = x;
     while (isTooltipColor(img, leftX - 1, y, RUN_TOL)) leftX--;
     while (isTooltipColor(img, rightX + 1, y, RUN_TOL)) rightX++;
@@ -154,7 +159,7 @@ function measureRun(img: ImgRef, x: number, y: number): Run {
 
 /** Locate the left border near the run's left end and travel along it to
  *  measure the tooltip's vertical run. */
-function measureHeight(img: ImgRef, runLeftX: number, y: number, dir: "down" | "up"): VerticalRun {
+function measureHeight(img: ImgRef, runLeftX: number, y: number, dir: "down" | "up"): TooltipVerticalRun {
     const dyLo = dir === "down" ? 2 : -4;
     const dyHi = dir === "down" ? 4 : -2;
     for (let dx = 3; dx <= 5; dx++) {
@@ -190,7 +195,7 @@ function ocrItemName(img: ImgRef, x: number, y: number, w: number, h: number): s
     try {
         const fullBuf = img.toData();
         if (!fullBuf) return "";
-        const colors: OCR.ColortTriplet[] = [[248, 213, 107], [184, 209, 209]];
+        const colors: OCR.ColortTriplet[] = [...TOOLTIP_OCR_GOLD, ...TOOLTIP_OCR_CYAN];
         const ocrLine = (cy: number, ch: number): string => {
             const result = OCR.findReadLine(fullBuf, tooltipFont, colors, x, cy, w, ch);
             return result?.text?.length > 1 ? result.text : "";
@@ -203,19 +208,6 @@ function ocrItemName(img: ImgRef, x: number, y: number, w: number, h: number): s
     } catch (e) {
         return "";
     }
-}
-
-/** Everything measured about the tooltip at the cursor: the raw scan hits plus
- *  the derived outer box, inner (inset) box, and the item-name section. */
-interface TooltipMeasure {
-    img: ImgRef;
-    hit: Hit;
-    run: Run;
-    vrun: VerticalRun;
-    boxX: number; boxY: number; boxW: number; boxH: number;
-    inX: number; inY: number; inW: number; inH: number;
-    midX: number; midY: number;
-    itemSectionH: number;
 }
 
 /** Capture the screen and run the full tooltip measurement pipeline: walk to
@@ -305,9 +297,9 @@ export class TooltipScanner {
         if (!result) return;
         const { name: itemName, m } = result;
 
-        const gold = a1lib.mixColor(212, 168, 75);
-        const green = a1lib.mixColor(28, 228, 1);
-        const magenta = a1lib.mixColor(255, 0, 255);
+        const gold = RS_GOLD;
+        const green = RS_GREEN;
+        const magenta = OVERLAY_MAGENTA;
 
         alt1.overLaySetGroup(TooltipScanner.GROUP);
         alt1.overLayClearGroup(TooltipScanner.GROUP);

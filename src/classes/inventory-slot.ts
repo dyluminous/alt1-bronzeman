@@ -1,15 +1,9 @@
 // inventory-slot.ts — typed geometry + per-slot item checks for a backpack slot
-import type { BackpackAnchor } from "./inventory";
+import type { BackpackAnchor, Point } from "../types";
 import type { ImgRef } from "alt1/base";
+import { readPixel, rgbMatch } from "../utils/helpers";
 
-/** Pixel coords within the RS game viewport. */
-export interface Point { x: number; y: number }
-
-/** Read one RGB pixel from an image, or null when unavailable. */
-function readPixel(img: ImgRef, x: number, y: number): [number, number, number] | null {
-    const d = img.toData(x, y, 1, 1);
-    return d ? [d.data[0], d.data[1], d.data[2]] : null;
-}
+export type { Point } from "../types";
 
 /** Shadow colour check — #000001 or #000002. */
 function isShadow(r: number, g: number, b: number): boolean {
@@ -123,7 +117,7 @@ export class InventorySlot {
 
     /** True when the corner pixel exactly matches its calibration ref. */
     static cornerMatches(corner: [number, number, number], ref: [number, number, number]): boolean {
-        return corner[0] === ref[0] && corner[1] === ref[1] && corner[2] === ref[2];
+        return rgbMatch(corner, ref);
     }
 
     /** True when this slot holds a noted item — the #95865e mark + #000002
@@ -178,11 +172,12 @@ export class InventorySlot {
         if (!buf) return false;
         const d = buf.data;
         const stride = W * 4;
+        const WHITE = 255;
         for (let y = H - 1; y >= 0; y--) {
             const row = y * stride;
             for (let x = W - 1; x >= 0; x--) {
                 const i = row + x * 4;
-                if (d[i] !== 255 || d[i + 1] !== 255 || d[i + 2] !== 255) continue;
+                if (d[i] !== WHITE || d[i + 1] !== WHITE || d[i + 2] !== WHITE) continue;
                 if (y > 0 && isShadow(d[i - stride], d[i + 1 - stride], d[i + 2 - stride])
                     && y < H - 1 && isShadow(d[i + stride], d[i + 1 + stride], d[i + 2 + stride])
                     && x > 0 && isShadow(d[i - 4], d[i + 1 - 4], d[i + 2 - 4])

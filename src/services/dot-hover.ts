@@ -4,18 +4,18 @@
 // wiki is queried for tradeability; success stores the unlock and the dot
 // disappears. The disambiguation pane blocks new scans until resolved.
 import * as a1lib from "alt1";
-import { inventory } from "./inventory";
-import { state, log, showNotification } from "./core";
-import { SlotLoadingAnimation } from "./slot-animation";
-import { SLOT_DOT_X, SLOT_DOT_Y, SLOT_DOT_W, loadGoldDotEncoded } from "./gold-dot";
+import { inventory } from "../classes/inventory";
+import { state, log, showNotification } from "../core";
+import { SlotLoadingAnimation } from "../classes/slot-animation";
+import { SLOT_DOT_X, SLOT_DOT_Y, SLOT_DOT_W, loadGoldDotEncoded } from "../ui/gold-dot";
 import { getNonUnlockedSlotIndices } from "./slot-scan";
 import { readStackableQuantity } from "./slot-scan";
 import { readTooltipItemName } from "./tooltip-read";
 import { fetchItemTradeable, pickImageForQuantity } from "./wiki";
 import type { WikiQueryResult } from "./wiki";
 import { addUnlockedItem, isHashUnlocked } from "./data";
-import { recordUnlock, resolveImageUrl } from "./recent-unlocks";
-import { showDisambiguation, closeDisambiguation } from "./ui";
+import { recordUnlock, resolveImageUrl } from "../ui/recent-unlocks";
+import { showDisambiguation, closeDisambiguation } from "../ui/ui";
 
 const NON_UNLOCKED_DOT_GROUP = "bronzeman_nonunlock";
 /** Redraw cadence for the dots — Alt1 overlay elements have a finite lifetime

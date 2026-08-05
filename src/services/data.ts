@@ -1,29 +1,10 @@
 // data.ts — UnlockStore: IndexedDB persistence + in-memory unlock lookup
-import { state, log, showNotification } from "./core";
-import { lowerHalfOf, nibbleTolerantMatch } from "./hash";
+import { state, log, showNotification } from "../core";
+import { lowerHalfOf, nibbleTolerantMatch } from "../utils/hash";
+import { hashChecksum } from "../utils/helpers";
+import type { HashEntry, UnlockedItemRecord, SearchEntry } from "../types";
 
-/** Per-hash metadata stored alongside each variant. */
-export interface HashEntry {
-    hash: string;
-    stackableQuantity: number | null;
-    /** Timestamp when this hash variant was unlocked. */
-    addedOn: number;
-}
-
-export interface UnlockedItemRecord {
-    name: string;
-    tradeable: boolean;
-    hashes: HashEntry[];
-    /** Timestamp bumped every time a hash is added to this record. */
-    lastUpdatedOn: number;
-}
-
-/** Lightweight in-memory entry for the search index — strips every field
- *  except the name and tradable flag. ~100B / entry; cheap at 30k items. */
-export interface SearchEntry {
-    name: string;
-    tradeable: boolean;
-}
+export type { HashEntry, UnlockedItemRecord, SearchEntry } from "../types";
 
 // ============================================================
 // UnlockStore — IndexedDB (tradable + untradable stores) plus the
@@ -68,8 +49,7 @@ class UnlockStore {
     }
 
     private addHashToChecksum(hash: string): void {
-        let cs = 0;
-        for (let i = 0; i < 192; i++) cs += parseInt(hash[i], 16);
+        const cs = hashChecksum(hash);
         const bucket = this.hashByChecksum.get(cs);
         if (bucket) bucket.push(hash);
         else this.hashByChecksum.set(cs, [hash]);
@@ -269,8 +249,7 @@ class UnlockStore {
      *  only the ±5 checksum buckets are scanned with full nibble tolerance.
      *  Called ONLY when the exact Set lookup returns false (rare). */
     isHashNibbleUnlocked(hash: string): boolean {
-        let cs = 0;
-        for (let i = 0; i < 192; i++) cs += parseInt(hash[i], 16);
+        const cs = hashChecksum(hash);
         for (let d = -5; d <= 5; d++) {
             const bucket = this.hashByChecksum.get(cs + d);
             if (!bucket) continue;
@@ -379,17 +358,18 @@ class UnlockStore {
      *  malformed input — nothing is touched before validation passes. */
     async importUnlockData(json: string): Promise<void> {
         if (!this.ready) throw new Error("Unlock DB not ready");
-        let parsed: any;
+        let parsed: unknown;
         try {
             parsed = JSON.parse(json);
         } catch {
             throw new Error("Invalid backup file: not valid JSON");
         }
-        if (parsed?.version !== 1) throw new Error("Unsupported backup version");
-        const tradable: UnlockedItemRecord[] = Array.isArray(parsed?.stores?.tradable) ? parsed.stores.tradable : [];
-        const untradable: UnlockedItemRecord[] = Array.isArray(parsed?.stores?.untradable) ? parsed.stores.untradable : [];
-        const isRecord = (r: any): r is UnlockedItemRecord =>
-            !!r && typeof r.name === "string" && Array.isArray(r.hashes);
+        const doc = parsed as Record<string, unknown>;
+        if (doc?.version !== 1) throw new Error("Unsupported backup version");
+        const tradable: UnlockedItemRecord[] = Array.isArray((doc?.stores as Record<string, unknown>)?.tradable) ? (doc.stores as Record<string, unknown>).tradable as UnlockedItemRecord[] : [];
+        const untradable: UnlockedItemRecord[] = Array.isArray((doc?.stores as Record<string, unknown>)?.untradable) ? (doc.stores as Record<string, unknown>).untradable as UnlockedItemRecord[] : [];
+        const isRecord = (r: unknown): r is UnlockedItemRecord =>
+            !!r && typeof (r as Record<string, unknown>).name === "string" && Array.isArray((r as Record<string, unknown>).hashes);
         if (!tradable.every(isRecord) || !untradable.every(isRecord)) {
             throw new Error("Invalid backup file: malformed records");
         }

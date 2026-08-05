@@ -1,6 +1,6 @@
 // slot-hover.ts — poll cursor position and draw yellow square over hovered slot
-import { inventory } from "./inventory";
-import { state } from "./core";
+import { inventory } from "../classes/inventory";
+import { state } from "../core";
 import { drawSlotHover, clearSlotHover, isGridDebugEnabled } from "./overlay";
 
 const POLL_MS = 150;

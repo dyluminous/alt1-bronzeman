@@ -1,19 +1,17 @@
 // slot-animation.ts — gold comet-ring animation tracing an inventory slot border.
 // A head draws along the border leaving a fading trail; a second comet launches
 // half a lap behind the first so the two circle the slot together.
-import * as a1lib from "alt1";
 import { InventorySlot } from "./inventory-slot";
+import type { SlotAnimationOptions, BorderEdge } from "../types";
+import { RS_GOLD } from "../utils/colors";
+
+export type { SlotAnimationOptions } from "../types";
 
 /** Perimeter of a slot border cell in px. */
 const PERIMETER = 2 * (InventorySlot.CELL_W + InventorySlot.CELL_H);
 
 /** Normalize a (possibly negative, possibly > perimeter) distance to [0, PERIMETER). */
 const norm = (v: number): number => ((Math.round(v) % PERIMETER) + PERIMETER) % PERIMETER;
-
-/** The border edge at perimeter-distance d from TL, going clockwise.
- *  Corners are counted once at the start of each edge, so the four corner
- *  pixels get double-drawn (harmless overlap). */
-interface BorderEdge { x: number; y: number; dx: number; dy: number; end: number }
 
 function borderEdgeAt(slot: InventorySlot, d: number): BorderEdge {
     const W = InventorySlot.CELL_W, H = InventorySlot.CELL_H;
@@ -38,22 +36,10 @@ function drawBorderSegment(slot: InventorySlot, d: number, len: number, dur: num
     }
 }
 
-export interface SlotAnimationOptions {
-    /** Trail length in px (default 34). */
-    tailPx?: number;
-    /** Perimeter distance at which the second comet launches (default: half a lap).
-     *  Pass null to run a single comet. */
-    secondCometOffset?: number | null;
-    /** Frame interval in ms (default 33 ≈ 30fps — Alt1's overlay redraw ceiling). */
-    stepMs?: number;
-    /** Approx px the head advances per frame (default 3). */
-    speedPxPerFrame?: number;
-}
-
 /** A comet-ring animation around one inventory slot's border. */
 export class SlotLoadingAnimation {
     private static readonly GROUP = "bronzeman_slotanim";
-    private static readonly GOLD = a1lib.mixColor(212, 168, 75); // --rs-gold (#D4A84B)
+    private static readonly GOLD = RS_GOLD; // --rs-gold (#D4A84B)
 
     private readonly slot: InventorySlot;
     private readonly tailMs: number;

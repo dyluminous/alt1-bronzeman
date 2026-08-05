@@ -1,15 +1,15 @@
 // manual-unlock.ts — user picks an inventory slot, hovers to OCR the tooltip,
 // queries the wiki, and adds the item to the unlock DB. Activated from the
 // Settings tab's "Manual item unlock" button.
-import { inventory } from "./inventory";
-import { log, showNotification } from "./core";
-import { addUnlockedItem } from "./data";
+import { inventory } from "../classes/inventory";
+import { log, showNotification } from "../core";
+import { addUnlockedItem } from "../services/data";
 import { recordUnlock, resolveImageUrl } from "./recent-unlocks";
-import { readStackableQuantity } from "./slot-scan";
-import type { WikiQueryResult } from "./wiki";
-import { fetchItemTradeable, pickImageForQuantity } from "./wiki";
-import { SlotLoadingAnimation } from "./slot-animation";
-import { readTooltipItemName } from "./tooltip-read";
+import { readStackableQuantity } from "../services/slot-scan";
+import type { WikiQueryResult } from "../services/wiki";
+import { fetchItemTradeable, pickImageForQuantity } from "../services/wiki";
+import { SlotLoadingAnimation } from "../classes/slot-animation";
+import { readTooltipItemName } from "../services/tooltip-read";
 import { showInlinePanel, hideInlinePanel, showDisambiguation, closeDisambiguation } from "./ui";
 
 // ============================================================

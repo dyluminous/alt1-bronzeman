@@ -2,9 +2,10 @@
 // When the grid is resized/moved, at least one watched pixel changes; once the
 // new values hold stable for a few ticks (resize settled), the callback fires.
 // Reference colors are kept in memory only (no localStorage).
-import { inventory } from "./inventory";
-import { capturePixel } from "./core";
-import type { Point } from "./inventory-slot";
+import { inventory } from "../classes/inventory";
+import { capturePixel } from "../core";
+import type { Point } from "../classes/inventory-slot";
+import { rgbMatch } from "../utils/helpers";
 
 /** The border pixels the watch monitors — overlay drawing must avoid these. */
 export function getAnchorWatchPoints(): Point[] {
@@ -30,12 +31,6 @@ const STABLE_TICKS = 3; // ~1.5s
 /** Tooltip background colour (#0F0E0C). When a watched pixel matches this,
  *  it's a tooltip covering the corner, not a resize — ignore it. */
 const TOOLTIP_BG: [number, number, number] = [0x0F, 0x0E, 0x0C];
-
-function samePixel(a: [number, number, number], b: [number, number, number]): boolean {
-    return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
-}
-
-/** Watch grid border pixels; call onChange when they settle on new values. */
 export function startAnchorWatch(onChange: () => void, onTick?: () => void): void {
     stopAnchorWatch();
     const slots = inventory.slots;
@@ -62,7 +57,7 @@ export function startAnchorWatch(onChange: () => void, onTick?: () => void): voi
             vals.push(c);
         }
 
-        const changed = vals.some((v, i) => !samePixel(v, refs[i]) && !samePixel(v, TOOLTIP_BG));
+        const changed = vals.some((v, i) => !rgbMatch(v, refs[i]) && !rgbMatch(v, TOOLTIP_BG));
         if (!changed) {
             stableSnapshot = null;
             stableCount = 0;
@@ -73,7 +68,7 @@ export function startAnchorWatch(onChange: () => void, onTick?: () => void): voi
         // Something moved — debounce until the whole snapshot stops changing.
         // While resizing, at least one point keeps moving, so this only fires
         // once the grid has fully settled.
-        if (stableSnapshot && stableSnapshot.every((v, i) => samePixel(v, vals[i]))) {
+        if (stableSnapshot && stableSnapshot.every((v, i) => rgbMatch(v, vals[i]))) {
             stableCount++;
             if (stableCount >= STABLE_TICKS) {
                 stableSnapshot = null;

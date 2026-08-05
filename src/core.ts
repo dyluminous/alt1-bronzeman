@@ -1,6 +1,7 @@
 // core.ts — utilities, constants, shared state for Bronzeman Mode
 import { ImgRef, ImgRefBind } from "alt1/base";
 import * as a1lib from "alt1";
+import type { NotificationHandle } from "./types";
 
 // ============================================================
 // Alt1 capture
@@ -69,10 +70,7 @@ export const geSuppressGroup = { value: false };
 // Notifications
 // ============================================================
 
-export interface NotificationHandle {
-    update(msg: string): void;
-    remove(): void;
-}
+export type { NotificationHandle } from "./types";
 
 const MAX_NOTIFICATIONS = 3;
 

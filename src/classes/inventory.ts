@@ -2,16 +2,9 @@
 // Detection (fingerprints, grid measurement) lives in detect.ts.
 import * as a1lib from "alt1";
 import { InventorySlot } from "./inventory-slot";
+import type { BackpackAnchor } from "../types";
 
-export interface BackpackAnchor {
-    x: number; y: number;
-    method: "manual" | "cursor" | "fallback" | "auto";
-    colStride: number; rowStride: number;
-    gridCols?: number;
-    gridRows?: number;
-    centerMismatch?: boolean;
-    scrollbar?: boolean;
-}
+export type { BackpackAnchor } from "../types";
 
 export class Inventory {
     private _anchor: BackpackAnchor | null = null;

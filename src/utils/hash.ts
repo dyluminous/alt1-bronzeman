@@ -2,7 +2,7 @@
 // The hash is 8×8 cells × 3 hex nibbles (R, G, B channel averages) = 192 chars.
 // Background-grain pixels are excluded (the grain differs per slot; the item
 // renders identically), and hashing the channels separately preserves hue.
-import { InventorySlot } from "./inventory-slot";
+import { InventorySlot } from "../classes/inventory-slot";
 
 /** The 52 grain colors of the empty inventory-slot background (extracted from
  *  assets/testing/inner-slots.png). Excluded from the item hash: the grain is
@@ -57,16 +57,6 @@ export function nibbleTolerantMatch(live: string, stored: string): boolean {
         if (delta > 1) return false;
     }
     return true;
-}
-
-/** Sum of all 192 hex nibbles — used as a cheap pre-filter for tolerant
- *  lookups. Two hashes that differ by at most 1 nibble per position can
- *  have checksum differences up to 192, but in practice the variance is
- *  ≤ 5 nibble positions (≥ 180-d checksum guard still prunes vast majority). */
-function hashChecksum(hash: string): number {
-    let s = 0;
-    for (let i = 0; i < 192; i++) s += parseInt(hash[i], 16);
-    return s;
 }
 
 /** 8×8 cells → 3 hex nibbles per cell (R, G, B channel averages, each 4-bit)

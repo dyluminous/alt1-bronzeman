@@ -6,11 +6,11 @@ import type { ImgRef } from "alt1/base";
 import * as OCR from "alt1/ocr";
 const tooltipFont = require("alt1/fonts/chatbox/14pt");
 const geSearchFont = require("alt1/fonts/chatbox/12pt");
-import { log, captureFullRs, geSuppressGroup } from "./core";
+import { log, captureFullRs, geSuppressGroup } from "../core";
 import { isNameUnlocked } from "./data";
-import geItemUnlockedUrl from "./assets/images/ge_item_unlocked_button.png";
-import geItemNotUnlockedUrl from "./assets/images/ge_item_not_unlocked_button.png";
-import needleUrl from "./assets/images/ge_identifier.png";
+import geItemUnlockedUrl from "../assets/images/ge_item_unlocked_button.png";
+import geItemNotUnlockedUrl from "../assets/images/ge_item_not_unlocked_button.png";
+import needleUrl from "../assets/images/ge_identifier.png";
 
 // ----------------------------------------------------------------
 // Toggle — always-on detection; debug overlays gated separately

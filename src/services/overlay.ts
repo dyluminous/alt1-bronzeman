@@ -1,14 +1,14 @@
 // overlay.ts — RS overlay drawing for Bronzeman Mode
-import * as a1lib from "alt1";
-import { inventory } from "./inventory";
+import { inventory } from "../classes/inventory";
 import * as Detect from "./inventory-detect";
-import { Inventory } from "./inventory";
-import { InventorySlot } from "./inventory-slot";
-import { state, captureFullRs, log, showNotification } from "./core";
+import { Inventory } from "../classes/inventory";
+import { InventorySlot } from "../classes/inventory-slot";
+import { state, captureFullRs, log, showNotification } from "../core";
 import { getAnchorWatchPoints } from "./anchor-watch";
-import { SlotLoadingAnimation } from "./slot-animation";
-import { SLOT_DOT_X, SLOT_DOT_Y, SLOT_DOT_W, loadGoldDotEncoded } from "./gold-dot";
+import { SlotLoadingAnimation } from "../classes/slot-animation";
+import { SLOT_DOT_X, SLOT_DOT_Y, SLOT_DOT_W, loadGoldDotEncoded } from "../ui/gold-dot";
 import { TooltipScanner } from "./tooltip-read";
+import { RS_GOLD, RS_GREEN, RS_RED, OVERLAY_YELLOW, OVERLAY_WHITE } from "../utils/colors";
 
 // ============================================================
 // Detection debug — corner brackets on all slots
@@ -23,7 +23,7 @@ export function drawDetectDebug(isError: boolean = false): void {
     alt1.overLaySetGroup("bronzeman_detect");
     const LEN = 8;
     const dur = 2000;
-    const yellow = isError ? a1lib.mixColor(255, 60, 60) : a1lib.mixColor(255, 255, 0);
+    const yellow = isError ? RS_RED : OVERLAY_YELLOW;
     // Pixels the anchor-watch monitors — we must not paint over them or the
     // watch's reference colors get polluted by the overlay (Alt1 captures
     // include overlays), which would trigger a recalibrate loop. Also skip the
@@ -86,8 +86,8 @@ export function debugFindSlot(): void {
         const cols = anc.gridCols!, rows = anc.gridRows!;
         const lastRowCols = Inventory.lastRowCols(anc);
 
-        const yc = a1lib.mixColor(255, 255, 0);
-        const white = a1lib.mixColor(255, 255, 255);
+        const yc = OVERLAY_YELLOW;
+        const white = OVERLAY_WHITE;
         const dur = 5000;
         alt1.overLaySetGroup("bronzeman_fingerprint");
         alt1.overLayClearGroup("bronzeman_fingerprint");
@@ -146,7 +146,7 @@ export function drawAnchorWatchDot(): void {
     if (!state.inAlt1 || !showGridBoundary || !inventory.isCalibrated) return;
     const slot = inventory.slots[inventory.getLastColumnFirstRowIndex()];
     if (!slot) return;
-    const green = a1lib.mixColor(28, 228, 1);
+    const green = RS_GREEN;
     alt1.overLaySetGroup(ANCHOR_WATCH_GROUP);
     if (anchorWatchFrozen) { alt1.overLayContinueGroup(ANCHOR_WATCH_GROUP); }
     alt1.overLayClearGroup(ANCHOR_WATCH_GROUP);
@@ -177,7 +177,7 @@ export function drawSlotHover(slotIndex: number): void {
 
     const slot = inventory.getSlot(slotIndex);
     if (!slot) return;
-    const yellow = a1lib.mixColor(255, 255, 0);
+    const yellow = OVERLAY_YELLOW;
 
     alt1.overLaySetGroup(HOVER_GROUP);
     if (hoverFrozen) { alt1.overLayContinueGroup(HOVER_GROUP); }

@@ -1,7 +1,7 @@
 // detect.ts — pure inventory grid detection. No state; feeds the Inventory class.
 import { ImgRef } from "alt1/base";
-import type { BackpackAnchor } from "./inventory";
-import { lightness } from "./core";
+import type { BackpackAnchor, FingerprintHit } from "../types";
+import { lightness } from "../core";
 
 // ============================================================
 // Fingerprint slot detection
@@ -24,11 +24,6 @@ const FINGERPRINTS: number[][] = [
     [51,47,43,55,51,46,52,48,44,56,52,47,56,52,47],  // o14
     [49,45,42,55,51,46,54,50,46,56,52,47,55,50,47],  // o15
 ];
-
-interface FingerprintHit {
-    x: number; y: number;  // BL-corner position
-    fingerIndex: number;   // which fingerprint matched
-}
 
 /** Scan the image for an exact 5-pixel fingerprint match. Returns the first hit or null. */
 function findSlotByFingerprint(img: ImgRef): FingerprintHit | null {

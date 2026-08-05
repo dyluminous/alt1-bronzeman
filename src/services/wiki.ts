@@ -1,35 +1,11 @@
 // wiki.ts — RuneScape wiki API queries for item metadata
-import { log } from "./core";
+import { log } from "../core";
+import type { DisambiguationOption, ItemImage, WikiQueryResult } from "../types";
+
+export type { DisambiguationOption, ItemImage, WikiQueryResult } from "../types";
 
 const WIKI_API = "https://runescape.wiki/api.php";
 const MAX_REDIRECTS = 3;
-
-export interface DisambiguationOption {
-    /** The page name from [[ ]], for re-querying. */
-    name: string;
-    /** The text after the link (the description), if any. */
-    description: string;
-}
-
-export interface ItemImage {
-    filename: string;
-    /** The quantity number parsed from the filename, e.g. 500 from "Radiant energy 500.png".
-     *  null when the filename has no number. */
-    count: number | null;
-}
-
-export interface WikiQueryResult {
-    ok: boolean;
-    /** The parsed value of |tradeable = ..., when found. */
-    tradeable?: string;
-    /** HTTP status or MediaWiki error code when the query failed. */
-    status?: string | number;
-    /** When the page is a disambiguation page — the selectable options. */
-    disambig?: DisambiguationOption[];
-    /** Item inventory images, with parsed quantities. Stackable items use |image
-     *  (multi-model) — the counts drive the stackableQuantity picker. */
-    images?: ItemImage[];
-}
 
 /** Pull the redirect target from "#REDIRECT [[Abyssal Whip]]" (or "[[Page|label]]"). */
 function extractRedirectTarget(wikitext: string): string | null {

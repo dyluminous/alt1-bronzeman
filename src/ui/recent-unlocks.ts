@@ -3,15 +3,10 @@
 // The number of items shown is user-configurable (0-28, persisted in
 // localStorage); the buffer always keeps up to the max so raising the setting
 // shows more without needing new captures.
-import { log, LS_KEYS } from "./core";
+import { log, LS_KEYS } from "../core";
 import { updateUI } from "./ui";
-import { getRecentRecords, type UnlockedItemRecord, type HashEntry } from "./data";
-
-interface RecentEntry {
-    name: string;
-    imageUrl: string;
-    displayLabel: string;
-}
+import { getRecentRecords, type UnlockedItemRecord, type HashEntry } from "../services/data";
+import type { RecentEntry } from "../types";
 
 const MAX_STORED = 28;
 const DEFAULT_LIMIT = 8;

@@ -1,13 +1,14 @@
 // capture.ts — inventory capture lifecycle for Bronzeman Mode
 import * as Detect from "./inventory-detect";
-import { inventory } from "./inventory";
-import { state, captureFullRs, showNotification, NotificationHandle, log } from "./core";
-import { updateUI } from "./ui";
+import { inventory } from "../classes/inventory";
+import { state, captureFullRs, showNotification, NotificationHandle, log } from "../core";
+import { updateUI } from "../ui/ui";
 import { drawDetectDebug, updateGridDebug, drawAnchorWatchDot, clearAnchorWatchDot, stopGeDetection, initGeDetection, geIsOpen } from "./overlay";
 import { startNonUnlockedDotRefresh, stopNonUnlockedDotRefresh } from "./dot-hover";
 import { startSlotHover, stopSlotHover } from "./slot-hover";
 import { startAnchorWatch, stopAnchorWatch } from "./anchor-watch";
 import { startSlotScan, stopSlotScan, captureCornerRefs } from "./slot-scan";
+import { formatElapsed } from "../utils/helpers";
 
 // ============================================================
 // Auto-capture on/off — wired to the Developer mode checkbox.
@@ -136,19 +137,6 @@ let gridSearchHandle: ReturnType<typeof setInterval> | null = null;
 let gridSearchStarted = 0;
 let gridSearchNotify: NotificationHandle | null = null;
 let gridSearchNotifyTimer: ReturnType<typeof setTimeout> | null = null;
-
-/** Format ms as mm:ss (e.g. 00:05), or hh:mm:ss once an hour elapses. */
-function formatElapsed(ms: number): string {
-    const total = Math.floor(ms / 1000);
-    const h = Math.floor(total / 3600);
-    const m = Math.floor((total % 3600) / 60);
-    const s = total % 60;
-    const mm = String(m).padStart(2, "0");
-    const ss = String(s).padStart(2, "0");
-    return h > 0
-        ? `${String(h).padStart(2, "0")}:${mm}:${ss}`
-        : `${mm}:${ss}`;
-}
 
 function startGridSearch(): void {
     if (gridSearchHandle) return;

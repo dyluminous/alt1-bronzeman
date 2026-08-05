@@ -19,12 +19,12 @@ import { initOnLoad } from "./bootstrap";
 // Bronzeman namespace — re-exports for HTML onclick handlers
 // ============================================================
 
-export { toggleAutoCapture, clearReference, stopAutoCapture, startAutoCapture } from "./capture";
-export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug, toggleGeDebugOverlays } from "./overlay";
-export { diagnoseSlotScan, dumpSlotHash, debugCorners, ocrStackableDebug, readStackableQuantity } from "./slot-scan";
-export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks, dumpItemHashes, getRecentRecords } from "./data";
-export { backupUnlocks, restoreUnlocks } from "./backup";
-export { modalCancel, modalOk } from "./modal";
+export { toggleAutoCapture, clearReference, stopAutoCapture, startAutoCapture } from "./services/capture";
+export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug, toggleGeDebugOverlays } from "./services/overlay";
+export { diagnoseSlotScan, dumpSlotHash, debugCorners, ocrStackableDebug, readStackableQuantity } from "./services/slot-scan";
+export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks, dumpItemHashes, getRecentRecords } from "./services/data";
+export { backupUnlocks, restoreUnlocks } from "./services/backup";
+export { modalCancel, modalOk } from "./ui/modal";
 export {
     resetUnlocks,
     openSlotDebug, closeSlotDebug, refreshSlotDebug,
@@ -34,8 +34,8 @@ export {
     toggleDeveloperMode,
     toggleSearchHideUntradable, toggleSearchGroupSimilar,
     setRecentUnlocksCount, stepRecentUnlocksCount, stepManualUnlockSlot,
-} from "./ui";
-export { manualUnlock, openManualUnlock, closeManualUnlock } from "./manual-unlock";
+} from "./ui/ui";
+export { manualUnlock, openManualUnlock, closeManualUnlock } from "./ui/manual-unlock";
 
 // ============================================================
 // Bootstrap
