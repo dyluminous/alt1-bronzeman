@@ -5,7 +5,8 @@
 // disappears. The disambiguation pane blocks new scans until resolved.
 import * as a1lib from "alt1";
 import { inventory } from "./inventory";
-import { state, log, showNotification } from "./core";
+import { InventorySlot } from "./inventory-slot";
+import { state, captureFullRs, log, showNotification } from "./core";
 import { SlotLoadingAnimation } from "./slot-animation";
 import { SLOT_DOT_X, SLOT_DOT_Y, SLOT_DOT_W, loadGoldDotEncoded } from "./gold-dot";
 import { getNonUnlockedSlotIndices } from "./slot-scan";
@@ -13,7 +14,8 @@ import { readTooltipItemName } from "./tooltip-read";
 import { fetchItemTradeable } from "./wiki";
 import type { WikiQueryResult } from "./wiki";
 import { addUnlockedItem, isHashUnlocked } from "./data";
-import { showDisambiguation, closeDisambiguation } from "./ui";
+import { recordUnlock } from "./recent-unlocks";
+import { showDisambiguation, closeDisambiguation, updateUI } from "./ui";
 
 const NON_UNLOCKED_DOT_GROUP = "bronzeman_nonunlock";
 /** Redraw cadence for the dots — Alt1 overlay elements have a finite lifetime
@@ -72,7 +74,7 @@ class UnlockHoverFlow {
         this.hoverResolved = true;
     }
 
-    private handleWikiResult(result: WikiQueryResult, queriedName: string, slotHash: string | null): void {
+    private handleWikiResult(result: WikiQueryResult, queriedName: string, slotHash: string | null, slotIndex: number): void {
         this.queryBusy = false;
         if (result.ok) {
             log(`Wiki: "${queriedName}" tradeable = ${result.tradeable}`);
@@ -82,6 +84,15 @@ class UnlockHoverFlow {
             } else {
                 log(`No slot hash available — skipping unlock record for "${queriedName}"`);
             }
+            // Capture the slot interior for the recent-unlocks UI
+            const img = captureFullRs();
+            if (img) {
+                const slot = inventory.getSlot(slotIndex);
+                if (slot) {
+                    const d = img.toData(slot.interiorX, slot.interiorY, InventorySlot.INTERIOR_W, InventorySlot.INTERIOR_H);
+                    if (d) { recordUnlock(queriedName, new Uint8ClampedArray(d.data)); updateUI(); }
+                }
+            }
             this.finishHoverFlow();
         } else if (result.disambig && result.disambig.length > 0) {
             // Only one item option after filtering — continue without a dialog.
@@ -89,7 +100,7 @@ class UnlockHoverFlow {
                 const name = result.disambig[0].name;
                 log(`Wiki disambiguation: only one item "${name}", continuing`);
                 this.queryBusy = true;
-                void fetchItemTradeable(name).then(r => this.handleWikiResult(r, name, slotHash));
+                void fetchItemTradeable(name).then(r => this.handleWikiResult(r, name, slotHash, slotIndex));
                 return;
             }
             // Ask the user which option is the right item — animation keeps running.
@@ -99,7 +110,7 @@ class UnlockHoverFlow {
                     this.disambigOpen = false;
                     log(`Wiki disambiguation: selected "${name}"`);
                     this.queryBusy = true;
-                    void fetchItemTradeable(name).then(r => this.handleWikiResult(r, name, slotHash));
+                    void fetchItemTradeable(name).then(r => this.handleWikiResult(r, name, slotHash, slotIndex));
                 },
                 () => {
                     // ✕ or click-outside — abandoned, end the flow.
@@ -139,7 +150,7 @@ class UnlockHoverFlow {
         }
         log(`Hovered item: "${itemName}" (slot ${slotIndex}) hash=${slotHash ? slotHash.slice(0, 12) + "…" : "n/a"}`);
         this.queryBusy = true;
-        void fetchItemTradeable(itemName).then(result => this.handleWikiResult(result, itemName, slotHash));
+        void fetchItemTradeable(itemName).then(result => this.handleWikiResult(result, itemName, slotHash, slotIndex));
     }
 
     // ----------------------------------------------------------

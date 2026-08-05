@@ -21,8 +21,8 @@
     <div id="tab-content" style="background:var(--rs-bg-mid); width:100%; flex:1; display:flex; flex-direction:column; position:relative; overflow-y:auto;">
     <!-- Tab: Unlocks -->
     <div class="tab-panel active" id="panel_items">
-        <div class="section-title">Unlocks (<span id="unlocked_count_items">0</span>)</div>
-        <div id="unlocked_grid" class="unlocked-grid" style="display:none;"></div>
+        <div class="section-title">Last 8 items unlocked this session</div>
+        <div id="recent_unlocks_grid" class="recent-unlocks-grid"></div>
     </div>
 
     <!-- Tab: Setup -->
@@ -61,6 +61,8 @@
             <div class="btn btn-primary" onclick="Bronzeman.debugFindSlot()" style="width:100%;padding-top:6px;padding-bottom:6px;">Fingerprint Slot</div>
             <div class="btn btn-primary" onclick="Bronzeman.openSlotDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Slots interface</div>
             <div class="btn btn-primary" onclick="Bronzeman.openItemPngs()" style="width:100%;padding-top:6px;padding-bottom:6px;">Show Item PNGs</div>
+            <div class="btn btn-primary" onclick="Bronzeman.ocrStackableDebug()" style="width:100%;padding-top:6px;padding-bottom:6px;">OCR Stackable (Slot 27)</div>
+            <canvas id="ocr_debug_canvas" width="360" height="90" style="width:180px;height:45px;image-rendering:pixelated;background:#000;margin-top:4px;display:none;"></canvas>
         </div>
 
         <div id="log" style="display:none;"></div>

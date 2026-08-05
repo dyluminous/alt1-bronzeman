@@ -59,7 +59,7 @@ export { captureReference, clearReference } from "./capture";
 export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug } from "./overlay";
 
 // Slot scan diagnostics
-export { diagnoseSlotScan, dumpSlotHash, debugCorners } from "./slot-scan";
+export { diagnoseSlotScan, dumpSlotHash, debugCorners, ocrStackableDebug } from "./slot-scan";
 
 // Data
 export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks, dumpItemHashes } from "./data";

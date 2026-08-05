@@ -4,6 +4,7 @@ import { InventorySlot } from "./inventory-slot";
 import { state, escHtml, showNotification, captureFullRs } from "./core";
 import { resetUnlocks as dataResetUnlocks } from "./data";
 import { hashToPngDataUrl } from "./data";
+import { getRecentUnlocks } from "./recent-unlocks";
 import { showModal } from "./modal";
 import { getObscuredSlotIndices } from "./slot-scan";
 import type { DisambiguationOption } from "./wiki";
@@ -61,12 +62,7 @@ function updateAnchorWarning(): void {
 // ============================================================
 
 export function updateUI(): void {
-    // The Unlocks tab is intentionally empty for now — the legacy
-    // localStorage unlock list was removed; a DB-backed view comes later.
-    const ue = document.getElementById("unlocked_count_items");
-    if (ue) ue.textContent = "";
-    const ug = document.getElementById("unlocked_grid");
-    if (ug) ug.style.display = "none";
+    renderRecentUnlocks();
 
     const calBtn = document.getElementById("calibrate_btn");
     if (calBtn) {
@@ -286,4 +282,33 @@ function renderInventoryPngs(body: HTMLElement): void {
 export function closeItemPngs(): void {
     const pane = document.getElementById("item_pngs_pane");
     if (pane) pane.style.display = "none";
+}
+
+// ============================================================
+// Recent unlocks grid — last 8 items unlocked this session
+// ============================================================
+
+function renderRecentUnlocks(): void {
+    const grid = document.getElementById("recent_unlocks_grid");
+    if (!grid) return;
+    const recent = getRecentUnlocks();
+    if (recent.length === 0) {
+        grid.innerHTML = '<div class="wiki-disambig-note">No items unlocked yet this session.</div>';
+        return;
+    }
+    grid.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;">` +
+        recent.map((entry, i) =>
+            `<div style="text-align:center;width:76px;">
+                <canvas class="slot-debug-canvas" width="36" height="32" data-idx="${i}" style="width:72px;height:64px;"></canvas>
+                <div class="wiki-disambig-note" style="font-size:9px;line-height:1.1;word-break:break-word;">${escHtml(entry.name)}</div>
+            </div>`
+        ).join("") + `</div>`;
+    recent.forEach((entry, i) => {
+        const canvas = grid.querySelector(`canvas[data-idx="${i}"]`) as HTMLCanvasElement | null;
+        const ctx = canvas?.getContext("2d");
+        if (!canvas || !ctx) return;
+        const id = ctx.createImageData(InventorySlot.INTERIOR_W, InventorySlot.INTERIOR_H);
+        id.data.set(entry.pixels);
+        ctx.putImageData(id, 0, 0);
+    });
 }
