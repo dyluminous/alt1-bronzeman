@@ -19,6 +19,11 @@ import * as OCR from "alt1/ocr";
 // Max recent pickups to remember
 const MAX_PICKUPS = 20;
 
+// Tooltip detection colors
+const TOOLTIP_BG_COLOR = [15, 14, 12] as const;
+const TOOLTIP_ITEM_COLOR_MEMBERS = [248, 213, 107] as const;
+const TOOLTIP_ITEM_COLOR_F2P = [184, 209, 209] as const;
+
 interface PickupEntry {
     slotIndex: number;
     imageUrl: string;
@@ -489,18 +494,16 @@ function pollScanningMouse(): void {
     if (now - scanning.lastTooltipAttempt < TOOLTIP_RETRY_MS) return;
     scanning.lastTooltipAttempt = now;
 
-    log(`Reading tooltip for slot #${scanning.slotIndex + 1}...`);
-
     try {
         // Start from cursor position, look downward for 0f0e0c (rgb(15,14,12))
         const anc = Inventory.loadAnchor();
         if (!anc) { cancelScanning(); return; }
 
-        // Capture a generous area below and around the cursor
-        const captW = 250;
-        const captH = 100;
-        const captX = Math.max(0, sx - 50);
-        const captY = Math.max(0, sy + 16); // slot center
+        // Capture: 300px above, 100px below slot center, slot width only
+        const captW = anc.colStride;
+        const captH = 400;
+        const captX = sx;
+        const captY = Math.max(0, sy + 16 - 300); // slot center at buffer row 300
 
         const img = a1lib.captureHold(captX, captY, captW, captH);
         if (!img) { log("  Failed to capture."); return; }
@@ -519,77 +522,136 @@ function pollScanningMouse(): void {
         } catch { /* ignore */ }
         if (cursorInCaptX < 0) { log("  No cursor pos."); return; }
 
-        // Search downward from cursor for 0f0e0c pixels with ±3 tolerance
-        const R_MIN = 12, R_MAX = 18;
-        const G_MIN = 11, G_MAX = 17;
-        const B_MIN = 9, B_MAX = 15;
+        // Search for item text color (gold or cyan), branch down first, then up
+        const CENTER_Y = 300; // slot center in buffer coords
+
+        const TEXT_COLORS = [
+            { r: 248, g: 213, b: 107, name: "TOOLTIP_ITEM_COLOR_MEMBERS" },
+            { r: 184, g: 209, b: 209, name: "TOOLTIP_ITEM_COLOR_F2P" },
+        ];
 
         let foundX = -1, foundY = -1;
-        const searchStartY = Math.max(0, cursorInCaptY);
-        for (let py = searchStartY; py < captH; py++) {
-            for (let px = 0; px < captW; px++) {
-                const i = (py * captW + px) * 4;
-                const r = data.data[i], g = data.data[i + 1], b = data.data[i + 2];
-                if (r >= R_MIN && r <= R_MAX && g >= G_MIN && g <= G_MAX && b >= B_MIN && b <= B_MAX) {
-                    foundX = px;
-                    foundY = py;
-                    break;
+        let foundDir = "DOWN";
+        let foundColorName = "";
+
+        const checkTextPixel = (px: number, py: number): boolean => {
+            const i = (py * captW + px) * 4;
+            const r = data.data[i], g = data.data[i + 1], b = data.data[i + 2];
+            for (const c of TEXT_COLORS) {
+                if (r === c.r && g === c.g && b === c.b) {
+                    foundColorName = c.name;
+                    return true;
                 }
             }
-            if (foundX >= 0) break;
+            return false;
+        }
+
+        // Try downward: center → captH
+        for (let py = CENTER_Y; py < captH && foundX < 0; py++) {
+            for (let px = 0; px < captW && foundX < 0; px++) {
+                if (checkTextPixel(px, py)) { foundX = px; foundY = py; }
+            }
+        }
+
+        // If not found downward, try upward: center-1 → 0
+        if (foundX < 0) {
+            foundDir = "UP";
+            for (let py = CENTER_Y - 1; py >= 0 && foundX < 0; py--) {
+                for (let px = 0; px < captW && foundX < 0; px++) {
+                    if (checkTextPixel(px, py)) { foundX = px; foundY = py; }
+                }
+            }
         }
 
         if (foundX < 0) {
-            log("  No 0f0e0c found below cursor.");
+            log("  No tooltip text found near slot center.");
             if (showTooltipDebug && state.inAlt1) {
                 alt1.overLaySetGroup("bronzeman_tooltipdbg");
                 alt1.overLayClearGroup("bronzeman_tooltipdbg");
                 alt1.overLayRect(a1lib.mixColor(0, 255, 0), captX, captY, captW, captH, 2000, 1);
-                alt1.overLayText("No 0f0e0c", a1lib.mixColor(255, 0, 0), 11, captX + 5, captY + 5, 2000);
+                alt1.overLayText("No text found", a1lib.mixColor(255, 0, 0), 11, captX + 5, captY + 5, 2000);
             }
             return;
         }
 
-        // Flood-fill to find the dark rectangle bounds
-        let minX = foundX, maxX = foundX, minY = foundY, maxY = foundY;
-        for (let px = foundX - 1; px >= 0; px--) {
-            const i = (foundY * captW + px) * 4;
-            const r = data.data[i], g = data.data[i+1], b = data.data[i+2];
-            if (r >= R_MIN && r <= R_MAX && g >= G_MIN && g <= G_MAX && b >= B_MIN && b <= B_MAX) minX = px;
-            else break;
-        }
-        for (let px = foundX + 1; px < captW; px++) {
-            const i = (foundY * captW + px) * 4;
-            const r = data.data[i], g = data.data[i+1], b = data.data[i+2];
-            if (r >= R_MIN && r <= R_MAX && g >= G_MIN && g <= G_MAX && b >= B_MIN && b <= B_MAX) maxX = px;
-            else break;
-        }
-        const midX = Math.round((minX + maxX) / 2);
-        for (let py = foundY - 1; py >= 0; py--) {
-            const i = (py * captW + midX) * 4;
-            const r = data.data[i], g = data.data[i+1], b = data.data[i+2];
-            if (r >= R_MIN && r <= R_MAX && g >= G_MIN && g <= G_MAX && b >= B_MIN && b <= B_MAX) minY = py;
-            else break;
-        }
-        for (let py = foundY + 1; py < captH; py++) {
-            const i = (py * captW + midX) * 4;
-            const r = data.data[i], g = data.data[i+1], b = data.data[i+2];
-            if (r >= R_MIN && r <= R_MAX && g >= G_MIN && g <= G_MAX && b >= B_MIN && b <= B_MAX) maxY = py;
-            else break;
+        // Step ~15px straight down from text pixel to find tooltip background (0f0e0c)
+        const [bgR, bgG, bgB] = TOOLTIP_BG_COLOR;
+        let stepY = -1;
+        for (let s = 1; s <= 15; s++) {
+            const py = foundY + s;
+            if (py >= captH) break;
+            const i = (py * captW + foundX) * 4;
+            if (data.data[i] === bgR && data.data[i+1] === bgG && data.data[i+2] === bgB) {
+                stepY = py;
+                break;
+            }
         }
 
-        log(`  Found 0f0e0c at (${foundX},${foundY}) in capture, box: [${minX}..${maxX}]x[${minY}..${maxY}]`);
+        if (stepY < 0) {
+            log("  No background found below text.");
+            return;
+        }
 
-        const tooltipW = maxX - minX + 1;
-        const tooltipH = maxY - minY + 1;
-        const centerX = minX + Math.round(tooltipW / 2);
-        const centerY = minY + Math.round(tooltipH / 3); // text is in upper portion
+        // Capture a wide area centered on the background pixel for full flood-fill
+        const wideW = 500;
+        const wideH = 400;
+        const bgScreenX = captX + foundX;
+        const bgScreenY = captY + stepY;
+        const wideX = Math.max(0, bgScreenX - Math.round(wideW / 2));
+        const wideY = Math.max(0, bgScreenY - Math.round(wideH / 2));
+        const wideImg = a1lib.captureHold(wideX, wideY, wideW, wideH);
+        const wideData = wideImg ? wideImg.toData() : null;
 
-        // Debug overlay: magenta box = detected tooltip bounds (used for OCR)
+        if (!wideImg || !wideData) {
+            log("  No background found below text.");
+            return;
+        }
+
+        // Map step pixel to wide buffer coords
+        const stepWX = bgScreenX - wideX;
+        const stepWY = bgScreenY - wideY;
+
+        // Walk the tooltip boundary: find bottom → right → top → left
+        const isBg = (px: number, py: number): boolean => {
+            if (px < 0 || px >= wideW || py < 0 || py >= wideH) return false;
+            const i = (py * wideW + px) * 4;
+            return wideData.data[i] === bgR && wideData.data[i+1] === bgG && wideData.data[i+2] === bgB;
+        };
+
+        // 1. Go DOWN from step pixel until hitting non-bg (bottom border)
+        let botY = stepWY;
+        while (botY + 1 < wideH && isBg(stepWX, botY + 1)) botY++;
+        // 2. From bottom edge, go RIGHT until hitting non-bg (right border)
+        let rightX = stepWX;
+        while (rightX + 1 < wideW && isBg(rightX + 1, botY)) rightX++;
+        // 3. From right-bottom, go UP counting pixels (this = rect height)
+        let topY = botY;
+        while (topY - 1 >= 0 && isBg(rightX, topY - 1)) topY--;
+        const rectH = botY - topY + 1;
+        // 4. From top-right, go LEFT counting pixels (this = rect width)
+        let leftX = rightX;
+        while (leftX - 1 >= 0 && isBg(leftX - 1, topY)) leftX--;
+        const rectW = rightX - leftX + 1;
+
+        // top-left = (leftX, topY), size = rectW × rectH
+        const minX = leftX, minY = topY;
+        const tooltipW = rectW;
+        const tooltipH = rectH;
+        const centerX = leftX + Math.round(rectW / 2);
+        const centerY = topY + Math.round(rectH / 3); // text in upper portion
+
+        // Debug overlay: green=capture area, magenta=tooltip bounds, red=text pixel, cyan=wide scan area
         if (showTooltipDebug && state.inAlt1) {
             alt1.overLaySetGroup("bronzeman_tooltipdbg");
             alt1.overLayClearGroup("bronzeman_tooltipdbg");
-            alt1.overLayRect(a1lib.mixColor(255, 0, 255), captX + minX, captY + minY, tooltipW, tooltipH, 2000, 2);
+            // Green: narrow slot-width capture
+            alt1.overLayRect(a1lib.mixColor(0, 255, 0), captX, captY, captW, captH, 2000, 1);
+            // Cyan: wide capture area
+            alt1.overLayRect(a1lib.mixColor(0, 255, 255), wideX, wideY, wideW, wideH, 2000, 2);
+            // Magenta: flood-filled tooltip bounds (wide buffer)
+            alt1.overLayRect(a1lib.mixColor(255, 0, 255), wideX + minX, wideY + minY, tooltipW, tooltipH, 2000, 2);
+            // Red: found text pixel
+            alt1.overLayRect(a1lib.mixColor(255, 0, 0), captX + foundX - 2, captY + foundY - 2, 5, 5, 2000, 2);
         }
 
         // Try OCR on the detected tooltip area — try multiple font sizes
@@ -605,7 +667,7 @@ function pollScanningMouse(): void {
                 ];
                 for (const f of fontTries) {
                     try {
-                        const result = OCR.findReadLine(data, f, colors, centerX, centerY, tooltipW, tooltipH);
+                        const result = OCR.findReadLine(wideData, f, colors, centerX, centerY, tooltipW, tooltipH);
                         if (result?.text && result.text.length > 1) { found = result.text; break; }
                     } catch {}
                 }
