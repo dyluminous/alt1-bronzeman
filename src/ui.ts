@@ -264,6 +264,27 @@ let manualUnlockState: {
     abort: () => void;
 } | null = null;
 
+export function openManualUnlock(): void {
+    const content = document.getElementById("settings_content");
+    const inline = document.getElementById("manual_unlock_inline");
+    if (!content || !inline) return;
+    // Reset UI
+    const msg = document.getElementById("manual_unlock_msg");
+    if (msg) msg.textContent = "Select the inventory slot containing the item you want to unlock.";
+    const btn = document.getElementById("manual_unlock_start_btn");
+    if (btn) btn.textContent = "Unlock";
+    content.style.display = "none";
+    inline.style.display = "flex";
+}
+
+export function closeManualUnlock(): void {
+    if (manualUnlockState) manualUnlockState.abort();
+    const content = document.getElementById("settings_content");
+    const inline = document.getElementById("manual_unlock_inline");
+    if (content) content.style.display = "";
+    if (inline) inline.style.display = "none";
+}
+
 export function manualUnlock(): void {
     // If already running, cancel and return.
     if (manualUnlockState) {
@@ -276,7 +297,7 @@ export function manualUnlock(): void {
         return;
     }
 
-    const input = document.getElementById("manual_unlock_slot") as HTMLInputElement | null;
+    const input = document.getElementById("manual_unlock_slot_input") as HTMLInputElement | null;
     const userSlot = parseInt(input?.value ?? "1", 10);
     const targetIndex = Math.min(27, Math.max(0, userSlot - 1));
     const slot = inventory.getSlot(targetIndex);
@@ -288,9 +309,11 @@ export function manualUnlock(): void {
     const anim = new SlotLoadingAnimation(slot);
     anim.start();
 
-    // Update button to show "Cancel"
-    const btn = document.getElementById("manual_unlock_btn");
+    // Update button and message
+    const btn = document.getElementById("manual_unlock_start_btn");
     if (btn) btn.textContent = "Cancel";
+    const msg = document.getElementById("manual_unlock_msg");
+    if (msg) msg.textContent = "Hover over the target inventory slot";
 
     const POLL_MS = 200;
     const TIMEOUT_MS = 30_000;
@@ -298,9 +321,8 @@ export function manualUnlock(): void {
     let resolved = false;
 
     const cleanup = (): void => {
-        // Restore button label
-        const btn = document.getElementById("manual_unlock_btn");
         if (btn) btn.textContent = "Unlock";
+        if (msg) msg.textContent = "Select the inventory slot containing the item you want to unlock.";
         if (!manualUnlockState) return;
         clearInterval(manualUnlockState.timer);
         manualUnlockState.animation.stop();
@@ -384,7 +406,7 @@ function handleManualWikiResult(
             recordUnlock(queriedName, url, displayLabel).catch(() => {});
         });
         // Notification is sent by addUnlockedItem internally — don't double-fire.
-        abort();
+        closeManualUnlock();
     } else if (result.disambig && result.disambig.length > 0) {
         if (result.disambig.length === 1) {
             const name = result.disambig[0].name;
@@ -421,9 +443,11 @@ let slotDebugTimer: ReturnType<typeof setInterval> | null = null;
 let showOccludedSlots = true;
 
 export function openSlotDebug(): void {
-    const pane = document.getElementById("slot_debug_pane");
-    if (!pane) return;
-    pane.style.display = "flex";
+    const content = document.getElementById("developer_content");
+    const inline = document.getElementById("slot_debug_inline");
+    if (!content || !inline) return;
+    content.style.display = "none";
+    inline.style.display = "flex";
     const cb = document.getElementById("slot_debug_show_occluded") as HTMLInputElement | null;
     if (cb) showOccludedSlots = cb.checked;
     renderSlotDebug();
@@ -435,8 +459,10 @@ export function openSlotDebug(): void {
 
 export function closeSlotDebug(): void {
     if (slotDebugTimer) { clearInterval(slotDebugTimer); slotDebugTimer = null; }
-    const pane = document.getElementById("slot_debug_pane");
-    if (pane) pane.style.display = "none";
+    const content = document.getElementById("developer_content");
+    const inline = document.getElementById("slot_debug_inline");
+    if (content) content.style.display = "";
+    if (inline) inline.style.display = "none";
 }
 
 /** Re-render immediately after the checkbox toggles (called from HTML onchange). */
@@ -567,11 +593,13 @@ export function closeDisambiguation(): void {
  *  (empty/unscanned slots render as a blank tile; identical hashes get a green
  *  border). */
 export function openItemPngs(): void {
-    const pane = document.getElementById("item_pngs_pane");
+    const content = document.getElementById("developer_content");
+    const inline = document.getElementById("item_pngs_inline");
     const body = document.getElementById("item_pngs_body");
-    if (!pane || !body) return;
+    if (!content || !inline || !body) return;
     renderInventoryPngs(body);
-    pane.style.display = "flex";
+    content.style.display = "none";
+    inline.style.display = "flex";
 }
 
 /** Fill the pane with every slot's current interior hash. */
@@ -613,8 +641,10 @@ function renderInventoryPngs(body: HTMLElement): void {
 
 /** Close the item hash PNGs pane. */
 export function closeItemPngs(): void {
-    const pane = document.getElementById("item_pngs_pane");
-    if (pane) pane.style.display = "none";
+    const content = document.getElementById("developer_content");
+    const inline = document.getElementById("item_pngs_inline");
+    if (content) content.style.display = "";
+    if (inline) inline.style.display = "none";
 }
 
 // ============================================================
