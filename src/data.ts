@@ -1,6 +1,6 @@
 // data.ts — UnlockStore: IndexedDB persistence + in-memory unlock lookup
 import { state, log, showNotification } from "./core";
-import { lowerHalfOf } from "./hash";
+import { lowerHalfOf, nibbleTolerantMatch } from "./hash";
 
 /** Per-hash metadata stored alongside each variant. */
 export interface HashEntry {
@@ -40,6 +40,11 @@ class UnlockStore {
 
     /** Flat hash lookup — the O(1) hot path used by the scan tick. */
     private hashes: Set<string> = new Set();
+    /** Checksum → hash[] — pre-filter for nibble-tolerant scan (login-out
+     *  colour variance: the same item can render with ±1 nibble shifts in
+     *  1-2 cells). Exact Set is checked first (O(1)); this index only runs
+     *  when the exact lookup fails, which is rare. */
+    private hashByChecksum: Map<number, string[]> = new Map();
     /** Names already in the unlock DB — a name hit means "append hash, no notify". */
     private names: Set<string> = new Set();
     /** Names of unlocked tradable items — synchronous O(1) lookup for the GE
@@ -60,6 +65,14 @@ class UnlockStore {
 
     private storeName(store: string): string {
         return store === "untradable" ? STORE_UNTRADABLE : STORE_TRADABLE;
+    }
+
+    private addHashToChecksum(hash: string): void {
+        let cs = 0;
+        for (let i = 0; i < 192; i++) cs += parseInt(hash[i], 16);
+        const bucket = this.hashByChecksum.get(cs);
+        if (bucket) bucket.push(hash);
+        else this.hashByChecksum.set(cs, [hash]);
     }
 
     // ----------------------------------------------------------
@@ -169,12 +182,14 @@ class UnlockStore {
      *  non-stackables never reach it. */
     private rebuildIndexes(records: UnlockedItemRecord[]): void {
         this.hashes.clear();
+        this.hashByChecksum.clear();
         this.names.clear();
         this.lowerHalfIndex.clear();
         this.searchIndex.length = 0;
         for (const r of records) {
             for (const h of r.hashes) {
                 this.hashes.add(h.hash);
+                this.addHashToChecksum(h.hash);
                 this.lowerHalfIndex.set(lowerHalfOf(h.hash), r.name);
             }
             this.names.add(r.name);
@@ -208,6 +223,7 @@ class UnlockStore {
             return;
         }
         this.hashes.add(hash);
+        this.addHashToChecksum(hash);
         this.lowerHalfIndex.set(lowerHalfOf(hash), name);
         const entry: HashEntry = { hash, stackableQuantity, addedOn: Date.now() };
         const isNewName = !this.names.has(name);
@@ -245,6 +261,24 @@ class UnlockStore {
 
     isHashUnlocked(hash: string): boolean {
         return this.hashes.has(hash);
+    }
+
+    /** Nibble-tolerant unlock check — for items whose hash varies by ±1
+     *  nibble across login sessions (same item, slightly different render).
+     *  Uses a checksum pre-filter to avoid scanning all stored hashes;
+     *  only the ±5 checksum buckets are scanned with full nibble tolerance.
+     *  Called ONLY when the exact Set lookup returns false (rare). */
+    isHashNibbleUnlocked(hash: string): boolean {
+        let cs = 0;
+        for (let i = 0; i < 192; i++) cs += parseInt(hash[i], 16);
+        for (let d = -5; d <= 5; d++) {
+            const bucket = this.hashByChecksum.get(cs + d);
+            if (!bucket) continue;
+            for (const stored of bucket) {
+                if (nibbleTolerantMatch(hash, stored)) return true;
+            }
+        }
+        return false;
     }
 
     /** Synchronous O(1) check — returns true when `name` is in the unlocked
@@ -308,6 +342,7 @@ class UnlockStore {
     /** Clear every unlock (both stores + all in-memory indexes). */
     resetUnlocks(): void {
         this.hashes.clear();
+        this.hashByChecksum.clear();
         this.names.clear();
         this.unlockedTradableNames.clear();
         this.lowerHalfIndex.clear();
@@ -392,6 +427,7 @@ export const getTradableUnlockCount = (): Promise<number> => unlockStore.countTr
 export const getSearchIndex = (): ReadonlyArray<SearchEntry> => unlockStore.getSearchIndex();
 export const addUnlockedItem = (name: string, tradeable: boolean, hash: string, stackableQuantity: number | null = null, force = false): void => unlockStore.add(name, tradeable, hash, stackableQuantity, force);
 export const isHashUnlocked = (hash: string): boolean => unlockStore.isHashUnlocked(hash);
+export const isHashNibbleUnlocked = (hash: string): boolean => unlockStore.isHashNibbleUnlocked(hash);
 export const isLowerHalfUnlocked = (lowerHalf: string): boolean => unlockStore.isLowerHalfUnlocked(lowerHalf);
 export const isNameUnlocked = (name: string): boolean => unlockStore.isNameUnlocked(name);
 export const dumpTradableUnlocks = (): Promise<void> => unlockStore.dumpTradable();
