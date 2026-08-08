@@ -246,11 +246,11 @@ class UnlockStore {
     /** Nibble-tolerant unlock check — for items whose hash varies by ±1
      *  nibble across login sessions (same item, slightly different render).
      *  Uses a checksum pre-filter to avoid scanning all stored hashes;
-     *  only the ±5 checksum buckets are scanned with full nibble tolerance.
+     *  only the ±30 checksum buckets are scanned with full nibble tolerance.
      *  Called ONLY when the exact Set lookup returns false (rare). */
     isHashNibbleUnlocked(hash: string): boolean {
         const cs = hashChecksum(hash);
-        for (let d = -5; d <= 5; d++) {
+        for (let d = -30; d <= 30; d++) {
             const bucket = this.hashByChecksum.get(cs + d);
             if (!bucket) continue;
             for (const stored of bucket) {
