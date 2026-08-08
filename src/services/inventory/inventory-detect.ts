@@ -121,15 +121,30 @@ function countColumns(
  *  Returns a BackpackAnchor or null. */
 export function detectInventoryGrid(img: ImgRef): BackpackAnchor | null {
     const hit = findSlotByFingerprint(img);
-    if (!hit) return null;
+    if (!hit) {
+        console.log("[detect] fingerprint: no match");
+        return null;
+    }
+    console.log(`[detect] fingerprint: hit at (${hit.x},${hit.y}) fingerIndex=${hit.fingerIndex}`);
 
     const gap = measureGapToSlot2(img, { x: hit.x, y: hit.y });
-    if (!gap) return null;
+    if (!gap) {
+        console.log("[detect] gap: slot2 not found");
+        return null;
+    }
     const colStride = gap.slot2X - hit.x;
+    console.log(`[detect] gap: slot2X=${gap.slot2X} gapWidth=${gap.gapWidth} colStride=${colStride}`);
 
     const cols = countColumns(img, { x: hit.x, y: hit.y }, colStride);
-    if (cols === -1) return { x: hit.x, y: hit.y - 33, method: "auto", colStride: 0, rowStride: 0, gridCols: 0, gridRows: 0, scrollbar: true };
-    if (cols < 2) return null;
+    if (cols === -1) {
+        console.log("[detect] columns: scrollbar detected");
+        return { x: hit.x, y: hit.y - 33, method: "auto", colStride: 0, rowStride: 0, gridCols: 0, gridRows: 0, scrollbar: true };
+    }
+    if (cols < 2) {
+        console.log(`[detect] columns: only ${cols} — need ≥2`);
+        return null;
+    }
+    console.log(`[detect] columns: ${cols}`);
 
     const rowStride = 36;
     let rows = 0;
@@ -140,7 +155,11 @@ export function detectInventoryGrid(img: ImgRef): BackpackAnchor | null {
         if (!d) break;
         if (lightness(d.data[0], d.data[1], d.data[2]) >= 17) rows++; else break;
     }
-    if (rows < 2) return null;
+    if (rows < 2) {
+        console.log(`[detect] rows: only ${rows} — need ≥2`);
+        return null;
+    }
+    console.log(`[detect] rows: ${rows} → grid ${cols}×${rows}=${cols*rows}`);
 
     return {
         x: hit.x,
@@ -151,4 +170,29 @@ export function detectInventoryGrid(img: ImgRef): BackpackAnchor | null {
         gridCols: cols,
         gridRows: rows,
     };
+}
+
+// ============================================================
+//  Debug — dump the 5-pixel fingerprint at a given coordinate
+// ============================================================
+/** Read the 5 horizontal pixels at (x,y) on the image and log their RGB
+ *  values as a fingerprint array, ready to compare against FINGERPRINTS.
+ *  Call from console: Bronzeman.dumpFingerprintAt(x, y). */
+export function dumpFingerprintAt(img: ImgRef, sx: number, sy: number): number[] | null {
+    try {
+        const fp: number[] = [];
+        for (let i = 0; i < 5; i++) {
+            const d = img.toData(sx + i, sy, 1, 1);
+            if (!d) return null;
+            fp.push(d.data[0], d.data[1], d.data[2]);
+        }
+        const hexes = [];
+        for (let i = 0; i < 5; i++) {
+            hexes.push("#" + fp[i*3].toString(16).padStart(2,"0").toUpperCase()
+                + fp[i*3+1].toString(16).padStart(2,"0").toUpperCase()
+                + fp[i*3+2].toString(16).padStart(2,"0").toUpperCase());
+        }
+        console.log(`[diag] fp at (${sx},${sy}):`, fp, "→ hex:", hexes.join(" "));
+        return fp;
+    } catch { return null; }
 }

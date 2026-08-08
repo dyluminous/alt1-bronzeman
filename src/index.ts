@@ -22,6 +22,15 @@ import { initOnLoad } from "./bootstrap";
 export { toggleAutoCapture, clearReference, stopAutoCapture, startAutoCapture, toggleHideScanningNotification } from "./services/inventory/inventory-capture";
 export { debugFindSlot, updateGridDebug, toggleSlotAnimation, toggleTooltipDebug, toggleGeDebugOverlays } from "./services/overlay/overlay-draw";
 export { diagnoseSlotScan, dumpSlotHash, debugCorners, ocrStackableDebug, readStackableQuantity } from "./services/inventory/inventory-scan";
+export { dumpFingerprintAt } from "./services/inventory/inventory-detect";
+import { captureFullRs } from "./core";
+import { dumpFingerprintAt as _dumpFingerprintAt } from "./services/inventory/inventory-detect";
+/** Dump the 5-pixel fingerprint at (x,y) on the current RS capture. */
+export function dumpFingerprint(x: number, y: number): void {
+    const img = captureFullRs();
+    if (!img) { console.log("[diag] capture failed"); return; }
+    _dumpFingerprintAt(img, x, y);
+}
 export { addUnlockedItem, isHashUnlocked, dumpTradableUnlocks, dumpUntradableUnlocks, dumpItemHashes, getRecentRecords } from "./services/unlock/unlock-store";
 export { backupUnlocks, restoreUnlocks } from "./services/unlock/unlock-backup";
 export { modalCancel, modalOk } from "./ui/modal";
