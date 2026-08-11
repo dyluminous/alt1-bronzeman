@@ -254,7 +254,49 @@ class UnlockStore {
             const bucket = this.hashByChecksum.get(cs + d);
             if (!bucket) continue;
             for (const stored of bucket) {
-                if (nibbleTolerantMatch(hash, stored)) return true;
+                if (nibbleTolerantMatch(hash, stored)) {
+                    log(`[nibble] match: cs=${cs} stored_cs=${cs+d} delta=${d}`);
+                    return true;
+                }
+            }
+        }
+        // Debug: check the closest checksum neighbors
+        let minDist = Infinity, closestDelta = 0;
+        for (let d = -30; d <= 30; d++) {
+            const bucket = this.hashByChecksum.get(cs + d);
+            if (!bucket) continue;
+            for (const stored of bucket) {
+                let dist = 0;
+                for (let i = 0; i < 192; i++) {
+                    const delta = Math.abs(parseInt(hash[i], 16) - parseInt(stored[i], 16));
+                    if (delta > 0) dist += delta;
+                }
+                if (dist < minDist) { minDist = dist; closestDelta = d; }
+            }
+        }
+        log(`[nibble] no match: cs=${cs} total_stored_hashes=${this.hashes.size} closest_cs_delta=${closestDelta} min_nibble_dist=${minDist}`);
+        // Dump the closest stored hash comparison — show cells exceeding threshold
+        for (let d = -30; d <= 30; d++) {
+            const bucket = this.hashByChecksum.get(cs + d);
+            if (!bucket) continue;
+            for (const stored of bucket) {
+                let dist = 0;
+                for (let i = 0; i < 192; i++) {
+                    dist += Math.abs(parseInt(hash[i], 16) - parseInt(stored[i], 16));
+                }
+                if (dist === minDist) {
+                    const cells: string[] = [];
+                    for (let i = 0; i < 192; i++) {
+                        const dl = Math.abs(parseInt(hash[i], 16) - parseInt(stored[i], 16));
+                        if (dl > 2) {
+                            const cell = Math.floor(i / 3) % 8;
+                            const row = Math.floor(Math.floor(i / 3) / 8);
+                            cells.push(`cell[${row},${cell}].${"RGB"[i%3]}: live=${hash[i]} stored=${stored[i]} Δ=${dl}`);
+                        }
+                    }
+                    log(`[nibble] cells exceeding threshold: ${cells.length} ${cells.slice(0, 15).join(" | ")}`);
+                    break;
+                }
             }
         }
         return false;
