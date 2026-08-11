@@ -442,3 +442,24 @@ export function hashToPngDataUrl(hash: string, scale: number): string {
     }
     return canvas.toDataURL("image/png");
 }
+
+/** Like hashToPngDataUrl but renders only rows 3-7 (cells 24-63, nibble offset 72+)
+ *  — the lower-half item-identity portion used for stackable/noted matching. */
+export function hashLowerHalfToPngDataUrl(hash: string, scale: number): string {
+    const canvas = document.createElement("canvas");
+    canvas.width = 8 * scale;
+    canvas.height = 5 * scale; // rows 3-7 = 5 rows
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return "";
+    for (let row = 3; row < 8; row++) {
+        for (let x = 0; x < 8; x++) {
+            const i = (row * 8 + x) * 3;
+            const r = parseInt(hash[i] ?? "0", 16) * 17;
+            const g = parseInt(hash[i + 1] ?? "0", 16) * 17;
+            const b = parseInt(hash[i + 2] ?? "0", 16) * 17;
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.fillRect(x * scale, (row - 3) * scale, scale, scale);
+        }
+    }
+    return canvas.toDataURL("image/png");
+}

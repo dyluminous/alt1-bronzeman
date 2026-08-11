@@ -3,7 +3,7 @@ import { inventory } from "../classes/inventory";
 import { InventorySlot } from "../classes/inventory-slot";
 import { state, escHtml, captureFullRs, LS_KEYS, log, showNotification, geSuppressGroup } from "../core";
 import { resetUnlocks as dataResetUnlocks, getUnlockCount, getTradableUnlockCount, getSearchIndex } from "../services/unlock/unlock-store";
-import { hashToPngDataUrl, getItemRecord } from "../services/unlock/unlock-store";
+import { hashToPngDataUrl, hashLowerHalfToPngDataUrl, getItemRecord } from "../services/unlock/unlock-store";
 import type { UnlockedItemRecord } from "../services/unlock/unlock-store";
 import { getRecentUnlocks, getRecentUnlocksLimit, clearRecentUnlocks, setRecentUnlocksLimit } from "./unlock-recent";
 import { showModal } from "./modal";
@@ -532,9 +532,12 @@ export async function searchDbItemHash(): Promise<void> {
         const tiles = rec.hashes.map((h, i) => {
             const qty = h.stackableQuantity;
             const qtyLabel = qty != null && qty > 1 ? ` [${qty}]` : "";
-            const url = hashToPngDataUrl(h.hash, 10);
+            const fullUrl = hashToPngDataUrl(h.hash, 10);
+            const lowerUrl = hashLowerHalfToPngDataUrl(h.hash, 10);
+            const images = `<img src="${fullUrl}" title="${escHtml(h.hash)}" style="image-rendering:pixelated;width:80px;height:80px;display:block;">` +
+                `<img src="${lowerUrl}" title="lower half" style="image-rendering:pixelated;width:80px;height:50px;display:block;margin-top:2px;border-top:1px solid #ff0;">`;
             return `<div style="text-align:center;border:1px solid #888;padding:2px;">` +
-                `<img src="${url}" title="${escHtml(h.hash)}" style="image-rendering:pixelated;width:80px;height:80px;display:block;">` +
+                images +
                 `<div class="wiki-disambig-note">#${i + 1}${qtyLabel}</div>` +
                 `</div>`;
         }).join("");
