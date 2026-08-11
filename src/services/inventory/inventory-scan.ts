@@ -9,7 +9,7 @@ import { inventory } from "../../classes/inventory";
 import { captureFullRs, log, lightness } from "../../core";
 import type { ImgRef } from "alt1/base";
 import { InventorySlot } from "../../classes/inventory-slot";
-import { isHashUnlocked, isLowerHalfUnlocked, isHashNibbleUnlocked } from "../unlock/unlock-store";
+import { isHashUnlocked, isLowerHalfUnlocked, isLowerHalfNibbleUnlocked, isHashNibbleUnlocked } from "../unlock/unlock-store";
 import { hashInterior, LOWER_HALF_OFFSET } from "../../utils/hash";
 import { readPixel } from "../../utils/helpers";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -271,6 +271,7 @@ class SlotScanner {
             // a quantity-variant of it → treated as unlocked (no dot, no wiki).
             if (cur === EMPTY_HASH || isHashUnlocked(cur)
                 || (slot.isStackable && isLowerHalfUnlocked(cur.slice(LOWER_HALF_OFFSET)))
+                || (slot.isStackable && isLowerHalfNibbleUnlocked(cur.slice(LOWER_HALF_OFFSET)))
                 || isHashNibbleUnlocked(cur)) {
                 this.nonUnlockedSlots.delete(slot.index);
             } else {

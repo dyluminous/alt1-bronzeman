@@ -322,6 +322,15 @@ class UnlockStore {
         return this.lowerHalfIndex.has(lowerHalf);
     }
 
+    /** Nibble-tolerant version — for stackable items whose lower half
+     *  drifted across sessions. Compares only the lower 120 nibbles. */
+    isLowerHalfNibbleUnlocked(lowerHalf: string): boolean {
+        for (const stored of Array.from(this.lowerHalfIndex.keys())) {
+            if (nibbleTolerantMatch(lowerHalf, stored)) return true;
+        }
+        return false;
+    }
+
     /** Debug: log every record in the tradable unlock store to the console. */
     async dumpTradable(): Promise<void> {
         if (!this.ready) { log("[diag] Unlock DB not ready"); return; }
@@ -451,6 +460,7 @@ export const addUnlockedItem = (name: string, tradeable: boolean, hash: string, 
 export const isHashUnlocked = (hash: string): boolean => unlockStore.isHashUnlocked(hash);
 export const isHashNibbleUnlocked = (hash: string): boolean => unlockStore.isHashNibbleUnlocked(hash);
 export const isLowerHalfUnlocked = (lowerHalf: string): boolean => unlockStore.isLowerHalfUnlocked(lowerHalf);
+export const isLowerHalfNibbleUnlocked = (lowerHalf: string): boolean => unlockStore.isLowerHalfNibbleUnlocked(lowerHalf);
 export const isNameUnlocked = (name: string): boolean => unlockStore.isNameUnlocked(name);
 export const dumpTradableUnlocks = (): Promise<void> => unlockStore.dumpTradable();
 export const dumpUntradableUnlocks = (): Promise<void> => unlockStore.dumpUntradable();
